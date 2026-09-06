@@ -3,6 +3,7 @@ package com.testModule.TestModule.Controller;
 import com.testModule.TestModule.Model.AiFeedback;
 import com.testModule.TestModule.Model.TestCase;
 import com.testModule.TestModule.Model.TestCaseResult;
+import com.testModule.TestModule.Repository.ProblemRepository;
 import com.testModule.TestModule.Service.GeminiService;
 import com.testModule.TestModule.Service.JudgeService;
 import org.springframework.web.bind.annotation.*;
@@ -19,17 +20,12 @@ public class JudgeController {
 
     private final JudgeService judgeService;
 
-    public JudgeController(GeminiService geminiService, JudgeService judgeService) {
+    public JudgeController(GeminiService geminiService, JudgeService judgeService, ProblemRepository problemRepository) {
         this.geminiService = geminiService;
         this.judgeService = judgeService;
+        this.problemRepository = problemRepository;
     }
-
-    // Test nhanh bằng GET, không cần gửi body
-    @GetMapping("/test-judge")
-    public Map<String, Object> testJudge() {
-        String sampleCode = "print('hello from spring boot')";
-        return judgeService.runCode(sampleCode, 71, "");
-    }
+    private final ProblemRepository problemRepository;
 
 //    Test voi ko AI
     @PostMapping("/submit")
