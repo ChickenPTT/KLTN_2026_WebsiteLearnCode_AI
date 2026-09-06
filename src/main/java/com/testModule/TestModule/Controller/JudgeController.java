@@ -1,6 +1,7 @@
 package com.testModule.TestModule.Controller;
 
 import com.testModule.TestModule.Model.AiFeedback;
+import com.testModule.TestModule.Model.Problem;
 import com.testModule.TestModule.Model.TestCase;
 import com.testModule.TestModule.Model.TestCaseResult;
 import com.testModule.TestModule.Repository.ProblemRepository;
@@ -12,6 +13,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
@@ -30,15 +32,20 @@ public class JudgeController {
 //    Test voi ko AI
     @PostMapping("/submit")
     public List<TestCaseResult> submitCode(@RequestBody Map<String, String> body) {
-        String sourceCode = body.get("source_code");
+        String sourceCode = (String) body.get("source_code");
+        Long problemId = Long.valueOf(body.get("problem_id").toString());
 
-        List<TestCase> testCases = Arrays.asList(
-                new TestCase("3 5", "8"),
-                new TestCase("10 20", "30"),
-                new TestCase("-1 1", "0")
-        );
+        try {
+            Problem problem = problemRepository.findById(problemId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy problem_id: " + problemId));
 
-        return judgeService.runAllTestCases(sourceCode, 71, testCases);
+            List<TestCase> testCases = problem.getTestCases().stream()
+                    .map(tc -> new TestCase(tc.getInput(), tc.getExpectedOutput()))
+                    .collect(Collectors.toList());
+            return judgeService.runAllTestCases(sourceCode, problem.getLanguageId(), testCases);
+        }catch (RuntimeException e){
+            throw new RuntimeException("Không tìm thấy problem_id: " + problemId);
+        }
     }
 
 
@@ -51,25 +58,28 @@ public class JudgeController {
     @PostMapping("/analyze")
     public Map<String, Object> analyzeSubmission(@RequestBody Map<String, String> body) {
         String sourceCode = body.get("source_code");
+        Long problemId = Long.valueOf(body.get("problem_id").toString());
 
-        String problemStatement = "Cho một mảng gồm n số nguyên. Hãy sắp xếp mảng theo thứ tự tăng dần. "
-                + "Input: dòng 1 là số nguyên n, dòng 2 là n số nguyên cách nhau bởi dấu cách. "
-                + "Output: in ra mảng đã sắp xếp, các số cách nhau bởi dấu cách.";
+        try {
+            Problem problem = problemRepository.findById(problemId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy problem_id: " + problemId));
 
-        List<TestCase> testCases = Arrays.asList(
-                new TestCase("5\n3 1 4 1 5", "1 1 3 4 5"),
-                new TestCase("3\n9 8 7", "7 8 9"),
-                new TestCase("4\n-2 5 0 -1", "-2 -1 0 5")
-        );
+            List<TestCase> testCases = problem.getTestCases().stream()
+                    .map(tc -> new TestCase(tc.getInput(), tc.getExpectedOutput()))
+                    .collect(Collectors.toList());
 
+            List<TestCaseResult> testResults = judgeService.runAllTestCases(sourceCode, problem.getLanguageId(), testCases);
+            AiFeedback aiFeedback = geminiService.analyzeCode(problem.getStatement(), sourceCode, testResults);
 
-        List<TestCaseResult> testResults = judgeService.runAllTestCases(sourceCode, 71, testCases);
-        AiFeedback aiFeedback = geminiService.analyzeCode(problemStatement,sourceCode,testResults  );
-        Map<String, Object> response = new HashMap<>();
-        response.put("testResults",testResults);
-        response.put("aiFeedback",aiFeedback);
+            Map<String, Object> response = new HashMap<>();
+            response.put("testResults", testResults);
+            response.put("aiFeedback", aiFeedback);
+            return response;
 
-        return response;
+        } catch (RuntimeException e) {
+            throw new RuntimeException("Không tìm thấy problem_id: " + problemId);
+        }
+
 
     }
 
