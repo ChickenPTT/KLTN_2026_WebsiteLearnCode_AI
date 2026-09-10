@@ -1,11 +1,15 @@
-package com.testModule.TestModule.Model; // đổi theo package thật của bạn
+package com.testModule.TestModule.Model;
 
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
 @Table(name = "problems")
 public class Problem {
+
+    public enum Status { DRAFT, PUBLISHED }
+    public enum SourceType { MANUAL, AI_GENERATED }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -15,28 +19,28 @@ public class Problem {
     private String statement;
 
     private int languageId;
-
     private String topic;
-
     private String level;
 
-    // 1 Problem có nhiều TestCaseEntity  xóa Problem thì xóa luôn test case liên quan
+    @Enumerated(EnumType.STRING)
+    private Status status = Status.PUBLISHED;
+
+    @Enumerated(EnumType.STRING)
+    private SourceType sourceType = SourceType.MANUAL;
+
+    // THAY THẾ templateGroupId (Long) bằng liên kết Entity thật
+    @ManyToOne
+    @JoinColumn(name = "template_id")
+    private Template template;
+
+    @Column(columnDefinition = "TEXT")
+    private String referenceSolution;
+
+    private LocalDateTime createdAt = LocalDateTime.now();
+
     @OneToMany(mappedBy = "problem", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TestCaseEntity> testCases;
 
-    public Problem(){
-
-    }
-    public Problem(Long id, String level, String topic, int languageId, String statement,List<TestCaseEntity> testCases ) {
-        this.id = id;
-        this.level = level;
-        this.topic = topic;
-        this.languageId = languageId;
-        this.statement = statement;
-        this.testCases = testCases;
-    }
-
-    // Getters & setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -51,6 +55,21 @@ public class Problem {
 
     public String getLevel() { return level; }
     public void setLevel(String level) { this.level = level; }
+
+    public Status getStatus() { return status; }
+    public void setStatus(Status status) { this.status = status; }
+
+    public SourceType getSourceType() { return sourceType; }
+    public void setSourceType(SourceType sourceType) { this.sourceType = sourceType; }
+
+    public Template getTemplate() { return template; }
+    public void setTemplate(Template template) { this.template = template; }
+
+    public String getReferenceSolution() { return referenceSolution; }
+    public void setReferenceSolution(String referenceSolution) { this.referenceSolution = referenceSolution; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
     public List<TestCaseEntity> getTestCases() { return testCases; }
     public void setTestCases(List<TestCaseEntity> testCases) { this.testCases = testCases; }

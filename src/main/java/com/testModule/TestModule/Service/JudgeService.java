@@ -54,6 +54,7 @@ public class JudgeService {
         }
         return result;
     }
+
     public List<TestCaseResult> runAllTestCases(String sourceCode, int languageId, List<TestCase> testCases) {
         List<TestCaseResult> results = new ArrayList<>();
 

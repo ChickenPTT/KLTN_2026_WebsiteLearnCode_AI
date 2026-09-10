@@ -9,12 +9,14 @@ public class TestCaseResult{
     private String time;
     private Integer memory;
 
-    public TestCaseResult(String input, String expectedOutput, String actualOutput, boolean passed, String statusDesc, String status, Integer memory) {
+    public TestCaseResult(String input, String expectedOutput, String actualOutput, boolean passed, String status, String time, Integer memory) {
         this.input = input;
         this.expectedOutput = expectedOutput;
         this.actualOutput = actualOutput;
         this.passed = passed;
         this.status = status;
+        this.time = time;
+        this.memory = memory;
     }
 
     public String getInput() {
@@ -64,7 +66,6 @@ public class TestCaseResult{
     public void setTime(String time) {
         this.time = time;
     }
-
     public Integer getMemory() {
         return memory;
     }

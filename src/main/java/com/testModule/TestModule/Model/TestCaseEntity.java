@@ -1,5 +1,6 @@
 package com.testModule.TestModule.Model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
 @Entity
@@ -18,6 +19,7 @@ public class TestCaseEntity {
 
     @ManyToOne
     @JoinColumn(name = "problem_id")
+    @JsonIgnore
     private Problem problem;
 
 
