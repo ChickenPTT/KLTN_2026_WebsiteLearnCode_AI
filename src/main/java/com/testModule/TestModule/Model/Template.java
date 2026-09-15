@@ -28,7 +28,7 @@ public class Template {
     @Enumerated(EnumType.STRING)
     private GeneratorType generatorType;
 
-
+// Note: Lượt bỏ hoặc tinh chỉnh lại.
     private Integer minN;
     private Integer maxN;
     private Integer minValue;

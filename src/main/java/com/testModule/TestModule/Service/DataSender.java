@@ -61,13 +61,14 @@ public class DataSender implements CommandLineRunner {
 
             System.out.println("Đã nạp " + problemRepository.count() + " bài mẫu vào database.");
         }
-
+//      Topic: Array
         if (templateRepository.count() == 0) {
             Topic arrayTopic = new Topic();
             arrayTopic.setName("Mảng");
             arrayTopic.setColorTag("#3B82F6");
             topicRepository.save(arrayTopic);
 
+//          Template 1: Xep mang tang dan
             Template sortTemplate = new Template();
             sortTemplate.setName("Sắp xếp mảng tăng dần");
             sortTemplate.setTopic(arrayTopic);
@@ -91,7 +92,7 @@ public class DataSender implements CommandLineRunner {
             sortTemplate.setLanguageId(71);
             templateRepository.save(sortTemplate);
 
-            System.out.println("Đã nạp 1 topic và 1 template mẫu vào database.");
+            System.out.println("Đã nạp topic và template mẫu vào database.");
         }
     }
 }

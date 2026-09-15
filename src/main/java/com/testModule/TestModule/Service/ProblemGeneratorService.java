@@ -12,7 +12,7 @@ import java.util.*;
 @Service
 public class ProblemGeneratorService implements IProblemGenerator {
 
-    private static final int Number_Tescase = 4;
+    private static final int Number_Tescase = 3;
 
     private final TemplateRepository templateRepository;
     private final ProblemRepository problemRepository;
@@ -92,7 +92,7 @@ public class ProblemGeneratorService implements IProblemGenerator {
     }
 
     // Random input dựa vào generatorType của template
-    private String generateInput(Template template) {
+    public String generateInput(Template template) {
         switch (template.getGeneratorType()) {
             case TWO_INTEGERS -> {
                 int a = randomInRange(template.getMinValue(), template.getMaxValue());

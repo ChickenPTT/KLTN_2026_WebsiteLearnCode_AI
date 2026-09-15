@@ -30,7 +30,6 @@ public class JudgeController {
         this.judgeService = judgeService;
         this.problemRepository = problemRepository;
     }
-
 //    Test voi ko AI
     @PostMapping("/submit")
     public List<TestCaseResult> submitCode(@RequestBody Map<String, String> body) {
@@ -52,13 +51,6 @@ public class JudgeController {
             throw new RuntimeException("Không tìm thấy problem_id: " + problemId);
         }
     }
-
-
-    @GetMapping("testAi")
-    public String testAi() {
-        return geminiService.askGemini("Explain how AI works in a few words");
-    }
-
 //    test ai
     @PostMapping("/analyze")
     public Map<String, Object> analyzeSubmission(@RequestBody Map<String, String> body) {
