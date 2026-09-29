@@ -15,31 +15,69 @@ import java.util.Map;
 public class GeminiService {
 
     @Value("${gemini.api.key}")
-    private String apiKey;
+    private String geminiApiKey;
 
     @Value("${gemini.api.url}")
-    private String apiUrl;
+    private String geminiApiUrl;
+
+    @Value("${groq.api.key}")
+    private String groqApiKey;
+
+    @Value("${groq.api.url}")
+    private String groqApiUrl;
+
+    @Value("${groq.model:llama-3.3-70b-versatile}")
+    private String groqModel;
 
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public String askGemini(String promptText) {
+        try {
+            return callGemini(promptText, false);
+        } catch (Exception geminiError) {
+            System.err.println("[AI] Gemini lỗi (" + geminiError.getMessage() + ") -> chuyển sang Groq");
+            return callGroq(promptText, false);
+        }
+    }
 
-        // Cấu trúc body theo đúng format Gemini yêu cầu: contents -> parts -> text
+    public AiFeedback analyzeCode(String problemStatement, String sourceCode, List<TestCaseResult> testResults) {
+        String prompt = buildAnalyzePrompt(problemStatement, sourceCode, testResults);
+
+        String jsonText;
+        try {
+            jsonText = callGemini(prompt, true);
+        } catch (Exception geminiError) {
+            System.err.println("[AI] Gemini lỗi khi phân tích (" + geminiError.getMessage() + ") -> chuyển sang Groq");
+            jsonText = callGroq(prompt, true);
+        }
+
+        try {
+            return objectMapper.readValue(jsonText, AiFeedback.class);
+        } catch (Exception e) {
+            throw new RuntimeException("Không parse được JSON từ AI: " + jsonText, e);
+        }
+    }
+
+    // ================= GEMINI =================
+
+    private String callGemini(String promptText, boolean forceJson) {
         Map<String, Object> part = Map.of("text", promptText);
         Map<String, Object> content = Map.of("parts", List.of(part));
-        Map<String, Object> body = Map.of("contents", List.of(content));
+
+        Map<String, Object> body = forceJson
+                ? Map.of("contents", List.of(content),
+                "generationConfig", Map.of("response_mime_type", "application/json"))
+                : Map.of("contents", List.of(content));
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("x-goog-api-key", apiKey); // Gemini nhận key qua header này
+        headers.set("x-goog-api-key", geminiApiKey);
 
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
-
-        ResponseEntity<Map> response = restTemplate.postForEntity(apiUrl, request, Map.class);
+        ResponseEntity<Map> response = restTemplate.postForEntity(geminiApiUrl, request, Map.class);
         Map<String, Object> result = response.getBody();
 
-        // Bóc tách text trả về từ cấu trúc: candidates[0].content.parts[0].text
         List<Map<String, Object>> candidates = (List<Map<String, Object>>) result.get("candidates");
         Map<String, Object> firstCandidate = candidates.get(0);
         Map<String, Object> contentResp = (Map<String, Object>) firstCandidate.get("content");
@@ -47,9 +85,41 @@ public class GeminiService {
 
         return (String) parts.get(0).get("text");
     }
-    public AiFeedback analyzeCode(String problemStatement, String sourceCode, List<TestCaseResult> testResults) {
 
-        // Xây dựng prompt hoàn chỉnh từ dữ liệu thật
+    // ================= GROQ (dự phòng khi Gemini quá tải) =================
+
+    private String callGroq(String promptText, boolean forceJson) {
+        Map<String, Object> userMessage = Map.of("role", "user", "content", promptText);
+
+        Map<String, Object> body = forceJson
+                ? Map.of(
+                "model", groqModel,
+                "messages", List.of(userMessage),
+                "temperature", 0.3,
+                "response_format", Map.of("type", "json_object")
+        )
+                : Map.of(
+                "model", groqModel,
+                "messages", List.of(userMessage),
+                "temperature", 0.7
+        );
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(groqApiKey);
+
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
+        ResponseEntity<Map> response = restTemplate.postForEntity(groqApiUrl, request, Map.class);
+        Map<String, Object> result = response.getBody();
+
+        List<Map<String, Object>> choices = (List<Map<String, Object>>) result.get("choices");
+        Map<String, Object> firstChoice = choices.get(0);
+        Map<String, Object> message = (Map<String, Object>) firstChoice.get("message");
+
+        return (String) message.get("content");
+    }
+
+    private String buildAnalyzePrompt(String problemStatement, String sourceCode, List<TestCaseResult> testResults) {
         StringBuilder prompt = new StringBuilder();
         prompt.append("Bạn là trợ giảng lập trình. Nhiệm vụ: phân tích code sinh viên nộp dựa trên kết quả chạy test case, ")
                 .append("KHÔNG được viết lại toàn bộ code đúng, chỉ gợi ý hướng sửa.\n\n");
@@ -73,35 +143,6 @@ public class GeminiService {
                 .append("  \"severity\": \"minor | major | none\"\n")
                 .append("}");
 
-        // Chuẩn bị request, thêm generationConfig để ép trả JSON
-        Map<String, Object> part = Map.of("text", prompt.toString());
-        Map<String, Object> content = Map.of("parts", List.of(part));
-        Map<String, Object> generationConfig = Map.of("response_mime_type", "application/json");
-        Map<String, Object> body = Map.of(
-                "contents", List.of(content),
-                "generationConfig", generationConfig
-        );
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("x-goog-api-key", apiKey);
-
-        HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
-        ResponseEntity<Map> response = restTemplate.postForEntity(apiUrl, request, Map.class);
-        Map<String, Object> result = response.getBody();
-
-        // Bóc tách text JSON trả về (giống hàm askGemini cũ)
-        List<Map<String, Object>> candidates = (List<Map<String, Object>>) result.get("candidates");
-        Map<String, Object> firstCandidate = candidates.get(0);
-        Map<String, Object> contentResp = (Map<String, Object>) firstCandidate.get("content");
-        List<Map<String, Object>> parts = (List<Map<String, Object>>) contentResp.get("parts");
-        String jsonText = (String) parts.get(0).get("text");
-
-        // Parse chuỗi JSON đó thành object AiFeedback
-        try {
-            return objectMapper.readValue(jsonText, AiFeedback.class);
-        } catch (Exception e) {
-            throw new RuntimeException("Không parse được JSON từ Gemini: " + jsonText, e);
-        }
+        return prompt.toString();
     }
 }
