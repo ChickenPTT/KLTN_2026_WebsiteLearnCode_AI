@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sliders, RefreshCw, Sparkles, FileCode, CheckCircle2, Download, Globe, Check, Rocket } from 'lucide-react';
+import { Sliders, RefreshCw, Sparkles, FileCode, FileCode2, CheckCircle2, Download, Globe, Check, Rocket } from 'lucide-react';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { TOPICS } from '@/types';
 import type { GeneratedQuestion } from './admin.types';
@@ -15,10 +15,15 @@ export function AdminGeneratorTab({
 }: AdminGeneratorTabProps) {
   const [genTopic, setGenTopic] = useState<string>('Array');
   const [genCount, setGenCount] = useState<number>(4);
-  const [genRatioEasy, setGenRatioEasy] = useState<number>(50);
-  const [genRatioMedium, setGenRatioMedium] = useState<number>(30);
-  const [genRatioHard, setGenRatioHard] = useState<number>(20);
+  const [genMode, setGenMode] = useState<'variant_input_output' | 'new_problem'>('variant_input_output');
+  const [genTemplate, setGenTemplate] = useState<string>('tpl-1');
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const mockTemplates = [
+    { label: 'Template cơ bản - Tìm kiếm tuyến tính', value: 'tpl-1' },
+    { label: 'Template nâng cao - Tối ưu bộ nhớ', value: 'tpl-2' },
+    { label: 'Template thực tế - Bài toán kinh tế', value: 'tpl-3' }
+  ];
   const [generatedExam, setGeneratedExam] = useState<GeneratedQuestion[] | null>(null);
 
   // Track published question IDs locally
@@ -116,6 +121,47 @@ export function AdminGeneratorTab({
               />
             </div>
 
+            {genTopic && (
+              <div className="auth-field">
+                <span className="auth-label" style={{ marginBottom: '6px' }}>Bài mẫu tham chiếu (Template)</span>
+                <SearchableSelect
+                  options={mockTemplates}
+                  value={genTemplate}
+                  onChange={(val) => setGenTemplate(val)}
+                  showSearch={false}
+                />
+              </div>
+            )}
+
+            <div className="auth-field">
+              <span className="auth-label" style={{ marginBottom: '6px' }}>
+                Phương thức sinh đề AI (Generation Mode)
+              </span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '6px' }}>
+                <div
+                  onClick={() => setGenMode('variant_input_output')}
+                  className={`gen-mode-card ${genMode === 'variant_input_output' ? 'active-blue' : ''}`}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                    <FileCode2 size={16} style={{ color: genMode === 'variant_input_output' ? '#5e8dfa' : '#7d8599' }} />
+                    <strong className="gen-mode-title-blue">Biến thể theo Bài Mẫu</strong>
+                  </div>
+                  <p className="gen-mode-desc">Giữ nguyên bài toán gốc từ Template, AI chỉ cập nhật & đổi mới dữ liệu Input/Output mẫu.</p>
+                </div>
+
+                <div
+                  onClick={() => setGenMode('new_problem')}
+                  className={`gen-mode-card ${genMode === 'new_problem' ? 'active-purple' : ''}`}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                    <RefreshCw size={16} style={{ color: genMode === 'new_problem' ? '#a995ff' : '#7d8599' }} />
+                    <strong className="gen-mode-title-purple">Tạo Đề Mới Hoàn Toàn</strong>
+                  </div>
+                  <p className="gen-mode-desc">Dựa theo chủ đề Template, AI sáng tác bài toán, yêu cầu và thuật toán mới hoàn toàn.</p>
+                </div>
+              </div>
+            </div>
+
             <label className="auth-field">
               <span className="auth-label">Tổng số bài tập ({genCount} bài)</span>
               <input
@@ -128,38 +174,7 @@ export function AdminGeneratorTab({
               />
             </label>
 
-            <div className="admin-ratio-box">
-              <span className="auth-label" style={{ marginBottom: '10px', display: 'block' }}>
-                Tỷ lệ phân bổ độ khó bài tập
-              </span>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-                <div className="ratio-input">
-                  <span style={{ color: '#78d39e', fontSize: '12px', fontWeight: 600 }}>Dễ (%)</span>
-                  <input
-                    type="number"
-                    value={genRatioEasy}
-                    onChange={(e) => setGenRatioEasy(Number(e.target.value))}
-                  />
-                </div>
-                <div className="ratio-input">
-                  <span style={{ color: '#f5c95d', fontSize: '12px', fontWeight: 600 }}>Trung bình (%)</span>
-                  <input
-                    type="number"
-                    value={genRatioMedium}
-                    onChange={(e) => setGenRatioMedium(Number(e.target.value))}
-                  />
-                </div>
-                <div className="ratio-input">
-                  <span style={{ color: '#f08a8a', fontSize: '12px', fontWeight: 600 }}>Khó (%)</span>
-                  <input
-                    type="number"
-                    value={genRatioHard}
-                    onChange={(e) => setGenRatioHard(Number(e.target.value))}
-                  />
-                </div>
-              </div>
-            </div>
 
             <button
               className="assessment-primary"

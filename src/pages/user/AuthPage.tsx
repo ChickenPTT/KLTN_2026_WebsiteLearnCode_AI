@@ -5,11 +5,9 @@ import {
   Eye,
   EyeOff,
   Github,
-  GraduationCap,
   Lock,
   Mail,
   User,
-  UserCheck,
 } from 'lucide-react';
 import { Brand } from '@/components/Brand';
 import { useAuth } from '@/hooks/useAuth';
@@ -25,12 +23,14 @@ interface AuthPageProps {
 export function AuthPage({ onBack, initialMode, onLoginSuccess }: AuthPageProps) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Form fields
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [selectedRole, setSelectedRole] = useState<UserRole>('student');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const { login, signup, loading, error, clearError } = useAuth();
   const isSignup = mode === 'signup';
@@ -40,41 +40,35 @@ export function AuthPage({ onBack, initialMode, onLoginSuccess }: AuthPageProps)
     setName('');
     setEmail('');
     setPassword('');
+    setConfirmPassword('');
+    setLocalError(null);
     clearError();
-  };
-
-  const handleSelectLoginRole = (role: UserRole) => {
-    setSelectedRole(role);
-    clearError();
-    // Auto-fill demo credentials if email is empty or demo email
-    if (!email || email.includes('@demo.com')) {
-      if (role === 'teacher') {
-        setEmail('teacher@demo.com');
-        setPassword('demo1234');
-      } else {
-        setEmail('student@demo.com');
-        setPassword('demo1234');
-      }
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearError();
+    setLocalError(null);
 
-    let res = { success: false, isNewUser: false as boolean | undefined, role: undefined as UserRole | undefined };
+    let res: { success: boolean; isNewUser?: boolean; role?: UserRole } = { success: false, isNewUser: false, role: undefined };
     if (isSignup) {
+      if (password !== confirmPassword) {
+        setLocalError('Mật khẩu xác nhận không khớp.');
+        return;
+      }
       // Đăng ký mặc định là student
       res = await signup(name, email, password, 'student');
     } else {
-      // Đăng nhập với vai trò đã chọn
-      res = await login(email, password, selectedRole);
+      // Đăng nhập
+      res = await login(email, password);
     }
 
     if (res.success) {
       onLoginSuccess?.(res.isNewUser, res.role);
     }
   };
+
+  const displayError = error || localError;
 
   return (
     <div className="auth-shell">
@@ -133,7 +127,7 @@ export function AuthPage({ onBack, initialMode, onLoginSuccess }: AuthPageProps)
           <div className="auth-divider"><span>hoặc</span></div>
 
           {/* Error banner */}
-          {error && (
+          {displayError && (
             <div
               style={{
                 background: 'rgba(239,68,68,0.12)',
@@ -145,7 +139,7 @@ export function AuthPage({ onBack, initialMode, onLoginSuccess }: AuthPageProps)
                 color: '#f87171',
               }}
             >
-              {error}
+              {displayError}
             </div>
           )}
 
@@ -206,65 +200,38 @@ export function AuthPage({ onBack, initialMode, onLoginSuccess }: AuthPageProps)
               </div>
             </label>
 
-            {/* Vai trò đăng nhập — nằm ngay dưới Mật khẩu */}
-            {!isSignup && (
-              <div className="auth-role-select-wrap" style={{ margin: '4px 0 10px' }}>
-                <span className="auth-label" style={{ display: 'block', marginBottom: '8px', color: '#9ba5bf', fontSize: '13px' }}>
-                  Đăng nhập với vai trò:
-                </span>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            {isSignup && (
+              <label className="auth-field">
+                <span className="auth-label">Xác nhận mật khẩu</span>
+                <div className="auth-input-wrap">
+                  <Lock size={17} className="auth-input-icon" />
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    placeholder="Nhập lại mật khẩu"
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    minLength={8}
+                  />
                   <button
                     type="button"
-                    className={`auth-role-btn ${selectedRole === 'student' ? 'is-selected' : ''}`}
-                    onClick={() => handleSelectLoginRole('student')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justify: 'center',
-                      gap: '8px',
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      border: selectedRole === 'student' ? '1.5px solid #5e8dfa' : '1px solid #252c3d',
-                      background: selectedRole === 'student' ? 'rgba(94,141,250,0.14)' : '#111520',
-                      color: selectedRole === 'student' ? '#7ba1ff' : '#7d8599',
-                      fontWeight: 600,
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                    }}
+                    className="auth-eye"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    aria-label={showConfirmPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                   >
-                    <GraduationCap size={16} /> Sinh viên
-                  </button>
-                  <button
-                    type="button"
-                    className={`auth-role-btn ${selectedRole === 'teacher' ? 'is-selected' : ''}`}
-                    onClick={() => handleSelectLoginRole('teacher')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justify: 'center',
-                      gap: '8px',
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      border: selectedRole === 'teacher' ? '1.5px solid #a995ff' : '1px solid #252c3d',
-                      background: selectedRole === 'teacher' ? 'rgba(169,149,255,0.14)' : '#111520',
-                      color: selectedRole === 'teacher' ? '#b69cfb' : '#7d8599',
-                      fontWeight: 600,
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <UserCheck size={16} /> Giảng viên / Admin
+                    {showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                   </button>
                 </div>
-              </div>
+              </label>
             )}
 
             <button type="submit" className="auth-submit" disabled={loading}>
               {loading
                 ? 'Đang xử lý...'
                 : isSignup
-                  ? 'Đăng ký (Tài khoản Sinh viên)'
-                  : `Đăng nhập (${selectedRole === 'student' ? 'Sinh viên' : 'Giảng viên/Admin'})`}{' '}
+                  ? 'Đăng ký'
+                  : 'Đăng nhập'}{' '}
               <ChevronRight size={17} />
             </button>
           </form>

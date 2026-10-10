@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import {
-  ArrowLeft,
   Search,
   Play,
   Code2,
@@ -26,6 +25,7 @@ import {
 } from 'lucide-react';
 import { PRACTICE_PROBLEMS, type PracticeProblem, type TopicInfo, type AuthMode } from '@/types';
 import { MOCK_SUBMISSIONS } from '@/data/userMockData';
+import { Pagination } from '@/components/Pagination';
 import { Header } from '@/layout/Header';
 import { Footer } from '@/layout/Footer';
 
@@ -89,6 +89,7 @@ export function TopicDetailPage({
   const [search, setSearch] = useState('');
   const [diffFilter, setDiffFilter] = useState<'All' | 'Easy' | 'Medium' | 'Hard'>('All');
   const [sortOrder, setSortOrder] = useState<'default' | 'name' | 'diff-asc' | 'diff-desc'>('default');
+  const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
   const TopicIcon = ICON_MAP[topic.icon] ?? Code2;
@@ -115,11 +116,13 @@ export function TopicDetailPage({
   }, [allProblems, search, diffFilter, sortOrder]);
 
   // Pagination Math
-  const totalPages = Math.ceil(filteredProblems.length / ITEMS_PER_PAGE) || 1;
+  const totalPages = Math.ceil(filteredProblems.length / pageSize) || 1;
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
   const paginatedProblems = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredProblems.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredProblems, currentPage]);
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredProblems.slice(start, start + pageSize);
+  }, [filteredProblems, safeCurrentPage, pageSize]);
 
   // Submission status mapping
   const submissionMap = useMemo(() => {
@@ -151,13 +154,6 @@ export function TopicDetailPage({
       />
 
       <main className="topic-detail-main">
-        {/* Top navigation back button */}
-        <div className="topic-detail-nav">
-          <button className="topic-detail-back-btn" onClick={onBack}>
-            <ArrowLeft size={16} /> Danh sách chủ đề
-          </button>
-        </div>
-
         {/* Hero Header */}
         <div className="topic-detail-hero">
           <div className="topic-detail-hero-icon">
@@ -330,42 +326,21 @@ export function TopicDetailPage({
         </div>
 
         {/* Pagination Section */}
-        {totalPages > 1 && (
-          <div className="topic-pagination">
-            <span className="pagination-info">
-              Hiển thị {(currentPage - 1) * ITEMS_PER_PAGE + 1} -{' '}
-              {Math.min(currentPage * ITEMS_PER_PAGE, filteredProblems.length)} trên tổng số{' '}
-              {filteredProblems.length} bài
-            </span>
-
-            <div className="pagination-buttons">
-              <button
-                className="pagination-arrow"
-                disabled={currentPage === 1}
-                onClick={() => handlePageChange(currentPage - 1)}
-              >
-                <ChevronLeft size={16} />
-              </button>
-
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-                <button
-                  key={pageNum}
-                  className={`pagination-num ${currentPage === pageNum ? 'is-active' : ''}`}
-                  onClick={() => handlePageChange(pageNum)}
-                >
-                  {pageNum}
-                </button>
-              ))}
-
-              <button
-                className="pagination-arrow"
-                disabled={currentPage === totalPages}
-                onClick={() => handlePageChange(currentPage + 1)}
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
+        {filteredProblems.length > 0 && (
+          <Pagination
+            currentPage={safeCurrentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={filteredProblems.length}
+            onPageChange={(page) => {
+              setCurrentPage(page);
+              window.scrollTo({ top: 120, behavior: 'smooth' });
+            }}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+          />
         )}
       </main>
 

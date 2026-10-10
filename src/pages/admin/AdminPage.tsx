@@ -20,6 +20,7 @@ import { AdminUsersTab } from './AdminUsersTab';
 import { AdminProblemsTab } from './AdminProblemsTab';
 import { AdminTemplatesTab } from './AdminTemplatesTab';
 import { AdminGeneratorTab } from './AdminGeneratorTab';
+import { AdminAuditLogsTab } from './AdminAuditLogsTab';
 import { AdminUserDetailModal } from './AdminUserDetailModal';
 import { AdminAddUserModal } from './AdminAddUserModal';
 import { AdminTemplateDetailModal } from './AdminTemplateDetailModal';
@@ -27,6 +28,8 @@ import { AdminTemplateFormModal } from './AdminTemplateFormModal';
 import { AdminImportExcelModal } from './AdminImportExcelModal';
 
 interface AdminPageProps {
+  activeTab?: AdminTab;
+  onTabChange?: (tab: AdminTab) => void;
   onBack: () => void;
   onGoLanding?: () => void;
   onGoAuth?: (mode: AuthMode) => void;
@@ -40,6 +43,8 @@ interface AdminPageProps {
 }
 
 export function AdminPage({
+  activeTab: controlledActiveTab,
+  onTabChange,
   onGoLanding,
   onGoAuth,
   onGoTopics,
@@ -50,7 +55,13 @@ export function AdminPage({
   onLoggedOut,
 }: AdminPageProps) {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
+  const [internalActiveTab, setInternalActiveTab] = useState<AdminTab>('dashboard');
+
+  const activeTab = controlledActiveTab ?? internalActiveTab;
+  const setActiveTab = (tab: AdminTab) => {
+    setInternalActiveTab(tab);
+    onTabChange?.(tab);
+  };
 
   // Shared state
   const [users, setUsers] = useState<UserRecord[]>(MOCK_USERS_LIST);
@@ -344,8 +355,10 @@ export function AdminPage({
             <AdminDashboardTab
               users={users}
               templates={sampleTemplates as any}
+              problems={practiceProblems}
               activityLogs={activityLogs}
               onGoGenerator={() => setActiveTab('generator')}
+              onNavigateTab={(tab) => setActiveTab(tab)}
             />
           )}
 
@@ -376,6 +389,7 @@ export function AdminPage({
               onAddGeneratedProblems={(newProbs) => {
                 setPracticeProblems((prev) => [...newProbs, ...prev]);
               }}
+              onGoGenerator={() => setActiveTab('generator')}
             />
           )}
 
@@ -400,6 +414,13 @@ export function AdminPage({
             <AdminGeneratorTab
               onPublishQuestion={handlePublishQuestion}
               onPublishAllQuestions={handlePublishAllQuestions}
+            />
+          )}
+
+          {activeTab === 'logs' && (
+            <AdminAuditLogsTab
+              activityLogs={activityLogs}
+              onBackToDashboard={() => setActiveTab('dashboard')}
             />
           )}
         </main>

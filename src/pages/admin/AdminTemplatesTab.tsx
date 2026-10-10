@@ -24,6 +24,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { SearchableSelect } from '@/components/SearchableSelect';
+import { Pagination } from '@/components/Pagination';
 import { TOPIC_INFOS, LEVEL_LABELS, LEVEL_COLORS, type TopicInfo } from '@/types';
 import type { SampleTemplate } from './admin.types';
 
@@ -73,6 +74,8 @@ export function AdminTemplatesTab({
   // Search & Filters
   const [searchKey, setSearchKey] = useState('');
   const [levelFilter, setLevelFilter] = useState<string>('all');
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Count templates per topic
   const templateCountByTopic = useMemo(() => {
@@ -96,6 +99,14 @@ export function AdminTemplatesTab({
       return isTopicMatch && isSearchMatch && isLevelMatch;
     });
   }, [templates, selectedTopic, searchKey, levelFilter]);
+
+  const totalPages = Math.ceil(topicTemplates.length / pageSize) || 1;
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedTopicTemplates = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize;
+    return topicTemplates.slice(start, start + pageSize);
+  }, [topicTemplates, safeCurrentPage, pageSize]);
 
   // Handle Delete Topic
   const handleConfirmDeleteTopic = () => {
@@ -359,8 +370,8 @@ export function AdminTemplatesTab({
 
           {/* Templates Grid for Selected Topic */}
           <div className="admin-templates-grid">
-            {topicTemplates.length > 0 ? (
-              topicTemplates.map((tpl) => (
+            {paginatedTopicTemplates.length > 0 ? (
+              paginatedTopicTemplates.map((tpl) => (
                 <article className="admin-template-card" key={tpl.id}>
                   <div className="admin-tpl-head">
                     <span
@@ -466,6 +477,21 @@ export function AdminTemplatesTab({
               </div>
             )}
           </div>
+
+          {/* Pagination controls for topic templates */}
+          {topicTemplates.length > 0 && (
+            <Pagination
+              currentPage={safeCurrentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalItems={topicTemplates.length}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setCurrentPage(1);
+              }}
+            />
+          )}
         </>
       )}
     </div>

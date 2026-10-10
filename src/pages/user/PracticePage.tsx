@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import {
-  ArrowLeft,
   CheckCircle2,
   Clock,
   Code2,
@@ -252,10 +251,6 @@ function PracticePage({
             className="problem-panel"
             style={{ width: `${problemWidth}%`, flexShrink: 0 }}
           >
-            <button className="practice-content-back-btn" onClick={onBack}>
-              <ArrowLeft size={15} /> Quay lại danh sách bài
-            </button>
-
             <div className="problem-header">
               <h2 className="problem-title">{problem.title}</h2>
               <div className="problem-tags">
@@ -316,9 +311,6 @@ function PracticePage({
             <div className="top-problem-banner">
               <div className="top-problem-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <button className="practice-content-back-btn" style={{ margin: 0 }} onClick={onBack}>
-                    <ArrowLeft size={14} /> Quay lại
-                  </button>
                   <h3 className="top-problem-title">{problem.title}</h3>
                   <span className="practice-topic-tag">{problem.topic}</span>
                   <span className="practice-difficulty" style={{ color: DIFFICULTY_COLORS[problem.difficulty] }}>

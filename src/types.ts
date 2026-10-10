@@ -12,7 +12,8 @@ export type View =
   | 'progress'
   | 'history'
   | 'settings'
-  | 'admin';
+  | 'admin'
+  | 'scoring-guide';
 export type AuthMode = 'login' | 'signup';
 
 export type SkillLevel = 'beginner' | 'basic' | 'intermediate' | 'advanced' | 'expert';

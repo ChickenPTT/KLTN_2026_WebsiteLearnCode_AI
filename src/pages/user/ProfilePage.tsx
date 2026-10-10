@@ -95,12 +95,6 @@ export function ProfilePage({
       />
 
       <main className="profile-main">
-        <div style={{ marginBottom: '20px' }}>
-          <button className="auth-back" style={{ position: 'static' }} onClick={onBack}>
-            <ArrowLeft size={18} /> Quay lại
-          </button>
-        </div>
-
         <div className="profile-layout">
           {/* ── Left: Avatar + quick stats ── */}
           <aside className="profile-sidebar">

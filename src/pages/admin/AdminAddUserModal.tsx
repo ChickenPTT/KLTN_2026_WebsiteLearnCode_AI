@@ -16,6 +16,8 @@ export function AdminAddUserModal({
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState<'student' | 'teacher' | 'admin'>('student');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [addUserError, setAddUserError] = useState<string | null>(null);
 
   const validateEmail = (email: string) => {
@@ -36,6 +38,14 @@ export function AdminAddUserModal({
     }
     if (existingUsers.some((u) => u.email.toLowerCase() === newUserEmail.trim().toLowerCase())) {
       setAddUserError('Email này đã tồn tại trong hệ thống.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setAddUserError('Mật khẩu phải có ít nhất 6 ký tự.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setAddUserError('Xác nhận mật khẩu không khớp.');
       return;
     }
 
@@ -79,6 +89,28 @@ export function AdminAddUserModal({
               placeholder="user@example.com"
               value={newUserEmail}
               onChange={(e) => setNewUserEmail(e.target.value)}
+              className="admin-input"
+              required
+            />
+          </label>
+          <label className="auth-field">
+            <span className="auth-label">Mật khẩu</span>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="admin-input"
+              required
+            />
+          </label>
+          <label className="auth-field">
+            <span className="auth-label">Xác nhận mật khẩu</span>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               className="admin-input"
               required
             />

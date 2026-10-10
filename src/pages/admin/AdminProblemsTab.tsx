@@ -26,6 +26,7 @@ import {
   Check,
   X,
   Code2,
+  Clock,
   ChevronLeft,
   ChevronRight,
   type LucideIcon,
@@ -33,6 +34,7 @@ import {
 import { TOPICS, type PracticeProblem } from '@/types';
 import { AdminGeneratorModal } from './AdminGeneratorModal';
 import { SearchableSelect, type SelectOption } from '@/components/SearchableSelect';
+import { Pagination } from '@/components/Pagination';
 
 const TOPIC_ICON_MAP: Record<string, LucideIcon> = {
   Array: ListOrdered,
@@ -48,6 +50,12 @@ const TOPIC_ICON_MAP: Record<string, LucideIcon> = {
   Tree: TreePine,
   Graph: Share2,
 };
+
+const SOURCE_OPTIONS: SelectOption[] = [
+  { value: 'all', label: 'Tất cả nguồn tạo' },
+  { value: 'manual', label: '✏️ Đề thêm tay' },
+  { value: 'ai', label: '✨ AI Generate' },
+];
 
 const TOPIC_OPTIONS: SelectOption[] = [
   { value: 'all', label: 'Tất cả kiểu bài' },
@@ -87,6 +95,7 @@ interface AdminProblemsTabProps {
   onTogglePublicStatus: (id: string) => void;
   onViewDetail: (problem: PracticeProblem) => void;
   onAddGeneratedProblems?: (newProblems: PracticeProblem[]) => void;
+  onGoGenerator?: () => void;
 }
 
 export function AdminProblemsTab({
@@ -97,12 +106,14 @@ export function AdminProblemsTab({
   onTogglePublicStatus,
   onViewDetail,
   onAddGeneratedProblems,
+  onGoGenerator,
 }: AdminProblemsTabProps) {
-  // Source Tab State ('manual': do thêm tay | 'ai': do AI generate)
-  const [activeSourceTab, setActiveSourceTab] = useState<'manual' | 'ai'>('manual');
+  // Approval Tab State ('pending': Đề cần duyệt | 'approved': Đề đã duyệt)
+  const [activeApprovalTab, setActiveApprovalTab] = useState<'pending' | 'approved'>('pending');
 
   // Search & Filters
   const [searchKey, setSearchKey] = useState('');
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [topicFilter, setTopicFilter] = useState<string>('all');
   const [diffFilter, setDiffFilter] = useState<string>('all');
   const [verifyFilter, setVerifyFilter] = useState<string>('all');
@@ -134,16 +145,21 @@ export function AdminProblemsTab({
   // Active language tab in detail modal
   const [detailLangTab, setDetailLangTab] = useState<'java' | 'python'>('java');
 
-  // Count total manual vs total AI generated problems
-  const totalManualCount = useMemo(() => problems.filter((p) => !p.isAiGenerated).length, [problems]);
-  const totalAiCount = useMemo(() => problems.filter((p) => p.isAiGenerated).length, [problems]);
-
   // Check if a problem is verified (Manual is default verified true, AI follows verifiedMap or prob.isVerified)
   const isProblemVerified = (prob: PracticeProblem) => {
     if (verifiedMap[prob.id] !== undefined) return verifiedMap[prob.id];
     if (!prob.isAiGenerated) return true; // Manual problems are verified by default
     return prob.isVerified === true;
   };
+
+  // Count total pending vs approved problems
+  const totalPendingCount = useMemo(() => {
+    return problems.filter((p) => p.isPublic === false || !isProblemVerified(p)).length;
+  }, [problems, verifiedMap]);
+
+  const totalApprovedCount = useMemo(() => {
+    return problems.filter((p) => p.isPublic !== false && isProblemVerified(p)).length;
+  }, [problems, verifiedMap]);
 
   const handleToggleVerification = (prob: PracticeProblem) => {
     // If not verified, open Sandbox test modal first
@@ -167,55 +183,62 @@ export function AdminProblemsTab({
   // Filtered problems list according to active tab and selected filters
   const filteredProblems = useMemo(() => {
     return problems.filter((p) => {
-      // 1. Tab source match
-      const isSourceMatch = activeSourceTab === 'ai' ? Boolean(p.isAiGenerated) : !p.isAiGenerated;
-      if (!isSourceMatch) return false;
+      const verified = isProblemVerified(p);
+      const isPublic = p.isPublic !== false;
 
-      // 2. Search match
+      // 1. Approval tab match ('pending': Đề cần duyệt | 'approved': Đề đã duyệt)
+      if (activeApprovalTab === 'pending' && (isPublic && verified)) return false;
+      if (activeApprovalTab === 'approved' && (!isPublic || !verified)) return false;
+
+      // 2. Source filter match (Thêm tay vs AI Generate)
+      if (sourceFilter === 'manual' && p.isAiGenerated) return false;
+      if (sourceFilter === 'ai' && !p.isAiGenerated) return false;
+
+      // 3. Search match
       const isSearchMatch =
         p.title.toLowerCase().includes(searchKey.toLowerCase()) ||
         p.description.toLowerCase().includes(searchKey.toLowerCase()) ||
         p.topic.toLowerCase().includes(searchKey.toLowerCase());
       if (!isSearchMatch) return false;
 
-      // 3. Topic match
+      // 4. Topic match
       if (topicFilter !== 'all' && p.topic !== topicFilter) return false;
 
-      // 4. Difficulty match
+      // 5. Difficulty match
       if (diffFilter !== 'all' && p.difficulty !== diffFilter) return false;
 
-      // 5. Verification status match
-      const verified = isProblemVerified(p);
+      // 6. Verification status match
       if (verifyFilter === 'verified' && !verified) return false;
       if (verifyFilter === 'pending' && verified) return false;
 
-      // 6. Public/Draft status match
-      const isPublic = p.isPublic !== false;
+      // 7. Public/Draft status match
       if (statusFilter === 'public' && !isPublic) return false;
       if (statusFilter === 'draft' && isPublic) return false;
 
       return true;
     });
-  }, [problems, activeSourceTab, searchKey, topicFilter, diffFilter, verifyFilter, statusFilter, verifiedMap]);
+  }, [problems, activeApprovalTab, sourceFilter, searchKey, topicFilter, diffFilter, verifyFilter, statusFilter, verifiedMap]);
 
-  // ── PAGINATION LOGIC (20 ITEMS PER PAGE) ──
-  const ITEMS_PER_PAGE = 20;
+  // ── PAGINATION LOGIC ──
+  const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const totalPages = Math.ceil(filteredProblems.length / ITEMS_PER_PAGE) || 1;
+  const totalPages = Math.ceil(filteredProblems.length / pageSize) || 1;
   const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startItemIdx = (safeCurrentPage - 1) * pageSize + 1;
 
   const paginatedProblems = useMemo(() => {
-    const start = (safeCurrentPage - 1) * ITEMS_PER_PAGE;
-    return filteredProblems.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredProblems, safeCurrentPage]);
-
-  const startItemIdx = filteredProblems.length > 0 ? (safeCurrentPage - 1) * ITEMS_PER_PAGE + 1 : 0;
-  const endItemIdx = Math.min(safeCurrentPage * ITEMS_PER_PAGE, filteredProblems.length);
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredProblems.slice(start, start + pageSize);
+  }, [filteredProblems, safeCurrentPage, pageSize]);
 
   // Handlers that reset page to 1
-  const handleTabChange = (tab: 'manual' | 'ai') => {
-    setActiveSourceTab(tab);
+  const handleTabChange = (tab: 'pending' | 'approved') => {
+    setActiveApprovalTab(tab);
+    setCurrentPage(1);
+  };
+  const handleSourceFilterChange = (val: string) => {
+    setSourceFilter(val);
     setCurrentPage(1);
   };
   const handleSearchChange = (val: string) => {
@@ -320,7 +343,7 @@ export function AdminProblemsTab({
         onClose={() => setIsGenModalOpen(false)}
         onGenerateSuccess={(newProblems) => {
           onAddGeneratedProblems?.(newProblems);
-          setActiveSourceTab('ai');
+          setActiveApprovalTab('pending');
         }}
       />
 
@@ -740,13 +763,16 @@ export function AdminProblemsTab({
         <div>
           <h1 className="admin-page-title">Quản lý Ngân hàng Bài tập & Trạng thái Công khai</h1>
           <p className="admin-page-sub">
-            Ngân hàng hiện có <strong>{problems.length}</strong> bài tập ({totalManualCount} bài thêm tay & {totalAiCount} bài AI generated).
+            Ngân hàng hiện có <strong>{problems.length}</strong> bài tập ({totalPendingCount} đề cần duyệt & {totalApprovedCount} đề đã duyệt).
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button
             className="dialog-cancel"
-            onClick={() => setIsGenModalOpen(true)}
+            onClick={() => {
+              if (onGoGenerator) onGoGenerator();
+              else setIsGenModalOpen(true);
+            }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -765,24 +791,24 @@ export function AdminProblemsTab({
       </div>
 
       {/* ── UNIFIED CONTROL BAR (PILL TABS + FILTERS) ── */}
-      <div className={`admin-unified-control-bar theme-${activeSourceTab}`}>
+      <div className={`admin-unified-control-bar theme-${activeApprovalTab}`}>
         {/* Left Pill Toggle Tabs */}
         <div className="unified-toggle-tabs">
           <button
             type="button"
-            className={`unified-tab-btn ${activeSourceTab === 'manual' ? 'is-active' : ''}`}
-            onClick={() => handleTabChange('manual')}
+            className={`unified-tab-btn ${activeApprovalTab === 'pending' ? 'is-active' : ''}`}
+            onClick={() => handleTabChange('pending')}
           >
-            <Edit3 size={15} />
-            <span>Đề thêm tay ({totalManualCount})</span>
+            <Clock size={15} />
+            <span>Đề cần duyệt ({totalPendingCount})</span>
           </button>
           <button
             type="button"
-            className={`unified-tab-btn ${activeSourceTab === 'ai' ? 'is-active' : ''}`}
-            onClick={() => handleTabChange('ai')}
+            className={`unified-tab-btn ${activeApprovalTab === 'approved' ? 'is-active' : ''}`}
+            onClick={() => handleTabChange('approved')}
           >
-            <Sparkles size={15} />
-            <span>AI Generate ({totalAiCount})</span>
+            <CheckCircle2 size={15} />
+            <span>Đề đã duyệt ({totalApprovedCount})</span>
           </button>
         </div>
 
@@ -790,6 +816,16 @@ export function AdminProblemsTab({
 
         {/* Dropdown Filters Group */}
         <div className="unified-filters-group">
+          {/* Lọc theo Nguồn tạo (Thêm tay / AI Generate) */}
+          <SearchableSelect
+            options={SOURCE_OPTIONS}
+            value={sourceFilter}
+            onChange={handleSourceFilterChange}
+            icon={Sparkles}
+            placeholder="Nguồn tạo"
+            showSearch={false}
+          />
+
           {/* Lọc theo Kiểu bài / Chủ đề */}
           <SearchableSelect
             options={TOPIC_OPTIONS}
@@ -832,17 +868,17 @@ export function AdminProblemsTab({
       </div>
 
       {/* ── MAIN CONTENT CONTAINER (DATA TABLE LIST - NO OUTER HEAVY BORDER FRAME) ── */}
-      <div className={`admin-framed-tab-box theme-${activeSourceTab}`}>
+      <div className={`admin-framed-tab-box theme-${activeApprovalTab}`}>
         {/* Header Info */}
         <div className="admin-framed-tab-header">
           <div className="framed-tab-info-tag">
-            {activeSourceTab === 'manual' ? (
+            {activeApprovalTab === 'pending' ? (
               <span className="info-tag-content manual">
-                <Edit3 size={13} /> Khung Đề do Giảng viên / Admin Thêm tay ({filteredProblems.length} bài)
+                <Clock size={13} /> Khung Đề cần kiểm thử & chờ duyệt ({filteredProblems.length} bài)
               </span>
             ) : (
               <span className="info-tag-content ai">
-                <Sparkles size={13} /> Khung Bài tập do AI Engine Generate ({filteredProblems.length} bài)
+                <CheckCircle2 size={13} /> Khung Bài tập đã duyệt & Công khai ({filteredProblems.length} bài)
               </span>
             )}
           </div>
@@ -1021,55 +1057,18 @@ export function AdminProblemsTab({
                 </table>
               </div>
 
-              {/* ── PAGINATION CONTROLS BAR (20 ITEMS PER PAGE) ── */}
-              <div
-                className="admin-pagination-bar"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginTop: '16px',
-                  padding: '12px 16px',
-                  borderRadius: '10px',
-                  gap: '12px',
-                  flexWrap: 'wrap',
+              {/* ── PAGINATION CONTROLS BAR ── */}
+              <Pagination
+                currentPage={safeCurrentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                totalItems={filteredProblems.length}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setCurrentPage(1);
                 }}
-              >
-                <div className="pagination-info" style={{ fontSize: '13px' }}>
-                  Hiển thị bài thứ <strong>{startItemIdx} - {endItemIdx}</strong> trên tổng số <strong>{filteredProblems.length}</strong> bài tập (Trang {safeCurrentPage}/{totalPages})
-                </div>
-
-                <div className="pagination-controls" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <button
-                    type="button"
-                    className="pagination-btn"
-                    disabled={safeCurrentPage <= 1}
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  >
-                    <ChevronLeft size={14} /> Trước
-                  </button>
-
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-                    <button
-                      key={pageNum}
-                      type="button"
-                      className={`pagination-num ${pageNum === safeCurrentPage ? 'is-active' : ''}`}
-                      onClick={() => setCurrentPage(pageNum)}
-                    >
-                      {pageNum}
-                    </button>
-                  ))}
-
-                  <button
-                    type="button"
-                    className="pagination-btn"
-                    disabled={safeCurrentPage >= totalPages}
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  >
-                    Sau <ChevronRight size={14} />
-                  </button>
-                </div>
-              </div>
+              />
             </>
           ) : (
             <div
