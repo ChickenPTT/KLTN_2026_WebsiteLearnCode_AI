@@ -8,4 +8,6 @@ import java.util.List;
 public interface ProblemRepository extends JpaRepository<Problem, Long> {
 
     List<Problem> findByStatus(Problem.Status status);
+
+    List<Problem> findByTemplate_Id(Long templateId);
 }

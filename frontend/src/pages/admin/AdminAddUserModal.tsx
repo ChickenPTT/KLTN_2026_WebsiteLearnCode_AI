@@ -5,7 +5,7 @@ import type { UserRecord } from './admin.types';
 interface AdminAddUserModalProps {
   existingUsers: UserRecord[];
   onClose: () => void;
-  onAddUser: (user: { name: string; email: string; role: 'student' | 'teacher' | 'admin' }) => void;
+  onAddUser: (user: { name: string; email: string; password: string; role: 'student' | 'teacher' | 'admin' }) => void;
 }
 
 export function AdminAddUserModal({
@@ -15,6 +15,7 @@ export function AdminAddUserModal({
 }: AdminAddUserModalProps) {
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState<'student' | 'teacher' | 'admin'>('student');
   const [addUserError, setAddUserError] = useState<string | null>(null);
 
@@ -34,6 +35,10 @@ export function AdminAddUserModal({
       setAddUserError('Định dạng email không hợp lệ (ví dụ: name@domain.com).');
       return;
     }
+    if (newUserPassword.length < 6) {
+      setAddUserError('Mật khẩu phải có ít nhất 6 ký tự.');
+      return;
+    }
     if (existingUsers.some((u) => u.email.toLowerCase() === newUserEmail.trim().toLowerCase())) {
       setAddUserError('Email này đã tồn tại trong hệ thống.');
       return;
@@ -42,6 +47,7 @@ export function AdminAddUserModal({
     onAddUser({
       name: newUserName.trim(),
       email: newUserEmail.trim().toLowerCase(),
+      password: newUserPassword,
       role: newUserRole,
     });
   };

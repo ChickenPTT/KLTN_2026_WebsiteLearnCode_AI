@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
   ArrowLeft,
-  BrainCircuit,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,

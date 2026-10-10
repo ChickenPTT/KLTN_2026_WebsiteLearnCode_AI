@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   AlignJustify,
   ArrowDownWideNarrow,
@@ -7,7 +7,6 @@ import {
   Layers,
   Link2,
   ListOrdered,
-  Lock,
   MoveHorizontal,
   Play,
   Repeat,
@@ -17,17 +16,17 @@ import {
   Type,
   Sparkles,
   Shuffle,
-  Zap,
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { TOPIC_INFOS, PRACTICE_PROBLEMS, type TopicInfo, type AuthMode } from '@/types';
+import type { TopicInfo, AuthMode } from '@/types';
 import { SearchableSelect } from '@/components/SearchableSelect';
-import { MOCK_SUBMISSIONS } from '@/data/userMockData';
-import { Brand } from '@/components/Brand';
 import { Footer } from '@/layout/Footer';
 import { Header } from '@/layout/Header';
 import { useAuth } from '@/hooks/useAuth.tsx';
+import { usePublishedProblems } from '@/hooks/usePublishedProblems';
+import { useSubmissionStatus } from '@/hooks/useSubmissionStatus';
+import { buildTopics } from '@/lib/topics';
 
 const ICON_MAP: Record<string, LucideIcon> = {
   ListOrdered,
@@ -73,17 +72,20 @@ export function TopicsPage({
   const [randomDiff, setRandomDiff] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  const solvedCount = MOCK_SUBMISSIONS.filter((s) => s.status === 'passed').length;
+  const { problems, loading, error, reload } = usePublishedProblems();
+  const submissionStatus = useSubmissionStatus();
+  const topics = useMemo(() => buildTopics(problems), [problems]);
+
+  const solvedCount = [...submissionStatus.values()].filter((s) => s === 'passed').length;
   const userLevelLabel =
     solvedCount < 3 ? 'Cơ bản (Easy)' : solvedCount < 8 ? 'Trung bình (Medium)' : 'Nâng cao (Hard)';
 
-  const filteredTopics = TOPIC_INFOS.filter((topic) => {
+  const filteredTopics = topics.filter((topic) => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return true;
     return (
       topic.name.toLowerCase().includes(q) ||
-      topic.description.toLowerCase().includes(q) ||
-      topic.slug.toLowerCase().includes(q)
+      topic.description.toLowerCase().includes(q)
     );
   });
 
@@ -96,13 +98,13 @@ export function TopicsPage({
       onAuth('signup');
       return;
     }
-    let pool = PRACTICE_PROBLEMS.filter((p) => p.isPublic !== false);
-    if (randomDiff !== 'all') {
-      pool = pool.filter((p) => p.difficulty === randomDiff);
-    }
-    if (pool.length === 0) {
-      pool = PRACTICE_PROBLEMS;
-    }
+    if (problems.length === 0) return;
+    // Uu tien bai chua lam xong; het bai phu hop thi lay bat ky
+    let pool = problems.filter(
+      (p) => (randomDiff === 'all' || p.difficulty === randomDiff) && submissionStatus.get(p.id) !== 'passed',
+    );
+    if (pool.length === 0) pool = problems.filter((p) => randomDiff === 'all' || p.difficulty === randomDiff);
+    if (pool.length === 0) pool = problems;
     const picked = pool[Math.floor(Math.random() * pool.length)];
     onGoPractice(picked.id);
   };
@@ -124,7 +126,7 @@ export function TopicsPage({
       <main className="topics-main">
         <div className="topics-hero">
           <p className="eyebrow">Chủ đề luyện code</p>
-          <h1>Khám phá {TOPIC_INFOS.length} chủ đề, {TOPIC_INFOS.reduce((acc, t) => acc + t.problemCount, 0)} bài tập mẫu</h1>
+          <h1>Khám phá {topics.length} chủ đề, {problems.length} bài tập</h1>
           <p className="topics-hero-copy">
             {isLoggedIn
               ? `Xin chào ${user.name?.split(' ').pop()}! Chọn chủ đề bên dưới hoặc thử thách chế độ sinh bài tập ngẫu nhiên AI phù hợp năng lực.`
@@ -177,6 +179,7 @@ export function TopicsPage({
             <button
               className="primary-button"
               onClick={handleStartRandomPractice}
+              disabled={isLoggedIn && problems.length === 0}
               style={{
                 padding: '9px 18px',
                 fontSize: '13.5px',
@@ -228,10 +231,22 @@ export function TopicsPage({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', opacity: 0.85 }}>
             <span>
-              Hiển thị <strong>{filteredTopics.length}</strong> / {TOPIC_INFOS.length} chủ đề
+              Hiển thị <strong>{filteredTopics.length}</strong> / {topics.length} chủ đề
             </span>
           </div>
         </div>
+
+        {loading && (
+          <p style={{ textAlign: 'center', opacity: 0.7, margin: '12px 0' }}>Đang tải danh sách bài tập...</p>
+        )}
+        {error && (
+          <div style={{ textAlign: 'center', margin: '12px 0', color: '#f87171', fontSize: '14px' }}>
+            Không tải được bài tập: {error}{' '}
+            <button className="assessment-ghost" onClick={reload} style={{ marginLeft: 8, padding: '4px 12px' }}>
+              Thử lại
+            </button>
+          </div>
+        )}
 
         {filteredTopics.length === 0 ? (
           <div

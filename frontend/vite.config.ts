@@ -10,9 +10,6 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
-  optimizeDeps: {
-    exclude: ['lucide-react'],
-  },
   server: {
     port: 5173,
     // Chuyen tiep moi request /api sang backend Spring Boot (cung origin -> khong bi CORS)

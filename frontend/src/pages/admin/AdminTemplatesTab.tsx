@@ -44,6 +44,9 @@ const ICON_MAP: Record<string, LucideIcon> = {
 
 interface AdminTemplatesTabProps {
   templates: SampleTemplate[];
+  loading?: boolean;
+  error?: string | null;
+  onReload?: () => void;
   onOpenAddTplModal: () => void;
   onOpenImportExcelModal: () => void;
   onOpenDetailModal: (tpl: SampleTemplate) => void;
@@ -53,6 +56,9 @@ interface AdminTemplatesTabProps {
 
 export function AdminTemplatesTab({
   templates,
+  loading = false,
+  error = null,
+  onReload,
   onOpenAddTplModal,
   onOpenImportExcelModal,
   onOpenDetailModal,
@@ -111,6 +117,46 @@ export function AdminTemplatesTab({
 
   return (
     <div className="admin-tab-content">
+      {/* Loading State */}
+      {loading && (
+        <div style={{ textAlign: 'center', padding: '40px', color: '#7d8599' }}>
+          <p>Đang tải danh sách Template...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !loading && (
+        <div style={{
+          background: 'rgba(239,68,68,0.1)',
+          border: '1px solid rgba(239,68,68,0.3)',
+          borderRadius: '12px',
+          padding: '16px',
+          marginBottom: '20px',
+          color: '#f87171',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <span>{error}</span>
+          {onReload && (
+            <button
+              onClick={onReload}
+              style={{
+                background: 'rgba(239,68,68,0.2)',
+                border: '1px solid rgba(239,68,68,0.4)',
+                color: '#f87171',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '13px'
+              }}
+            >
+              Thử lại
+            </button>
+          )}
+        </div>
+      )}
+
       {/* 1. Delete Topic Confirmation Modal */}
       {deletingTopic && (
         <div className="dialog-overlay" onClick={() => setDeletingTopic(null)}>

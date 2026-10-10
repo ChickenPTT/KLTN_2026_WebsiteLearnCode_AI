@@ -10,7 +10,13 @@ interface AdminTemplateFormModalProps {
   onSubmit: (tplData: Omit<SampleTemplate, 'id' | 'updatedAt'>) => void;
 }
 
-export function AdminTemplateFormModal({
+const GENERATOR_TYPES = [
+  { label: 'Hai số nguyên (Two Integers)', value: 'TWO_INTEGERS' },
+  { label: 'Mảng số nguyên (Integer Array)', value: 'INTEGER_ARRAY' },
+  { label: 'Chuỗi cơ bản (String Basic)', value: 'STRING_BASIC' },
+];
+
+function AdminTemplateFormModal({
   templateToEdit,
   onClose,
   onSubmit,
@@ -23,6 +29,10 @@ export function AdminTemplateFormModal({
     templateToEdit?.starterCode ??
       `function solution(input) {\n  // Code mẫu khởi tạo cho bài tập\n  return null;\n}`
   );
+  const [generatorType, setGeneratorType] = useState<'TWO_INTEGERS' | 'INTEGER_ARRAY' | 'STRING_BASIC'>(
+    templateToEdit?.generatorType ?? 'INTEGER_ARRAY'
+  );
+  const [languageId, setLanguageId] = useState<number>(templateToEdit?.languageId ?? 62);
 
   // 4 New Constraint Fields for AI Random generation
   const [minLength, setMinLength] = useState<string>(
@@ -81,9 +91,12 @@ export function AdminTemplateFormModal({
       maxLength: maxLenNum,
       minValue: minValNum,
       maxValue: maxValNum,
+      generatorType,
+      languageId,
     });
   };
 
+  // @ts-ignore
   return (
     <div className="dialog-overlay" onClick={onClose}>
       <div
@@ -140,6 +153,31 @@ export function AdminTemplateFormModal({
                 ]}
                 value={level}
                 onChange={(val) => setLevel(val as SkillLevel)}
+                showSearch={false}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="auth-field">
+              <span className="auth-label" style={{ marginBottom: '6px' }}>Loại dữ liệu sinh ngẫu nhiên</span>
+              <SearchableSelect
+                options={GENERATOR_TYPES}
+                value={generatorType}
+                onChange={(val) => setGeneratorType(val as 'TWO_INTEGERS' | 'INTEGER_ARRAY' | 'STRING_BASIC')}
+                showSearch={false}
+              />
+            </div>
+
+            <div className="auth-field">
+              <span className="auth-label" style={{ marginBottom: '6px' }}>Ngôn ngữ</span>
+              <SearchableSelect
+                options={[
+                  { label: 'Java (62)', value: "62" },
+                  { label: 'Python (71)', value: "71" },
+                ]}
+                value={languageId.toString()}
+                onChange={(val) => setLanguageId(Number(val))}
                 showSearch={false}
               />
             </div>
@@ -248,3 +286,5 @@ export function AdminTemplateFormModal({
     </div>
   );
 }
+
+export default AdminTemplateFormModal

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
-import type { AuthMode, TopicScore, View } from '@/types';
-import type { UserRole } from '@/data/mockAuth';
-import { useAuth } from '@/hooks/useAuth.tsx';
+import { useEffect, useState } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import type { AuthMode, TopicScore } from '@/types';
+import { homePathFor, useAuth } from '@/hooks/useAuth.tsx';
+import { FullPageLoader, RequireAuth } from '@/components/RequireAuth';
 import { LandingPage } from '@/pages/user/LandingPage';
 import { AuthPage } from '@/pages/user/AuthPage';
 import { OnboardingPage } from '@/pages/user/OnboardingPage';
@@ -16,374 +17,277 @@ import { ProgressPage } from '@/pages/user/ProgressPage';
 import { HistoryPage } from '@/pages/user/HistoryPage';
 import { SettingsPage } from '@/pages/user/SettingsPage';
 import { AdminPage } from '@/pages/admin/AdminPage';
-import { TOPIC_INFOS, type TopicInfo } from '@/types';
+import type { TopicInfo } from '@/types';
+import { usePublishedProblems } from '@/hooks/usePublishedProblems';
+import { findTopic } from '@/lib/topics';
 
-const VIEW_KEY = 'current_view';
+const topicPath = (t: TopicInfo) => `/topics/${encodeURIComponent(t.name)}`;
 
-function getInitialView(): View {
-  try {
-    localStorage.removeItem(VIEW_KEY);
-    const authSaved = sessionStorage.getItem('auth_user');
-    const u = authSaved ? JSON.parse(authSaved) : null;
+/** Cac ham dieu huong truyen xuong page (giu nguyen props cu cua cac page). */
+function useAppNav() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
+  const isStaff = user?.role === 'teacher' || user?.role === 'admin';
 
-    if (u && (u.role === 'admin' || u.role === 'teacher')) {
-      const saved = sessionStorage.getItem(VIEW_KEY) as View | null;
-      if (saved && (saved === 'admin' || saved === 'settings' || saved === 'profile')) {
-        return saved;
-      }
-      return 'admin';
-    }
+  const goLanding = () => navigate('/');
+  const goAuth = (m: AuthMode) => navigate(m === 'signup' ? '/signup' : '/login');
+  const goTopics = () => navigate('/topics');
+  // Khong co id (vd. nut Luyen tap chung) -> ve danh sach chu de de chon bai
+  const goPractice = (problemId?: string) =>
+    navigate(problemId ? `/practice/${encodeURIComponent(problemId)}` : '/topics');
+  const goProfile = () => navigate('/profile');
+  const goProgress = () => navigate('/progress');
+  const goHistory = () => navigate('/history');
+  const goSettings = () => navigate('/settings');
+  const goAdmin = () => navigate('/admin');
+  // Nut "quay lai" o cac trang ca nhan: staff ve dashboard, sinh vien ve trang chu
+  const goHomeByRole = () => (isStaff ? goAdmin() : goLanding());
+  // Quay lai trang truoc; neu vao thang bang URL (khong co lich su) thi ve fallback
+  const goBack = (fallback: string) => (location.key === 'default' ? navigate(fallback) : navigate(-1));
 
-    const saved = sessionStorage.getItem(VIEW_KEY) as View | null;
-    if (saved && saved !== 'auth') {
-      if (!u && (saved === 'admin' || saved === 'profile' || saved === 'progress' || saved === 'history' || saved === 'settings')) {
-        return 'landing';
-      }
-      return saved;
-    }
-    if (u) {
-      return 'topics';
-    }
-  } catch {
-    // ignore
+  return {
+    user, isStaff, navigate,
+    goLanding, goAuth, goTopics, goPractice, goProfile, goProgress,
+    goHistory, goSettings, goAdmin, goHomeByRole, goBack,
+  };
+}
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [pathname]);
+  return null;
+}
+
+/** /login, /signup: da dang nhap thi chuyen di (ve trang dang muon vao truoc do, hoac trang mac dinh). */
+function AuthRoute({ mode }: { mode: AuthMode }) {
+  const { user, initializing } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  if (initializing) return <FullPageLoader />;
+  if (user) {
+    const from = (location.state as { from?: string } | null)?.from;
+    const target = user.isNewUser || !from ? homePathFor(user) : from;
+    return <Navigate to={target} replace />;
   }
-  return 'landing';
+  return (
+    <AuthPage
+      key={mode}
+      initialMode={mode}
+      onBack={() => navigate('/')}
+      // replace + giu state.from de doi tab khong lam mat trang can quay lai
+      onModeChange={(m) => navigate(m === 'signup' ? '/signup' : '/login', { replace: true, state: location.state })}
+    />
+  );
+}
+
+function LandingRoute() {
+  const n = useAppNav();
+  // Giang vien/admin vao trang chu -> dua thang ve dashboard
+  if (n.isStaff) return <Navigate to="/admin" replace />;
+  return (
+    <LandingPage
+      onGoAuth={n.goAuth}
+      onGoTopics={n.goTopics}
+      onGoProfile={n.goProfile}
+      onGoProgress={n.goProgress}
+      onGoSettings={n.goSettings}
+      onGoStartPractice={() => (n.user ? n.navigate(homePathFor(n.user)) : n.goAuth('login'))}
+      onLoggedOut={n.goLanding}
+    />
+  );
+}
+
+function TopicDetailRoute() {
+  const n = useAppNav();
+  const { topicName } = useParams();
+  const { problems, loading } = usePublishedProblems();
+  const topic = findTopic(topicName, problems);
+  if (!topic) {
+    // Chu de chi co trong du lieu backend -> doi tai xong moi biet co ton tai khong
+    if (loading) return <FullPageLoader />;
+    return <Navigate to="/topics" replace />;
+  }
+  return (
+    <TopicDetailPage
+      topic={topic}
+      onBack={n.goTopics}
+      onGoPractice={n.goPractice}
+      onGoLanding={n.goLanding}
+      onGoAuth={n.goAuth}
+      onGoTopics={n.goTopics}
+      onGoProfile={n.goProfile}
+      onGoProgress={n.goProgress}
+      onGoAdmin={n.goAdmin}
+      onGoSettings={n.goSettings}
+      onLoggedOut={n.goLanding}
+    />
+  );
+}
+
+function PracticeRoute() {
+  const n = useAppNav();
+  const { problemId = '' } = useParams();
+  return (
+    <PracticePage
+      key={problemId}
+      onBack={() => n.goBack('/topics')}
+      initialProblemId={problemId}
+      onGoLanding={n.goLanding}
+      onGoAuth={n.goAuth}
+      onGoTopics={n.goTopics}
+      onGoProfile={n.goProfile}
+      onGoProgress={n.goProgress}
+      onGoHistory={n.goHistory}
+      onGoAdmin={n.goAdmin}
+      onGoSettings={n.goSettings}
+      onLoggedOut={n.goLanding}
+    />
+  );
 }
 
 function App() {
-  const [view, setView] = useState<View>(getInitialView);
-  const [authMode, setAuthMode] = useState<AuthMode>('login');
+  const n = useAppNav();
+  const { completeOnboarding } = useAuth();
+  // Ket qua danh gia chi song trong phien hien tai; reload /result thi quay lai onboarding
   const [assessmentScores, setAssessmentScores] = useState<TopicScore[]>([]);
-  const [selectedProblemId, setSelectedProblemId] = useState<string>('two-sum');
-  const [selectedTopic, setSelectedTopic] = useState<TopicInfo>(TOPIC_INFOS[0]);
-
-  const { user } = useAuth();
-
-  useEffect(() => {
-    if (user && (user.role === 'admin' || user.role === 'teacher')) {
-      if (view === 'landing' || view === 'topics') {
-        nav('admin');
-      }
-    }
-  }, [user, view]);
-
-  const nav = (v: View) => {
-    setView(v);
-    try {
-      sessionStorage.setItem(VIEW_KEY, v);
-      localStorage.removeItem(VIEW_KEY);
-    } catch {
-      // ignore
-    }
-    window.scrollTo({ top: 0 });
-  };
-
-  const goLanding = () => nav('landing');
-  const goAuth = (m: AuthMode) => { setAuthMode(m); nav('auth'); };
-  const goOnboarding = () => nav('onboarding');
-  const goPractice = (problemId?: string) => {
-    if (problemId) {
-      setSelectedProblemId(problemId);
-    }
-    nav('practice');
-  };
-  const goTopics = () => nav('topics');
-  const handleSelectTopic = (t: TopicInfo) => {
-    setSelectedTopic(t);
-    nav('topic-detail');
-  };
-  const goProfile = () => nav('profile');
-  const goProgress = () => nav('progress');
-  const goHistory = () => nav('history');
-  const goSettings = () => nav('settings');
-  const goAdmin = () => nav('admin');
-
-  // "Bắt đầu luyện tập" — nếu đã login → vào topics, nếu chưa → login
-  const goStartPractice = () => {
-    if (user) {
-      if (user.role === 'teacher' || user.role === 'admin') {
-        nav('admin');
-      } else {
-        nav('topics');
-      }
-    } else {
-      goAuth('login');
-    }
-  };
-
-  // Logout về landing
-  const handleLoggedOut = () => {
-    try {
-      localStorage.removeItem(VIEW_KEY);
-    } catch {
-      // ignore
-    }
-    nav('landing');
-  };
 
   const handleAssessmentComplete = (scores: TopicScore[]) => {
     setAssessmentScores(scores);
-    nav('result');
+    void completeOnboarding();
+    n.navigate('/result');
   };
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
-  if (view === 'auth') {
-    return (
-      <AuthPage
-        onBack={goLanding}
-        initialMode={authMode}
-        onLoginSuccess={(isNewUser?: boolean, role?: UserRole) => {
-          if (role === 'teacher' || role === 'admin') {
-            nav('admin');
-          } else if (isNewUser) {
-            nav('onboarding');
-          } else {
-            nav('topics');
-          }
-        }}
-      />
-    );
-  }
+  // Props chung cua cac trang ca nhan (profile/progress/history/settings)
+  const accountNav = {
+    onGoLanding: n.goLanding,
+    onGoAuth: n.goAuth,
+    onGoTopics: n.goTopics,
+    onGoProfile: n.goProfile,
+    onGoProgress: n.goProgress,
+    onGoHistory: n.goHistory,
+    onGoAdmin: n.goAdmin,
+    onGoSettings: n.goSettings,
+  };
+  const assessmentNav = {
+    onGoLanding: n.goLanding,
+    onGoTopics: n.goTopics,
+    onGoProfile: n.goProfile,
+    onGoProgress: n.goProgress,
+  };
 
-  // ── Onboarding ────────────────────────────────────────────────────────────
-  if (view === 'onboarding') {
-    return (
-      <OnboardingPage
-        onChooseSelfRate={() => nav('self-rate')}
-        onChooseQuiz={() => nav('quiz')}
-        onGoLanding={goLanding}
-        onGoAuth={goAuth}
-        onGoTopics={goTopics}
-        onGoProfile={goProfile}
-        onGoProgress={goProgress}
-      />
-    );
-  }
-
-  // ── Self-rate ─────────────────────────────────────────────────────────────
-  if (view === 'self-rate') {
-    return (
-      <AssessmentPage
-        onBack={() => nav('onboarding')}
-        onComplete={handleAssessmentComplete}
-        onGoLanding={goLanding}
-        onGoTopics={goTopics}
-        onGoProfile={goProfile}
-        onGoProgress={goProgress}
-      />
-    );
-  }
-
-  // ── Quiz ──────────────────────────────────────────────────────────────────
-  if (view === 'quiz') {
-    return (
-      <QuizPage
-        onBack={() => nav('onboarding')}
-        onComplete={handleAssessmentComplete}
-        onGoLanding={goLanding}
-        onGoTopics={goTopics}
-        onGoProfile={goProfile}
-        onGoProgress={goProgress}
-      />
-    );
-  }
-
-  // ── Result → dẫn sang TopicsPage ─────────────────────────────────────────
-  if (view === 'result') {
-    return (
-      <ResultPage
-        scores={assessmentScores}
-        onGoLanding={goLanding}
-        onGoAuth={goAuth}
-        onGoTopics={goTopics}
-        onGoProfile={goProfile}
-        onGoProgress={goProgress}
-      />
-    );
-  }
-
-  // ── Topics (danh sách chủ đề) ─────────────────────────────────────────────
-  if (view === 'topics') {
-    return (
-      <TopicsPage
-        onBack={() => {
-          if (user?.role === 'teacher' || user?.role === 'admin') {
-            goAdmin();
-          } else {
-            goLanding();
-          }
-        }}
-        onAuth={goAuth}
-        onSelectTopic={handleSelectTopic}
-        onGoPractice={goPractice}
-        onGoProfile={goProfile}
-        onGoProgress={goProgress}
-        onGoAdmin={goAdmin}
-        onGoSettings={goSettings}
-        onLoggedOut={handleLoggedOut}
-      />
-    );
-  }
-
-  // ── Topic Detail (chi tiết danh sách bài tập của 1 chủ đề) ─────────────────
-  if (view === 'topic-detail') {
-    return (
-      <TopicDetailPage
-        topic={selectedTopic}
-        onBack={goTopics}
-        onGoPractice={goPractice}
-        onGoLanding={goLanding}
-        onGoAuth={goAuth}
-        onGoTopics={goTopics}
-        onGoProfile={goProfile}
-        onGoProgress={goProgress}
-        onGoAdmin={goAdmin}
-        onGoSettings={goSettings}
-        onLoggedOut={handleLoggedOut}
-      />
-    );
-  }
-
-  // ── Practice ──────────────────────────────────────────────────────────────
-  if (view === 'practice') {
-    return (
-      <PracticePage
-        onBack={() => nav('topic-detail')}
-        initialProblemId={selectedProblemId}
-        onGoLanding={goLanding}
-        onGoAuth={goAuth}
-        onGoTopics={goTopics}
-        onGoProfile={goProfile}
-        onGoProgress={goProgress}
-        onGoHistory={goHistory}
-        onGoAdmin={goAdmin}
-        onGoSettings={goSettings}
-        onLoggedOut={handleLoggedOut}
-      />
-    );
-  }
-
-  // ── Profile ───────────────────────────────────────────────────────────────
-  if (view === 'profile') {
-    return (
-      <ProfilePage
-        onBack={() => {
-          if (user?.role === 'teacher' || user?.role === 'admin') {
-            goAdmin();
-          } else {
-            goLanding();
-          }
-        }}
-        onGoLanding={goLanding}
-        onGoAuth={goAuth}
-        onGoTopics={goTopics}
-        onGoProfile={goProfile}
-        onGoProgress={goProgress}
-        onGoHistory={goHistory}
-        onGoAdmin={goAdmin}
-        onGoSettings={goSettings}
-      />
-    );
-  }
-
-  // ── Progress ──────────────────────────────────────────────────────────────
-  if (view === 'progress') {
-    return (
-      <ProgressPage
-        onBack={() => {
-          if (user?.role === 'teacher' || user?.role === 'admin') {
-            goAdmin();
-          } else {
-            goLanding();
-          }
-        }}
-        onGoLanding={goLanding}
-        onGoAuth={goAuth}
-        onGoTopics={goTopics}
-        onGoProfile={goProfile}
-        onGoProgress={goProgress}
-        onGoHistory={goHistory}
-        onGoAdmin={goAdmin}
-        onGoSettings={goSettings}
-      />
-    );
-  }
-
-  // ── History ───────────────────────────────────────────────────────────────
-  if (view === 'history') {
-    return (
-      <HistoryPage
-        onBack={() => {
-          if (user?.role === 'teacher' || user?.role === 'admin') {
-            goAdmin();
-          } else {
-            goLanding();
-          }
-        }}
-        onGoLanding={goLanding}
-        onGoAuth={goAuth}
-        onGoTopics={goTopics}
-        onGoProfile={goProfile}
-        onGoProgress={goProgress}
-        onGoHistory={goHistory}
-        onGoAdmin={goAdmin}
-        onGoSettings={goSettings}
-      />
-    );
-  }
-
-  // ── Settings ──────────────────────────────────────────────────────────────
-  if (view === 'settings') {
-    return (
-      <SettingsPage
-        onBack={() => {
-          if (user?.role === 'teacher' || user?.role === 'admin') {
-            goAdmin();
-          } else {
-            goTopics();
-          }
-        }}
-        onGoLanding={goLanding}
-        onGoAuth={goAuth}
-        onGoTopics={goTopics}
-        onGoProfile={goProfile}
-        onGoProgress={goProgress}
-        onGoHistory={goHistory}
-        onGoAdmin={goAdmin}
-        onGoSettings={goSettings}
-        onLoggedOut={handleLoggedOut}
-      />
-    );
-  }
-
-  // ── Admin Dashboard ───────────────────────────────────────────────────────
-  if (view === 'admin') {
-    return (
-      <AdminPage
-        onBack={goLanding}
-        onGoLanding={goAdmin}
-        onGoAuth={goAuth}
-        onGoTopics={goTopics}
-        onGoProfile={goProfile}
-        onGoProgress={goProgress}
-        onGoHistory={goHistory}
-        onGoSettings={goSettings}
-        onGoPractice={goPractice}
-      />
-    );
-  }
-
-  // ── Landing (default) ─────────────────────────────────────────────────────
   return (
-    <LandingPage
-      onGoAuth={goAuth}
-      onGoTopics={goTopics}
-      onGoProfile={goProfile}
-      onGoProgress={goProgress}
-      onGoSettings={goSettings}
-      onGoStartPractice={goStartPractice}
-      onLoggedOut={handleLoggedOut}
-    />
+    <>
+      <ScrollToTop />
+      <Routes>
+        {/* ── Public ─────────────────────────────────────────────────────── */}
+        <Route path="/" element={<LandingRoute />} />
+        <Route path="/login" element={<AuthRoute mode="login" />} />
+        <Route path="/signup" element={<AuthRoute mode="signup" />} />
+        <Route
+          path="/topics"
+          element={
+            <TopicsPage
+              onBack={n.goHomeByRole}
+              onAuth={n.goAuth}
+              onSelectTopic={(t) => n.navigate(topicPath(t))}
+              onGoPractice={n.goPractice}
+              onGoProfile={n.goProfile}
+              onGoProgress={n.goProgress}
+              onGoAdmin={n.goAdmin}
+              onGoSettings={n.goSettings}
+              onLoggedOut={n.goLanding}
+            />
+          }
+        />
+        <Route path="/topics/:topicName" element={<TopicDetailRoute />} />
+
+        {/* ── Can dang nhap ──────────────────────────────────────────────── */}
+        <Route element={<RequireAuth />}>
+          <Route
+            path="/onboarding"
+            element={
+              <OnboardingPage
+                onChooseSelfRate={() => n.navigate('/self-rate')}
+                onChooseQuiz={() => n.navigate('/quiz')}
+                onGoAuth={n.goAuth}
+                {...assessmentNav}
+              />
+            }
+          />
+          <Route
+            path="/self-rate"
+            element={
+              <AssessmentPage
+                onBack={() => n.navigate('/onboarding')}
+                onComplete={handleAssessmentComplete}
+                {...assessmentNav}
+              />
+            }
+          />
+          <Route
+            path="/quiz"
+            element={
+              <QuizPage
+                onBack={() => n.navigate('/onboarding')}
+                onComplete={handleAssessmentComplete}
+                {...assessmentNav}
+              />
+            }
+          />
+          <Route
+            path="/result"
+            element={
+              assessmentScores.length === 0 ? (
+                <Navigate to="/onboarding" replace />
+              ) : (
+                <ResultPage scores={assessmentScores} onGoAuth={n.goAuth} {...assessmentNav} />
+              )
+            }
+          />
+          <Route path="/practice/:problemId" element={<PracticeRoute />} />
+          <Route path="/practice" element={<Navigate to="/topics" replace />} />
+          <Route path="/profile" element={<ProfilePage onBack={n.goHomeByRole} {...accountNav} />} />
+          <Route path="/progress" element={<ProgressPage onBack={n.goHomeByRole} {...accountNav} />} />
+          <Route path="/history" element={<HistoryPage onBack={n.goHomeByRole} {...accountNav} />} />
+          <Route
+            path="/settings"
+            element={
+              <SettingsPage
+                onBack={() => (n.isStaff ? n.goAdmin() : n.goTopics())}
+                onLoggedOut={n.goLanding}
+                {...accountNav}
+              />
+            }
+          />
+        </Route>
+
+        {/* ── Giang vien / Admin ─────────────────────────────────────────── */}
+        <Route element={<RequireAuth roles={['admin', 'teacher']} />}>
+          <Route
+            path="/admin"
+            element={
+              <AdminPage
+                onBack={n.goLanding}
+                onGoLanding={n.goAdmin}
+                onGoAuth={n.goAuth}
+                onGoTopics={n.goTopics}
+                onGoProfile={n.goProfile}
+                onGoProgress={n.goProgress}
+                onGoHistory={n.goHistory}
+                onGoSettings={n.goSettings}
+                onGoPractice={n.goPractice}
+              />
+            }
+          />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }
 

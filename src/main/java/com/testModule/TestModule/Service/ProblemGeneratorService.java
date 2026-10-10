@@ -5,7 +5,9 @@ import com.testModule.TestModule.Model.*;
 import com.testModule.TestModule.Repository.ProblemRepository;
 import com.testModule.TestModule.Repository.TemplateRepository;
 import com.testModule.TestModule.Service.IF.IProblemGenerator;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 
@@ -35,7 +37,7 @@ public class ProblemGeneratorService implements IProblemGenerator {
     @Override
     public Problem generateVariant(Long templateId, boolean useAiParaphrase) {
         Template template = templateRepository.findById(templateId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy template_id: " + templateId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy template_id: " + templateId));
 
 
         // Bước 1: random input + chạy reference solution để lấy output chuẩn
@@ -51,7 +53,7 @@ public class ProblemGeneratorService implements IProblemGenerator {
                 expectedOutput = ((String) result.get("stdout_decoded")).trim();
             } else {
                 // Reference solution mà chạy lỗi thì dừng ngay, không lưu variant hỏng
-                throw new RuntimeException("Reference solution lỗi với input: " + input
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lời giải mẫu của template chạy lỗi với input: " + input
                         + " | chi tiết: " + result.get("message"));
             }
 
@@ -116,7 +118,7 @@ public class ProblemGeneratorService implements IProblemGenerator {
                 }
                 return sb.toString();
             }
-            default -> throw new RuntimeException("generatorType chưa được hỗ trợ: " + template.getGeneratorType());
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "generatorType chưa được hỗ trợ: " + template.getGeneratorType());
         }
     }
 

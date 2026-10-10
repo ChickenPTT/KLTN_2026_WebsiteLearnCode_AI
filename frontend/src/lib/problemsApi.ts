@@ -23,6 +23,7 @@ export interface ProblemView {
   createdAt: string;
   samples: { input: string; expectedOutput: string }[];
   testCaseCount: number;
+  templateName: string | null;
 }
 
 export interface BackendTopic {
@@ -175,9 +176,15 @@ export function toPracticeProblem(p: ProblemView | AdminProblem): PracticeProble
       ? p.samples
       : (p.testCases ?? []).slice(0, 1).map((tc) => ({ input: tc.input, expectedOutput: tc.expectedOutput }));
   const lang = languageFromId(p.languageId);
+  
+  // Sử dụng templateName nếu có, fallback về titleFromStatement
+  const title = ('templateName' in p && p.templateName) 
+    ? p.templateName 
+    : titleFromStatement(p.statement, p.id);
+  
   return {
     id: String(p.id),
-    title: titleFromStatement(p.statement, p.id),
+    title: title,
     topic: p.topic ?? 'Khác',
     difficulty: toDifficulty(p.level),
     description: p.statement ?? '',

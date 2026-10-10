@@ -6,7 +6,6 @@ import {
   Eye,
   Edit3,
   Trash2,
-  Globe,
   CheckCircle2,
   AlertTriangle,
   Sparkles,
@@ -23,36 +22,44 @@ import {
   TreePine,
   Share2,
   Play,
-  Check,
   X,
   Code2,
   ChevronLeft,
   ChevronRight,
+  RefreshCw,
+  FileClock,
+  Globe,
+  XCircle,
   type LucideIcon,
 } from 'lucide-react';
-import { TOPICS, type PracticeProblem } from '@/types';
-import { AdminGeneratorModal } from './AdminGeneratorModal';
+import type { PracticeProblem } from '@/types';
 import { SearchableSelect, type SelectOption } from '@/components/SearchableSelect';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import {
+  toPracticeProblem,
+  LANGUAGE_LABELS,
+  type AdminProblem,
+  type VerifyResult,
+} from '@/lib/problemsApi';
+import { AdminVerifyModal } from './AdminVerifyModal';
+import { apiErrorMessage } from './adminApi.utils';
 
+// Topic trong DB la chuoi tu do (thuong viet thuong: "array", "basic"...) -> tra icon khong phan biet hoa thuong
 const TOPIC_ICON_MAP: Record<string, LucideIcon> = {
-  Array: ListOrdered,
-  String: Type,
-  'Hash Table': KeyRound,
-  'Two Pointers': MoveHorizontal,
-  'Linked List': Link2,
-  Stack: Layers,
-  Queue: AlignJustify,
-  Recursion: Repeat,
-  Sorting: ArrowDownWideNarrow,
-  'Binary Search': Search,
-  Tree: TreePine,
-  Graph: Share2,
+  array: ListOrdered,
+  string: Type,
+  'hash table': KeyRound,
+  'two pointers': MoveHorizontal,
+  'linked list': Link2,
+  stack: Layers,
+  queue: AlignJustify,
+  recursion: Repeat,
+  sorting: ArrowDownWideNarrow,
+  'binary search': Search,
+  tree: TreePine,
+  graph: Share2,
 };
-
-const TOPIC_OPTIONS: SelectOption[] = [
-  { value: 'all', label: 'Tất cả kiểu bài' },
-  ...TOPICS.map((t) => ({ value: t, label: t, icon: TOPIC_ICON_MAP[t] || Layers })),
-];
+const topicIcon = (topic: string): LucideIcon => TOPIC_ICON_MAP[topic.trim().toLowerCase()] ?? Layers;
 
 const DIFF_OPTIONS: SelectOption[] = [
   { value: 'all', label: 'Mọi cấp độ' },
@@ -61,16 +68,17 @@ const DIFF_OPTIONS: SelectOption[] = [
   { value: 'Hard', label: 'Khó (Hard)' },
 ];
 
-const VERIFY_OPTIONS: SelectOption[] = [
-  { value: 'all', label: 'Tất cả kiểm thử' },
-  { value: 'verified', label: '🟢 Đã test AI' },
-  { value: 'pending', label: '🟡 Chờ kiểm thử' },
+const SOURCE_OPTIONS: SelectOption[] = [
+  { value: 'all', label: 'Mọi nguồn' },
+  { value: 'ai', label: 'Sinh từ template' },
+  { value: 'manual', label: 'Thêm tay' },
 ];
 
-const STATUS_OPTIONS: SelectOption[] = [
-  { value: 'all', label: 'Tất cả trạng thái' },
-  { value: 'public', label: '🟢 Public' },
-  { value: 'draft', label: '⚪ Bản nháp' },
+const VERIFY_OPTIONS: SelectOption[] = [
+  { value: 'all', label: 'Tất cả kiểm tra' },
+  { value: 'passed', label: '🟢 Kiểm tra đạt' },
+  { value: 'failed', label: '🔴 Kiểm tra lỗi' },
+  { value: 'unchecked', label: '🟡 Chưa kiểm tra' },
 ];
 
 const DIFFICULTY_COLORS: Record<string, { bg: string; color: string; border: string; label: string }> = {
@@ -79,124 +87,103 @@ const DIFFICULTY_COLORS: Record<string, { bg: string; color: string; border: str
   Hard: { bg: 'rgba(244, 63, 94, 0.12)', color: '#f43f5e', border: 'rgba(244, 63, 94, 0.3)', label: 'Khó (Hard)' },
 };
 
+type StatusTab = 'draft' | 'published';
+
+interface ProblemRow {
+  raw: AdminProblem;
+  ui: PracticeProblem;
+}
+
 interface AdminProblemsTabProps {
-  problems: PracticeProblem[];
-  onAddProblem: (newProb?: PracticeProblem) => void;
-  onEditProblem: (problem: PracticeProblem) => void;
-  onDeleteProblem: (id: string) => void;
-  onTogglePublicStatus: (id: string) => void;
-  onViewDetail: (problem: PracticeProblem) => void;
-  onAddGeneratedProblems?: (newProblems: PracticeProblem[]) => void;
+  problems: AdminProblem[];
+  loading: boolean;
+  error: string | null;
+  /** Chi ADMIN duoc xoa (giang vien nhan 403) */
+  canDelete: boolean;
+  onReload: () => void;
+  /** DRAFT -> publish, PUBLISHED -> unpublish */
+  onTogglePublish: (problem: AdminProblem) => Promise<void>;
+  onDelete: (problem: AdminProblem) => Promise<void>;
+  onGoGenerator: () => void;
 }
 
 export function AdminProblemsTab({
   problems,
-  onAddProblem,
-  onEditProblem,
-  onDeleteProblem,
-  onTogglePublicStatus,
-  onViewDetail,
-  onAddGeneratedProblems,
+  loading,
+  error,
+  canDelete,
+  onReload,
+  onTogglePublish,
+  onDelete,
+  onGoGenerator,
 }: AdminProblemsTabProps) {
-  // Source Tab State ('manual': do thêm tay | 'ai': do AI generate)
-  const [activeSourceTab, setActiveSourceTab] = useState<'manual' | 'ai'>('manual');
+  // Tab trang thai: "Chờ duyệt" (DRAFT) | "Đã xuất bản" (PUBLISHED)
+  const [activeStatusTab, setActiveStatusTab] = useState<StatusTab>('draft');
 
   // Search & Filters
   const [searchKey, setSearchKey] = useState('');
   const [topicFilter, setTopicFilter] = useState<string>('all');
   const [diffFilter, setDiffFilter] = useState<string>('all');
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [verifyFilter, setVerifyFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  // Modals state
-  const [deletingProblem, setDeletingProblem] = useState<PracticeProblem | null>(null);
-  const [testingProblem, setTestingProblem] = useState<PracticeProblem | null>(null);
-  const [viewingProblem, setViewingProblem] = useState<PracticeProblem | null>(null);
-  const [editingProblem, setEditingProblem] = useState<PracticeProblem | null>(null);
-  const [isAddingModalOpen, setIsAddingModalOpen] = useState(false);
-  const [isGenModalOpen, setIsGenModalOpen] = useState(false);
+  // Modals / thao tac
+  const [deletingProblem, setDeletingProblem] = useState<ProblemRow | null>(null);
+  const [testingProblem, setTestingProblem] = useState<AdminProblem | null>(null);
+  const [viewingProblem, setViewingProblem] = useState<ProblemRow | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  // Local verification state map
-  const [verifiedMap, setVerifiedMap] = useState<Record<string, boolean>>({});
+  // Ket qua "Kiểm tra" trong phien (backend khong luu trang thai nay)
+  const [verifyMap, setVerifyMap] = useState<Record<number, VerifyResult>>({});
 
-  // Local state for editing form
-  const [editFormData, setEditFormData] = useState<Partial<PracticeProblem>>({});
-  const [addFormData, setAddFormData] = useState<Partial<PracticeProblem>>({
-    title: '',
-    topic: TOPICS[0],
-    difficulty: 'Easy',
-    description: '',
-    inputExample: 'nums = [2, 7, 11, 15], target = 9',
-    outputExample: '[0, 1]',
-    constraints: '1 ≤ N ≤ 10⁵',
-  } as any);
+  const rows = useMemo<ProblemRow[]>(() => problems.map((raw) => ({ raw, ui: toPracticeProblem(raw) })), [problems]);
 
-  // Active language tab in detail modal
-  const [detailLangTab, setDetailLangTab] = useState<'java' | 'python'>('java');
+  const draftCount = useMemo(() => problems.filter((p) => p.status === 'DRAFT').length, [problems]);
+  const publishedCount = problems.length - draftCount;
 
-  // Count total manual vs total AI generated problems
-  const totalManualCount = useMemo(() => problems.filter((p) => !p.isAiGenerated).length, [problems]);
-  const totalAiCount = useMemo(() => problems.filter((p) => p.isAiGenerated).length, [problems]);
+  const topicOptions = useMemo<SelectOption[]>(() => {
+    const topics = Array.from(new Set(rows.map((r) => r.ui.topic))).sort((a, b) => a.localeCompare(b));
+    return [
+      { value: 'all', label: 'Tất cả chủ đề' },
+      ...topics.map((t) => ({ value: t, label: t, icon: topicIcon(t) })),
+    ];
+  }, [rows]);
 
-  // Check if a problem is verified (Manual is default verified true, AI follows verifiedMap or prob.isVerified)
-  const isProblemVerified = (prob: PracticeProblem) => {
-    if (verifiedMap[prob.id] !== undefined) return verifiedMap[prob.id];
-    if (!prob.isAiGenerated) return true; // Manual problems are verified by default
-    return prob.isVerified === true;
+  const verifyState = (id: number): 'passed' | 'failed' | 'unchecked' => {
+    const r = verifyMap[id];
+    if (!r) return 'unchecked';
+    return r.allPassed ? 'passed' : 'failed';
   };
 
-  const handleToggleVerification = (prob: PracticeProblem) => {
-    // If not verified, open Sandbox test modal first
-    if (!isProblemVerified(prob)) {
-      setTestingProblem(prob);
-    } else {
-      setVerifiedMap((prev) => ({ ...prev, [prob.id]: false }));
-    }
-  };
-
-  const handleTogglePublicClick = (prob: PracticeProblem) => {
-    const verified = isProblemVerified(prob);
-    // If problem is AI generated and NOT verified yet, require Sandbox testing first
-    if (prob.isAiGenerated && !verified && prob.isPublic === false) {
-      setTestingProblem(prob);
-      return;
-    }
-    onTogglePublicStatus(prob.id);
-  };
-
-  // Filtered problems list according to active tab and selected filters
   const filteredProblems = useMemo(() => {
-    return problems.filter((p) => {
-      // 1. Tab source match
-      const isSourceMatch = activeSourceTab === 'ai' ? Boolean(p.isAiGenerated) : !p.isAiGenerated;
-      if (!isSourceMatch) return false;
+    const key = searchKey.trim().toLowerCase();
+    return rows.filter(({ raw, ui }) => {
+      if (activeStatusTab === 'draft' ? raw.status !== 'DRAFT' : raw.status !== 'PUBLISHED') return false;
 
-      // 2. Search match
-      const isSearchMatch =
-        p.title.toLowerCase().includes(searchKey.toLowerCase()) ||
-        p.description.toLowerCase().includes(searchKey.toLowerCase()) ||
-        p.topic.toLowerCase().includes(searchKey.toLowerCase());
-      if (!isSearchMatch) return false;
+      if (
+        key &&
+        !ui.title.toLowerCase().includes(key) &&
+        !ui.description.toLowerCase().includes(key) &&
+        !ui.topic.toLowerCase().includes(key) &&
+        !String(raw.id).includes(key)
+      ) {
+        return false;
+      }
 
-      // 3. Topic match
-      if (topicFilter !== 'all' && p.topic !== topicFilter) return false;
+      if (topicFilter !== 'all' && ui.topic !== topicFilter) return false;
+      if (diffFilter !== 'all' && ui.difficulty !== diffFilter) return false;
+      if (sourceFilter === 'ai' && raw.sourceType !== 'AI_GENERATED') return false;
+      if (sourceFilter === 'manual' && raw.sourceType !== 'MANUAL') return false;
 
-      // 4. Difficulty match
-      if (diffFilter !== 'all' && p.difficulty !== diffFilter) return false;
-
-      // 5. Verification status match
-      const verified = isProblemVerified(p);
-      if (verifyFilter === 'verified' && !verified) return false;
-      if (verifyFilter === 'pending' && verified) return false;
-
-      // 6. Public/Draft status match
-      const isPublic = p.isPublic !== false;
-      if (statusFilter === 'public' && !isPublic) return false;
-      if (statusFilter === 'draft' && isPublic) return false;
-
+      if (verifyFilter !== 'all') {
+        const r = verifyMap[raw.id];
+        const state = !r ? 'unchecked' : r.allPassed ? 'passed' : 'failed';
+        if (state !== verifyFilter) return false;
+      }
       return true;
     });
-  }, [problems, activeSourceTab, searchKey, topicFilter, diffFilter, verifyFilter, statusFilter, verifiedMap]);
+  }, [rows, activeStatusTab, searchKey, topicFilter, diffFilter, sourceFilter, verifyFilter, verifyMap]);
 
   // ── PAGINATION LOGIC (20 ITEMS PER PAGE) ──
   const ITEMS_PER_PAGE = 20;
@@ -214,308 +201,142 @@ export function AdminProblemsTab({
   const endItemIdx = Math.min(safeCurrentPage * ITEMS_PER_PAGE, filteredProblems.length);
 
   // Handlers that reset page to 1
-  const handleTabChange = (tab: 'manual' | 'ai') => {
-    setActiveSourceTab(tab);
-    setCurrentPage(1);
-  };
-  const handleSearchChange = (val: string) => {
-    setSearchKey(val);
-    setCurrentPage(1);
-  };
-  const handleTopicFilterChange = (val: string) => {
-    setTopicFilter(val);
-    setCurrentPage(1);
-  };
-  const handleDiffFilterChange = (val: string) => {
-    setDiffFilter(val);
-    setCurrentPage(1);
-  };
-  const handleVerifyFilterChange = (val: string) => {
-    setVerifyFilter(val);
-    setCurrentPage(1);
-  };
-  const handleStatusFilterChange = (val: string) => {
-    setStatusFilter(val);
-    setCurrentPage(1);
-  };
-
-  // Open Edit Modal
-  const openEditModal = (prob: PracticeProblem) => {
-    setEditingProblem(prob);
-    setEditFormData({
-      title: prob.title,
-      topic: prob.topic,
-      difficulty: prob.difficulty,
-      description: prob.description,
-      inputExample: prob.examples?.[0]?.input || '',
-      outputExample: prob.examples?.[0]?.output || '',
-      constraints: prob.constraints?.[0] || '1 ≤ N ≤ 10⁵',
-    } as any);
-  };
-
-  // Submit Edit Form
-  const handleSaveEdit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingProblem) return;
-
-    const updatedProb: PracticeProblem = {
-      ...editingProblem,
-      title: editFormData.title || editingProblem.title,
-      topic: editFormData.topic || editingProblem.topic,
-      difficulty: editFormData.difficulty || editingProblem.difficulty,
-      description: editFormData.description || editingProblem.description,
-      examples: [
-        {
-          input: (editFormData as any).inputExample || editingProblem.examples?.[0]?.input || '',
-          output: (editFormData as any).outputExample || editingProblem.examples?.[0]?.output || '',
-          explanation: editingProblem.examples?.[0]?.explanation || 'Đã cập nhật',
-        },
-      ],
-      constraints: [(editFormData as any).constraints || '1 ≤ N ≤ 10⁵'],
+  const withPageReset =
+    <T,>(setter: (v: T) => void) =>
+    (v: T) => {
+      setter(v);
+      setCurrentPage(1);
     };
+  const handleTabChange = withPageReset(setActiveStatusTab);
+  const handleSearchChange = withPageReset(setSearchKey);
+  const handleTopicFilterChange = withPageReset(setTopicFilter);
+  const handleDiffFilterChange = withPageReset(setDiffFilter);
+  const handleSourceFilterChange = withPageReset(setSourceFilter);
+  const handleVerifyFilterChange = withPageReset(setVerifyFilter);
 
-    onEditProblem(updatedProb);
-    setEditingProblem(null);
+  const runAction = async (p: AdminProblem, action: (p: AdminProblem) => Promise<void>) => {
+    setBusyId(p.id);
+    setActionError(null);
+    try {
+      await action(p);
+    } catch (err) {
+      setActionError(apiErrorMessage(err));
+    } finally {
+      setBusyId(null);
+    }
   };
 
-  // Submit Add Manual Problem Form
-  const handleSaveAdd = (e: React.FormEvent) => {
-    e.preventDefault();
-    const newProb: PracticeProblem = {
-      id: `manual-${Date.now()}`,
-      title: addFormData.title || 'Bài tập thực hành mới',
-      topic: addFormData.topic || TOPICS[0],
-      difficulty: addFormData.difficulty || 'Easy',
-      description: addFormData.description || 'Mô tả bài tập thực hành',
-      examples: [
-        {
-          input: (addFormData as any).inputExample || 'nums = [1, 2, 3]',
-          output: (addFormData as any).outputExample || '6',
-          explanation: 'Ví dụ mẫu tạo bởi giảng viên',
-        },
-      ],
-      starterCode: `class Solution {\n    public int solve(int[] nums) {\n        return 0;\n    }\n}`,
-      starterCodes: {
-        java: `class Solution {\n    public int solve(int[] nums) {\n        return 0;\n    }\n}`,
-        python: `class Solution:\n    def solve(self, nums: list[int]) -> int:\n        return 0`,
-      },
-      language: 'java',
-      constraints: [(addFormData as any).constraints || '1 ≤ N ≤ 10⁵'],
-      isPublic: true,
-      isAiGenerated: false,
-      isVerified: true,
-      updatedAt: new Date().toISOString().split('T')[0],
-    };
-
-    onAddGeneratedProblems?.([newProb]);
-    onAddProblem?.(newProb);
-    setIsAddingModalOpen(false);
-  };
+  const viewingRaw = viewingProblem?.raw ?? null;
 
   return (
     <div className="admin-tab-content">
-      {/* 1. Generator Popup Modal */}
-      <AdminGeneratorModal
-        isOpen={isGenModalOpen}
-        onClose={() => setIsGenModalOpen(false)}
-        onGenerateSuccess={(newProblems) => {
-          onAddGeneratedProblems?.(newProblems);
-          setActiveSourceTab('ai');
+      {/* 1. Xac nhan xoa */}
+      <ConfirmDialog
+        isOpen={deletingProblem !== null}
+        title="Xóa bài tập khỏi hệ thống?"
+        message={
+          deletingProblem
+            ? `Bạn có chắc chắn muốn xóa bài #${deletingProblem.raw.id} "${deletingProblem.ui.title}" không? Thao tác này không thể hoàn tác.`
+            : ''
+        }
+        confirmLabel="Xác nhận xóa"
+        cancelLabel="Hủy bỏ"
+        variant="danger"
+        onConfirm={() => {
+          const target = deletingProblem;
+          setDeletingProblem(null);
+          if (target) void runAction(target.raw, onDelete);
         }}
+        onCancel={() => setDeletingProblem(null)}
       />
 
-      {/* 2. Delete Problem Confirmation Modal */}
-      {deletingProblem && (
-        <div className="dialog-overlay" onClick={() => setDeletingProblem(null)}>
-          <div className="dialog-box" onClick={(e) => e.stopPropagation()}>
-            <div className="dialog-icon danger">
-              <AlertTriangle size={28} />
-            </div>
-            <h3 className="dialog-title">Xóa bài tập khỏi hệ thống?</h3>
-            <p className="dialog-message">
-              Bạn có chắc chắn muốn xóa bài "<strong>{deletingProblem.title}</strong>" không? Thao tác này sẽ gỡ bài khỏi ngân hàng đề thi.
-            </p>
-            <div className="dialog-actions">
-              <button
-                className="dialog-cancel"
-                onClick={() => setDeletingProblem(null)}
-              >
-                Hủy bỏ
-              </button>
-              <button
-                className="dialog-confirm danger"
-                onClick={() => {
-                  onDeleteProblem(deletingProblem.id);
-                  setDeletingProblem(null);
-                }}
-              >
-                Xác nhận xóa
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 3. AI Sandbox Test & Verification Modal */}
+      {/* 2. Kiem tra (verify) */}
       {testingProblem && (
-        <div className="dialog-overlay" onClick={() => setTestingProblem(null)}>
-          <div className="dialog-box" style={{ maxWidth: '620px', textAlign: 'left' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ background: 'rgba(169, 149, 255, 0.15)', color: '#a995ff', padding: '10px', borderRadius: '10px' }}>
-                  <FlaskConical size={22} />
-                </div>
-                <div>
-                  <h3 className="dialog-title admin-modal-title" style={{ margin: 0, fontSize: '18px' }}>
-                    Chạy Sandbox Kiểm thử AI Test Cases
-                  </h3>
-                  <span className="admin-modal-sub">Biên dịch & Chạy mã nguồn kiểm tra Output mẫu</span>
-                </div>
-              </div>
-              <button className="dialog-close" onClick={() => setTestingProblem(null)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="sandbox-modal-card">
-              <div className="sandbox-card-title">
-                Bài tập: {testingProblem.title}
-              </div>
-              <div className="sandbox-card-desc">
-                {testingProblem.description}
-              </div>
-
-              <div className="sandbox-results-box">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className="sandbox-status-passed">
-                    <CheckCircle2 size={14} /> SANDBOX RUNNER: 3/3 TEST CASES PASSED
-                  </span>
-                  <span className="sandbox-metrics">Time: 28ms | Memory: 14.2MB</span>
-                </div>
-                <div className="sandbox-code-preview">
-                  <div><strong>Input:</strong> {testingProblem.examples?.[0]?.input || 'nums = [3, 8, 12, 5], k = 15'}</div>
-                  <div className="sandbox-output-text"><strong>Actual Output (Verified):</strong> [0, 2]</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="sandbox-alert-banner">
-              ✓ Đã xác nhận Output kiểm thử chính xác. Khi bấm nút bên dưới, bài tập sẽ được đánh dấu <strong>Đã test AI</strong> và tự động kích hoạt trạng thái <strong>Public</strong>.
-            </div>
-
-            <div className="dialog-actions">
-              <button className="dialog-cancel" onClick={() => setTestingProblem(null)}>
-                Đóng
-              </button>
-              <button
-                className="dialog-confirm"
-                style={{ background: '#4b78f5' }}
-                onClick={() => {
-                  setVerifiedMap((prev) => ({ ...prev, [testingProblem.id]: true }));
-                  if (testingProblem.isPublic === false) {
-                    onTogglePublicStatus(testingProblem.id);
-                  }
-                  setTestingProblem(null);
-                }}
-              >
-                <Check size={16} /> Xác nhận Đã kiểm thử & Setup Public
-              </button>
-            </div>
-          </div>
-        </div>
+        <AdminVerifyModal
+          problem={testingProblem}
+          onClose={() => setTestingProblem(null)}
+          onResult={(id, res) => setVerifyMap((prev) => ({ ...prev, [id]: res }))}
+          onPublish={onTogglePublish}
+        />
       )}
 
-      {/* 4. VIEW DETAIL PROBLEM MODAL */}
-      {viewingProblem && (
+      {/* 3. Chi tiet bai */}
+      {viewingProblem && viewingRaw && (
         <div className="dialog-overlay" onClick={() => setViewingProblem(null)}>
-          <div className="dialog-box" style={{ maxWidth: '680px', textAlign: 'left', padding: '28px 32px' }} onClick={(e) => e.stopPropagation()}>
+          <div className="dialog-box" style={{ maxWidth: '760px', textAlign: 'left', padding: '28px 32px' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
                   <span
                     style={{
                       fontSize: '11px',
                       padding: '2px 8px',
                       borderRadius: '12px',
                       fontWeight: 600,
-                      background: DIFFICULTY_COLORS[viewingProblem.difficulty]?.bg || '#78d39e18',
-                      color: DIFFICULTY_COLORS[viewingProblem.difficulty]?.color || '#78d39e',
-                      border: `1px solid ${DIFFICULTY_COLORS[viewingProblem.difficulty]?.border || '#78d39e33'}`,
+                      background: DIFFICULTY_COLORS[viewingProblem.ui.difficulty]?.bg || '#78d39e18',
+                      color: DIFFICULTY_COLORS[viewingProblem.ui.difficulty]?.color || '#78d39e',
+                      border: `1px solid ${DIFFICULTY_COLORS[viewingProblem.ui.difficulty]?.border || '#78d39e33'}`,
                     }}
                   >
-                    {viewingProblem.difficulty}
+                    {viewingRaw.level ?? viewingProblem.ui.difficulty}
                   </span>
                   <span className="prob-topic-badge" style={{ fontSize: '11.5px', padding: '2px 8px' }}>
-                    {viewingProblem.topic}
+                    {viewingProblem.ui.topic}
                   </span>
-                  {viewingProblem.isAiGenerated ? (
-                    <span className="prob-badge-tag ai">AI Generate</span>
+                  {viewingRaw.sourceType === 'AI_GENERATED' ? (
+                    <span className="prob-badge-tag ai">Sinh từ template</span>
                   ) : (
                     <span className="prob-badge-tag manual">Thêm tay</span>
                   )}
+                  <span className={`toggle-switch-label ${viewingRaw.status === 'PUBLISHED' ? 'is-public' : ''}`}>
+                    {viewingRaw.status === 'PUBLISHED' ? 'Đã xuất bản' : 'Nháp'}
+                  </span>
                 </div>
                 <h2 className="dialog-title admin-modal-title" style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>
-                  {viewingProblem.title}
+                  #{viewingRaw.id} {viewingProblem.ui.title}
                 </h2>
+                <span className="admin-modal-sub" style={{ fontSize: '12px' }}>
+                  {viewingRaw.template ? `Template: ${viewingRaw.template.name}` : 'Không có template'}
+                  {' · '}Ngôn ngữ: {LANGUAGE_LABELS[viewingRaw.languageId] ?? `#${viewingRaw.languageId}`}
+                  {' · '}Tạo lúc: {new Date(viewingRaw.createdAt).toLocaleString('vi-VN')}
+                </span>
               </div>
-              <button className="dialog-close" onClick={() => setViewingProblem(null)}>
+              <button className="dialog-close" onClick={() => setViewingProblem(null)} aria-label="Đóng">
                 <X size={18} />
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px' }}>
-              {/* Mô tả */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '65vh', overflowY: 'auto', paddingRight: '4px' }}>
+              {/* De bai */}
               <div>
-                <h4 className="admin-modal-section-title">Mô tả bài tập</h4>
-                <p className="admin-modal-section-body">
-                  {viewingProblem.description}
+                <h4 className="admin-modal-section-title">Đề bài</h4>
+                <p className="admin-modal-section-body" style={{ whiteSpace: 'pre-wrap' }}>
+                  {viewingRaw.statement}
                 </p>
               </div>
 
-              {/* Ví dụ Input / Output */}
-              {viewingProblem.examples?.[0] && (
-                <div className="admin-example-card">
-                  <h4 className="admin-example-title">
-                    <Code2 size={14} /> Ví dụ mẫu Input / Output
-                  </h4>
-                  <div className="admin-example-code-box">
-                    <div><strong>Input:</strong> {viewingProblem.examples[0].input}</div>
-                    <div><strong>Output:</strong> {viewingProblem.examples[0].output}</div>
-                    {viewingProblem.examples[0].explanation && (
-                      <div className="admin-example-explanation">
-                        💡 {viewingProblem.examples[0].explanation}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+              {/* Test cases */}
+              <div className="admin-example-card">
+                <h4 className="admin-example-title">
+                  <Code2 size={14} /> Bộ test case ({viewingRaw.testCases.length})
+                </h4>
+                {viewingRaw.testCases.length === 0 ? (
+                  <div className="admin-example-code-box">Chưa có test case nào.</div>
+                ) : (
+                  viewingRaw.testCases.map((tc, i) => (
+                    <div className="admin-example-code-box" key={tc.id} style={{ whiteSpace: 'pre-wrap', marginBottom: '8px' }}>
+                      <div><strong>Test {i + 1} — Input:</strong> {tc.input}</div>
+                      <div><strong>Output:</strong> {tc.expectedOutput}</div>
+                    </div>
+                  ))
+                )}
+              </div>
 
-              {/* Starter Code */}
+              {/* Loi giai mau */}
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <h4 className="admin-modal-section-title" style={{ margin: 0 }}>Khung Code Ban Đầu (Starter Code)</h4>
-                  <div className="admin-lang-tabs">
-                    <button
-                      type="button"
-                      className={`admin-lang-tab-btn ${detailLangTab === 'java' ? 'active-java' : ''}`}
-                      onClick={() => setDetailLangTab('java')}
-                    >
-                      Java
-                    </button>
-                    <button
-                      type="button"
-                      className={`admin-lang-tab-btn ${detailLangTab === 'python' ? 'active-python' : ''}`}
-                      onClick={() => setDetailLangTab('python')}
-                    >
-                      Python
-                    </button>
-                  </div>
-                </div>
-
+                <h4 className="admin-modal-section-title">Lời giải mẫu (Reference Solution)</h4>
                 <pre className="admin-starter-code-block">
-                  {detailLangTab === 'java'
-                    ? viewingProblem.starterCodes?.java || viewingProblem.starterCode
-                    : viewingProblem.starterCodes?.python || '# Python starter code\ndef solve(nums):\n    pass'}
+                  {viewingRaw.referenceSolution || viewingRaw.template?.referenceSolutionCode || '(Không có lời giải mẫu)'}
                 </pre>
               </div>
             </div>
@@ -528,209 +349,13 @@ export function AdminProblemsTab({
                 className="dialog-confirm"
                 style={{ background: '#4b78f5' }}
                 onClick={() => {
-                  const probToEdit = viewingProblem;
                   setViewingProblem(null);
-                  openEditModal(probToEdit);
+                  setTestingProblem(viewingRaw);
                 }}
               >
-                <Edit3 size={15} /> Chỉnh sửa bài này
+                <FlaskConical size={15} /> Kiểm tra test case
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* 5. EDIT PROBLEM MODAL */}
-      {editingProblem && (
-        <div className="dialog-overlay" onClick={() => setEditingProblem(null)}>
-          <div className="dialog-box" style={{ maxWidth: '640px', textAlign: 'left', padding: '28px 32px' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 className="dialog-title" style={{ margin: 0, fontSize: '19px', color: '#f1f5f9' }}>
-                Chỉnh Sửa Bài Tập: {editingProblem.title}
-              </h3>
-              <button className="dialog-close" onClick={() => setEditingProblem(null)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <label className="auth-field">
-                <span className="auth-label" style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 600 }}>Tên bài tập</span>
-                <input
-                  type="text"
-                  className="admin-modal-input"
-                  value={editFormData.title || ''}
-                  onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
-                  required
-                />
-              </label>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div className="auth-field">
-                  <span className="auth-label" style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Chủ đề / Kiểu bài</span>
-                  <SearchableSelect
-                    options={TOPICS.map((t) => ({ label: t, value: t }))}
-                    value={editFormData.topic || TOPICS[0]}
-                    onChange={(val) => setEditFormData({ ...editFormData, topic: val })}
-                    showSearch={true}
-                  />
-                </div>
-
-                <div className="auth-field">
-                  <span className="auth-label" style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Độ khó</span>
-                  <SearchableSelect
-                    options={[
-                      { label: 'Dễ (Easy)', value: 'Easy' },
-                      { label: 'Trung bình (Medium)', value: 'Medium' },
-                      { label: 'Khó (Hard)', value: 'Hard' },
-                    ]}
-                    value={editFormData.difficulty || 'Easy'}
-                    onChange={(val) => setEditFormData({ ...editFormData, difficulty: val as any })}
-                    showSearch={false}
-                  />
-                </div>
-              </div>
-
-              <label className="auth-field">
-                <span className="auth-label" style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 600 }}>Mô tả chi tiết bài toán</span>
-                <textarea
-                  className="admin-modal-input"
-                  rows={3}
-                  value={editFormData.description || ''}
-                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-                  style={{ resize: 'vertical' }}
-                />
-              </label>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <label className="auth-field">
-                  <span className="auth-label" style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 600 }}>Ví dụ Input</span>
-                  <input
-                    type="text"
-                    className="admin-modal-input"
-                    value={(editFormData as any).inputExample || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, inputExample: e.target.value } as any)}
-                  />
-                </label>
-
-                <label className="auth-field">
-                  <span className="auth-label" style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 600 }}>Ví dụ Output</span>
-                  <input
-                    type="text"
-                    className="admin-modal-input"
-                    value={(editFormData as any).outputExample || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, outputExample: e.target.value } as any)}
-                  />
-                </label>
-              </div>
-
-              <div className="dialog-actions" style={{ marginTop: '12px' }}>
-                <button type="button" className="dialog-cancel" onClick={() => setEditingProblem(null)}>
-                  Hủy bỏ
-                </button>
-                <button type="submit" className="dialog-confirm" style={{ background: '#4b78f5' }}>
-                  Lưu thay đổi
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 6. ADD MANUAL PROBLEM MODAL */}
-      {isAddingModalOpen && (
-        <div className="dialog-overlay" onClick={() => setIsAddingModalOpen(false)}>
-          <div className="dialog-box" style={{ maxWidth: '640px', textAlign: 'left', padding: '28px 32px' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 className="dialog-title" style={{ margin: 0, fontSize: '19px', color: '#f1f5f9' }}>
-                Thêm Bài Tập Mới (Thêm Tay)
-              </h3>
-              <button className="dialog-close" onClick={() => setIsAddingModalOpen(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveAdd} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <label className="auth-field">
-                <span className="auth-label" style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 600 }}>Tên bài tập</span>
-                <input
-                  type="text"
-                  className="admin-modal-input"
-                  placeholder="Nhập tên bài tập..."
-                  value={addFormData.title || ''}
-                  onChange={(e) => setAddFormData({ ...addFormData, title: e.target.value })}
-                  required
-                />
-              </label>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div className="auth-field">
-                  <span className="auth-label" style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Chủ đề / Kiểu bài</span>
-                  <SearchableSelect
-                    options={TOPICS.map((t) => ({ label: t, value: t }))}
-                    value={addFormData.topic || TOPICS[0]}
-                    onChange={(val) => setAddFormData({ ...addFormData, topic: val })}
-                    showSearch={true}
-                  />
-                </div>
-
-                <div className="auth-field">
-                  <span className="auth-label" style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Độ khó</span>
-                  <SearchableSelect
-                    options={[
-                      { label: 'Dễ (Easy)', value: 'Easy' },
-                      { label: 'Trung bình (Medium)', value: 'Medium' },
-                      { label: 'Khó (Hard)', value: 'Hard' },
-                    ]}
-                    value={addFormData.difficulty || 'Easy'}
-                    onChange={(val) => setAddFormData({ ...addFormData, difficulty: val as any })}
-                    showSearch={false}
-                  />
-                </div>
-              </div>
-
-              <label className="auth-field">
-                <span className="auth-label" style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 600 }}>Mô tả chi tiết</span>
-                <textarea
-                  className="admin-modal-input"
-                  rows={3}
-                  placeholder="Nhập đề bài & yêu cầu thuật toán..."
-                  value={addFormData.description || ''}
-                  onChange={(e) => setAddFormData({ ...addFormData, description: e.target.value })}
-                />
-              </label>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <label className="auth-field">
-                  <span className="auth-label" style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 600 }}>Ví dụ Input</span>
-                  <input
-                    type="text"
-                    className="admin-modal-input"
-                    value={(addFormData as any).inputExample || ''}
-                    onChange={(e) => setAddFormData({ ...addFormData, inputExample: e.target.value } as any)}
-                  />
-                </label>
-
-                <label className="auth-field">
-                  <span className="auth-label" style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 600 }}>Ví dụ Output</span>
-                  <input
-                    type="text"
-                    className="admin-modal-input"
-                    value={(addFormData as any).outputExample || ''}
-                    onChange={(e) => setAddFormData({ ...addFormData, outputExample: e.target.value } as any)}
-                  />
-                </label>
-              </div>
-
-              <div className="dialog-actions" style={{ marginTop: '12px' }}>
-                <button type="button" className="dialog-cancel" onClick={() => setIsAddingModalOpen(false)}>
-                  Hủy bỏ
-                </button>
-                <button type="submit" className="dialog-confirm" style={{ background: '#4b78f5' }}>
-                  <Plus size={16} /> Tạo bài mới
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}
@@ -738,15 +363,24 @@ export function AdminProblemsTab({
       {/* ── HEADER ROW ── */}
       <div className="admin-header-row">
         <div>
-          <h1 className="admin-page-title">Quản lý Ngân hàng Bài tập & Trạng thái Công khai</h1>
+          <h1 className="admin-page-title">Duyệt đề & Quản lý bài tập</h1>
           <p className="admin-page-sub">
-            Ngân hàng hiện có <strong>{problems.length}</strong> bài tập ({totalManualCount} bài thêm tay & {totalAiCount} bài AI generated).
+            Ngân hàng hiện có <strong>{problems.length}</strong> bài tập ({draftCount} bài nháp chờ duyệt & {publishedCount} bài đã xuất bản).
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button
             className="dialog-cancel"
-            onClick={() => setIsGenModalOpen(true)}
+            onClick={onReload}
+            disabled={loading}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            title="Tải lại danh sách từ máy chủ"
+          >
+            <RefreshCw size={16} className={loading ? 'spin' : undefined} /> Tải lại
+          </button>
+          <button
+            className="dialog-cancel"
+            onClick={onGoGenerator}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -756,50 +390,86 @@ export function AdminProblemsTab({
               background: 'rgba(169, 149, 255, 0.1)',
             }}
           >
-            <Sparkles size={16} /> Generate đề thi AI
+            <Sparkles size={16} /> Sinh đề tự động
           </button>
-          <button className="assessment-primary" onClick={() => setIsAddingModalOpen(true)}>
+          <button
+            className="assessment-primary"
+            disabled
+            title="Chưa hỗ trợ"
+            style={{ opacity: 0.5, cursor: 'not-allowed' }}
+          >
             <Plus size={16} /> Thêm bài mới
           </button>
         </div>
       </div>
 
+      {(error || actionError) && (
+        <div
+          style={{
+            background: 'rgba(240, 138, 138, 0.12)',
+            border: '1px solid rgba(240, 138, 138, 0.35)',
+            color: '#f08a8a',
+            padding: '12px 18px',
+            borderRadius: '10px',
+            marginBottom: '16px',
+            fontSize: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}
+        >
+          <AlertTriangle size={18} />
+          <span style={{ flex: 1 }}>{actionError ?? error}</span>
+          {actionError && (
+            <button type="button" className="dialog-close" style={{ position: 'static' }} onClick={() => setActionError(null)} aria-label="Đóng">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* ── UNIFIED CONTROL BAR (PILL TABS + FILTERS) ── */}
-      <div className={`admin-unified-control-bar theme-${activeSourceTab}`}>
-        {/* Left Pill Toggle Tabs */}
+      <div className={`admin-unified-control-bar theme-${activeStatusTab === 'draft' ? 'ai' : 'manual'}`}>
         <div className="unified-toggle-tabs">
           <button
             type="button"
-            className={`unified-tab-btn ${activeSourceTab === 'manual' ? 'is-active' : ''}`}
-            onClick={() => handleTabChange('manual')}
+            className={`unified-tab-btn ${activeStatusTab === 'draft' ? 'is-active' : ''}`}
+            onClick={() => handleTabChange('draft')}
           >
-            <Edit3 size={15} />
-            <span>Đề thêm tay ({totalManualCount})</span>
+            <FileClock size={15} />
+            <span>Nháp chờ duyệt ({draftCount})</span>
           </button>
           <button
             type="button"
-            className={`unified-tab-btn ${activeSourceTab === 'ai' ? 'is-active' : ''}`}
-            onClick={() => handleTabChange('ai')}
+            className={`unified-tab-btn ${activeStatusTab === 'published' ? 'is-active' : ''}`}
+            onClick={() => handleTabChange('published')}
           >
-            <Sparkles size={15} />
-            <span>AI Generate ({totalAiCount})</span>
+            <Globe size={15} />
+            <span>Đã xuất bản ({publishedCount})</span>
           </button>
         </div>
 
         <div className="unified-v-divider" />
 
-        {/* Dropdown Filters Group */}
         <div className="unified-filters-group">
-          {/* Lọc theo Kiểu bài / Chủ đề */}
+          <div className="history-search-wrap" style={{ minWidth: '200px' }}>
+            <Search size={16} className="history-search-icon" />
+            <input
+              type="text"
+              placeholder="Tìm theo tên, mã, chủ đề..."
+              value={searchKey}
+              onChange={(e) => handleSearchChange(e.target.value)}
+            />
+          </div>
+
           <SearchableSelect
-            options={TOPIC_OPTIONS}
+            options={topicOptions}
             value={topicFilter}
             onChange={handleTopicFilterChange}
             icon={Filter}
-            placeholder="Kiểu bài"
+            placeholder="Chủ đề"
           />
 
-          {/* Lọc theo Độ khó */}
           <SearchableSelect
             options={DIFF_OPTIONS}
             value={diffFilter}
@@ -809,48 +479,48 @@ export function AdminProblemsTab({
             showSearch={false}
           />
 
-          {/* Lọc theo Tình trạng AI Test */}
+          <SearchableSelect
+            options={SOURCE_OPTIONS}
+            value={sourceFilter}
+            onChange={handleSourceFilterChange}
+            icon={Sparkles}
+            placeholder="Nguồn"
+            showSearch={false}
+          />
+
           <SearchableSelect
             options={VERIFY_OPTIONS}
             value={verifyFilter}
             onChange={handleVerifyFilterChange}
             icon={FlaskConical}
-            placeholder="Kiểm thử AI"
-            showSearch={false}
-          />
-
-          {/* Lọc theo Trạng thái Công khai */}
-          <SearchableSelect
-            options={STATUS_OPTIONS}
-            value={statusFilter}
-            onChange={handleStatusFilterChange}
-            icon={Globe}
-            placeholder="Trạng thái"
+            placeholder="Kiểm tra"
             showSearch={false}
           />
         </div>
       </div>
 
-      {/* ── MAIN CONTENT CONTAINER (DATA TABLE LIST - NO OUTER HEAVY BORDER FRAME) ── */}
-      <div className={`admin-framed-tab-box theme-${activeSourceTab}`}>
-        {/* Header Info */}
+      {/* ── MAIN CONTENT CONTAINER ── */}
+      <div className={`admin-framed-tab-box theme-${activeStatusTab === 'draft' ? 'ai' : 'manual'}`}>
         <div className="admin-framed-tab-header">
           <div className="framed-tab-info-tag">
-            {activeSourceTab === 'manual' ? (
-              <span className="info-tag-content manual">
-                <Edit3 size={13} /> Khung Đề do Giảng viên / Admin Thêm tay ({filteredProblems.length} bài)
+            {activeStatusTab === 'draft' ? (
+              <span className="info-tag-content ai">
+                <FileClock size={13} /> Bài nháp — Kiểm tra rồi Xuất bản cho sinh viên ({filteredProblems.length} bài)
               </span>
             ) : (
-              <span className="info-tag-content ai">
-                <Sparkles size={13} /> Khung Bài tập do AI Engine Generate ({filteredProblems.length} bài)
+              <span className="info-tag-content manual">
+                <Globe size={13} /> Bài đã xuất bản — sinh viên đang thấy ({filteredProblems.length} bài)
               </span>
             )}
           </div>
         </div>
 
-        {/* Content Body: Data Table */}
         <div className="admin-framed-tab-body">
-          {filteredProblems.length > 0 ? (
+          {loading && problems.length === 0 ? (
+            <div style={{ padding: '48px 24px', textAlign: 'center', color: '#7d8599' }}>
+              <RefreshCw size={18} className="spin" /> Đang tải danh sách bài tập...
+            </div>
+          ) : filteredProblems.length > 0 ? (
             <>
               <div className="admin-table-container">
                 <table className="admin-problems-table">
@@ -858,35 +528,36 @@ export function AdminProblemsTab({
                     <tr>
                       <th style={{ width: '35px', textAlign: 'center' }}>#</th>
                       <th>Tên bài tập</th>
-                      <th>Kiểu bài / Chủ đề</th>
+                      <th>Chủ đề</th>
                       <th>Độ khó</th>
-                      <th>Tình trạng AI Test</th>
-                      <th>Công khai</th>
+                      <th>Kiểm tra</th>
+                      <th>Trạng thái</th>
                       <th style={{ textAlign: 'center', width: '120px' }}>Thao tác</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedProblems.map((prob, idx) => {
-                      const TopicIcon = TOPIC_ICON_MAP[prob.topic] || Layers;
-                      const diffStyle = DIFFICULTY_COLORS[prob.difficulty] || DIFFICULTY_COLORS.Easy;
-                      const isVerified = isProblemVerified(prob);
-                      const isPublic = prob.isPublic !== false;
+                    {paginatedProblems.map((row, idx) => {
+                      const { raw, ui } = row;
+                      const TopicIcon = topicIcon(ui.topic);
+                      const diffStyle = DIFFICULTY_COLORS[ui.difficulty] || DIFFICULTY_COLORS.Easy;
+                      const vState = verifyState(raw.id);
+                      const vr = verifyMap[raw.id];
+                      const isPublic = raw.status === 'PUBLISHED';
+                      const busy = busyId === raw.id;
 
                       return (
-                        <tr key={prob.id}>
-                          {/* 1. STT */}
+                        <tr key={raw.id}>
                           <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>
                             {startItemIdx + idx}
                           </td>
 
-                          {/* 2. Tên bài tập */}
                           <td>
                             <div className="prob-title-wrap">
-                              <div className="prob-title-text" title={prob.title}>
-                                <span>{prob.title}</span>
-                                {prob.isAiGenerated ? (
+                              <div className="prob-title-text" title={ui.title}>
+                                <span>#{raw.id} {ui.title}</span>
+                                {raw.sourceType === 'AI_GENERATED' ? (
                                   <span className="prob-badge-tag ai">
-                                    <Sparkles size={10} /> AI Generate
+                                    <Sparkles size={10} /> Template
                                   </span>
                                 ) : (
                                   <span className="prob-badge-tag manual">
@@ -894,21 +565,20 @@ export function AdminProblemsTab({
                                   </span>
                                 )}
                               </div>
-                              <div className="prob-desc-snippet" title={prob.description}>
-                                {prob.description}
+                              <div className="prob-desc-snippet" title={ui.description}>
+                                {raw.template ? `${raw.template.name} · ` : ''}
+                                {raw.testCases.length} test case
                               </div>
                             </div>
                           </td>
 
-                          {/* 3. Kiểu bài / Chủ đề */}
                           <td>
                             <div className="prob-topic-badge">
                               <TopicIcon size={13} style={{ color: '#5e8dfa' }} />
-                              <span>{prob.topic}</span>
+                              <span>{ui.topic}</span>
                             </div>
                           </td>
 
-                          {/* 4. Độ khó */}
                           <td>
                             <span
                               style={{
@@ -921,94 +591,80 @@ export function AdminProblemsTab({
                                 color: diffStyle.color,
                                 border: `1px solid ${diffStyle.border}`,
                               }}
+                              title={raw.level ?? undefined}
                             >
                               {diffStyle.label}
                             </span>
                           </td>
 
-                          {/* 5. Tình trạng AI Test */}
                           <td>
                             <span
-                              className={`verify-status-badge ${isVerified ? 'verified' : 'pending'}`}
-                              onClick={() => handleToggleVerification(prob)}
-                              title={isVerified ? 'Bài đã được test thành công' : 'Bấm để mở Sandbox chạy test kiểm thử AI'}
+                              className={`verify-status-badge ${vState === 'passed' ? 'verified' : 'pending'}`}
+                              onClick={() => setTestingProblem(raw)}
+                              style={vState === 'failed' ? { color: '#f08a8a', borderColor: 'rgba(240, 138, 138, 0.35)' } : undefined}
+                              title="Bấm để chạy lời giải mẫu với toàn bộ test case"
                             >
-                              {isVerified ? (
+                              {vState === 'passed' && vr ? (
                                 <>
-                                  <CheckCircle2 size={13} /> Đã test AI
+                                  <CheckCircle2 size={13} /> Đạt {vr.results.length}/{vr.results.length}
+                                </>
+                              ) : vState === 'failed' && vr ? (
+                                <>
+                                  <XCircle size={13} /> Lỗi {vr.results.filter((r) => r.passed).length}/{vr.results.length}
                                 </>
                               ) : (
                                 <>
-                                  <FlaskConical size={13} /> Chờ kiểm thử
+                                  <FlaskConical size={13} /> Chưa kiểm tra
                                 </>
                               )}
                             </span>
                           </td>
 
-                          {/* 6. Công khai Toggle Switch */}
                           <td>
                             <div
                               className="toggle-switch-wrap"
-                              onClick={() => handleTogglePublicClick(prob)}
-                              title={
-                                !isVerified
-                                  ? 'Cần chạy test Sandbox thành công trước khi công khai bài này'
-                                  : isPublic
-                                    ? 'Nhấp để chuyển sang Bản nháp (Ẩn)'
-                                    : 'Nhấp để công khai bài tập'
-                              }
+                              onClick={() => {
+                                if (!busy) void runAction(raw, onTogglePublish);
+                              }}
+                              style={busy ? { opacity: 0.5, cursor: 'wait' } : undefined}
+                              title={isPublic ? 'Nhấp để gỡ xuất bản (chuyển về Nháp)' : 'Nhấp để xuất bản cho sinh viên'}
                             >
                               <div className={`toggle-switch-btn ${isPublic ? 'is-public' : ''}`}>
                                 <div className="toggle-switch-knob" />
                               </div>
                               <span className={`toggle-switch-label ${isPublic ? 'is-public' : ''}`}>
-                                {isPublic ? 'Public' : 'Bản nháp'}
+                                {isPublic ? 'Đã xuất bản' : 'Nháp'}
                               </span>
                             </div>
                           </td>
 
-                          {/* 7. Bộ thao tác (ICON ONLY) */}
                           <td>
                             <div className="action-icon-group" style={{ justifyContent: 'center' }}>
-                              {/* Icon Xem Chi Tiết */}
                               <button
                                 type="button"
                                 className="icon-action-btn view"
-                                onClick={() => {
-                                  setViewingProblem(prob);
-                                  onViewDetail(prob);
-                                }}
-                                title="Xem chi tiết bài tập"
+                                onClick={() => setViewingProblem(row)}
+                                title="Xem chi tiết: đề bài, test case, lời giải mẫu"
                               >
                                 <Eye size={14} />
                               </button>
 
-                              {/* Icon Chạy Test Sandbox */}
                               <button
                                 type="button"
                                 className="icon-action-btn test"
-                                onClick={() => setTestingProblem(prob)}
-                                title="Test thử nghiệm kết quả AI trong Sandbox"
+                                onClick={() => setTestingProblem(raw)}
+                                title="Kiểm tra: chạy lời giải mẫu với toàn bộ test case"
                               >
                                 <Play size={14} />
                               </button>
 
-                              {/* Icon Chỉnh Sửa */}
-                              <button
-                                type="button"
-                                className="icon-action-btn edit"
-                                onClick={() => openEditModal(prob)}
-                                title="Chỉnh sửa bài tập"
-                              >
-                                <Edit3 size={14} />
-                              </button>
-
-                              {/* Icon Xóa */}
                               <button
                                 type="button"
                                 className="icon-action-btn delete"
-                                onClick={() => setDeletingProblem(prob)}
-                                title="Xóa bài tập"
+                                onClick={() => setDeletingProblem(row)}
+                                disabled={busy || !canDelete}
+                                style={!canDelete ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+                                title={canDelete ? 'Xóa bài tập' : 'Chỉ admin được xóa bài'}
                               >
                                 <Trash2 size={14} />
                               </button>
@@ -1083,10 +739,14 @@ export function AdminProblemsTab({
               }}
             >
               <p style={{ margin: '0 0 8px', fontSize: '15px', fontWeight: 600, color: '#94a3b8' }}>
-                Không tìm thấy bài tập nào phù hợp với bộ lọc hiện tại.
+                {problems.length === 0
+                  ? 'Chưa có bài tập nào trong hệ thống.'
+                  : 'Không tìm thấy bài tập nào phù hợp với bộ lọc hiện tại.'}
               </p>
               <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
-                Thử thay đổi từ khóa tìm kiếm hoặc chọn lại các bộ lọc cấp độ, kiểu bài.
+                {problems.length === 0
+                  ? 'Vào mục Sinh đề tự động để tạo bài nháp từ template.'
+                  : 'Thử thay đổi từ khóa tìm kiếm hoặc chọn lại các bộ lọc.'}
               </p>
             </div>
           )}

@@ -7,9 +7,12 @@ import java.util.List;
 
 public interface IProblemService {
     public List<Problem> getDraftProblem();
+    public List<Problem> getPublishedProblems();
+    public List<Problem> getAllProblems();
     public Problem getProblemById(Long id);
     public VerifyResult verifyProblem(Long id);
     public Problem publishProblem(Long id);
+    public Problem unpublishProblem(Long id);
     public void deleteProblem(Long id);
 
 

@@ -1,9 +1,14 @@
 import { useState } from 'react';
-import { Search, Filter, UserPlus, Eye, Trash2, ChevronLeft, ChevronRight, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Search, Filter, UserPlus, Eye, Trash2, ChevronLeft, ChevronRight, AlertTriangle, ShieldAlert, RefreshCw } from 'lucide-react';
 import type { UserRecord } from './admin.types';
 
 interface AdminUsersTabProps {
   users: UserRecord[];
+  loading: boolean;
+  error: string | null;
+  canManage: boolean;
+  currentUserId?: string;
+  onReload: () => void;
   onOpenAddUserModal: () => void;
   onOpenUserDetail: (u: UserRecord) => void;
   onToggleStatus: (id: string) => void;
@@ -12,6 +17,11 @@ interface AdminUsersTabProps {
 
 export function AdminUsersTab({
   users,
+  loading,
+  error,
+  canManage,
+  currentUserId,
+  onReload,
   onOpenAddUserModal,
   onOpenUserDetail,
   onToggleStatus,
@@ -115,10 +125,23 @@ export function AdminUsersTab({
             Quản lý danh sách sinh viên, giảng viên và phân quyền tài khoản hệ thống.
           </p>
         </div>
-        <button className="assessment-primary" onClick={onOpenAddUserModal}>
-          <UserPlus size={16} /> Thêm người dùng mới
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button className="assessment-ghost" onClick={onReload} disabled={loading}>
+            <RefreshCw size={16} className={loading ? 'spin' : ''} /> Làm mới
+          </button>
+          {canManage && (
+            <button className="assessment-primary" onClick={onOpenAddUserModal}>
+              <UserPlus size={16} /> Thêm người dùng mới
+            </button>
+          )}
+        </div>
       </div>
+
+      {error && (
+        <div style={{ padding: '12px', background: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '24px' }}>
+          {error}
+        </div>
+      )}
 
       <div className="history-filter-bar" style={{ marginBottom: '24px' }}>
         <div className="history-search-wrap">
@@ -163,8 +186,16 @@ export function AdminUsersTab({
             </tr>
           </thead>
           <tbody>
-            {paginatedUsers.length > 0 ? (
-              paginatedUsers.map((u) => (
+            {loading && users.length === 0 ? (
+              <tr>
+                <td colSpan={5} style={{ textAlign: 'center', padding: '36px', color: '#7d8599' }}>
+                  Đang tải danh sách người dùng...
+                </td>
+              </tr>
+            ) : paginatedUsers.length > 0 ? (
+              paginatedUsers.map((u) => {
+                const canModify = canManage && u.id !== currentUserId;
+                return (
                 <tr key={u.id} onClick={() => onOpenUserDetail(u)} style={{ cursor: 'pointer' }}>
                   <td className="history-problem">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -180,11 +211,18 @@ export function AdminUsersTab({
                     <button
                       type="button"
                       className={`admin-toggle-switch ${u.status === 'active' ? 'is-on' : 'is-off'}`}
+                      disabled={!canModify}
                       onClick={(e) => {
                         e.stopPropagation();
                         setTogglingUser(u);
                       }}
-                      title={u.status === 'active' ? 'Click để khóa tài khoản' : 'Click để mở khóa tài khoản'}
+                      title={
+                        !canModify
+                          ? 'Bạn không thể thay đổi trạng thái tài khoản này'
+                          : u.status === 'active'
+                            ? 'Click để khóa tài khoản'
+                            : 'Click để mở khóa tài khoản'
+                      }
                     >
                       <span className="toggle-slider" />
                       <span className="toggle-label">{u.status === 'active' ? 'Hoạt động' : 'Đã khóa'}</span>
@@ -200,18 +238,21 @@ export function AdminUsersTab({
                       >
                         <Eye size={15} />
                       </button>
-                      <button
-                        className="history-view-btn"
-                        style={{ color: '#f87171', background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.25)' }}
-                        onClick={() => setDeletingUser(u)}
-                        title="Xóa tài khoản"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {canModify && (
+                        <button
+                          className="history-view-btn"
+                          style={{ color: '#f87171', background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.25)' }}
+                          onClick={() => setDeletingUser(u)}
+                          title="Xóa tài khoản"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
-              ))
+                );
+              })
             ) : (
               <tr>
                 <td colSpan={5} style={{ textAlign: 'center', padding: '36px', color: '#7d8599' }}>

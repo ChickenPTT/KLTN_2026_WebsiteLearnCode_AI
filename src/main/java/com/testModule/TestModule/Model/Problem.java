@@ -33,6 +33,7 @@ public class Problem {
     @JoinColumn(name = "template_id")
     private Template template;
 
+
     @Column(columnDefinition = "TEXT")
     private String referenceSolution;
 

@@ -20,7 +20,7 @@ export interface UserRecord {
 }
 
 export interface ActivityLog {
-  id: string;
+  id: string | number;
   user: string;
   action: 'CREATE' | 'UPDATE' | 'DELETE' | 'TOGGLE';
   target: string;
@@ -42,19 +42,9 @@ export interface SampleTemplate {
   maxLength?: number;
   minValue?: number;
   maxValue?: number;
+  generatorType?: 'TWO_INTEGERS' | 'INTEGER_ARRAY' | 'STRING_BASIC';
+  languageId?: number;
   updatedAt: string;
-}
-
-export interface GeneratedQuestion {
-  id: string;
-  title: string;
-  topic: string;
-  difficulty: 'Easy' | 'Medium' | 'Hard';
-  starterCode: string;
-  description?: string;
-  sampleInput?: string;
-  sampleOutput?: string;
-  isPublic?: boolean; // Trạng thái xuất bản / public
 }
 
 export const INITIAL_ACTIVITY_LOGS: ActivityLog[] = [

@@ -147,3 +147,139 @@ export const authApi = {
   logout: () => apiFetch<void>('/api/auth/logout', { method: 'POST' }),
   completeOnboarding: () => apiFetch<BackendUser>('/api/auth/me/onboarding', { method: 'POST' }),
 };
+
+export interface DailySubmission {
+  day: string;
+  count: number;
+}
+
+export interface TopicStats {
+  name: string;
+  count: number;
+  percentage: number;
+  color: string;
+}
+
+export interface LevelStats {
+  level: string;
+  count: number;
+  percentage: number;
+  color: string;
+}
+
+export interface AuditLog {
+  id: number;
+  action: string;
+  user: string;
+  target: string;
+  time: string;
+}
+
+export interface AdminDashboardStats {
+  totalUsers: number;
+  totalTemplates: number;
+  submissionsToday: number;
+  aiAccuracy: number;
+  weeklySubmissions: DailySubmission[];
+  topTopics: TopicStats[];
+  levelDistribution: LevelStats[];
+  auditLogs: AuditLog[];
+}
+
+export interface AdminUser {
+  id: number;
+  fullName: string;
+  email: string;
+  role: BackendRole;
+  active: boolean;
+  createdAt: string;
+  solvedCount: number;
+}
+
+export type GeneratorType = 'TWO_INTEGERS' | 'INTEGER_ARRAY' | 'STRING_BASIC';
+
+export interface Template {
+  id: number;
+  name: string;
+  topic: {
+    id: number;
+    name: string;
+    colorTag: string;
+  };
+  level: string;
+  generatorType: GeneratorType;
+  minN: number | null;
+  maxN: number | null;
+  minValue: number | null;
+  maxValue: number | null;
+  statementPattern: string;
+  referenceSolutionCode: string;
+  languageId: number;
+  createdAt: string;
+}
+
+export const adminApi = {
+  getDashboardStats: () => apiFetch<AdminDashboardStats>('/api/admin/dashboard'),
+  getUsers: (role?: BackendRole, search?: string) => {
+    const params = new URLSearchParams();
+    if (role) params.append('role', role);
+    if (search) params.append('search', search);
+    const query = params.toString();
+    return apiFetch<AdminUser[]>(`/api/admin/users${query ? `?${query}` : ''}`);
+  },
+  getUserById: (id: number) => apiFetch<AdminUser>(`/api/admin/users/${id}`),
+  createUser: (data: { fullName: string; email: string; password: string; role: BackendRole }) =>
+    apiFetch<AdminUser>('/api/admin/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateUser: (id: number, data: { fullName: string; email: string; role: BackendRole }) =>
+    apiFetch<AdminUser>(`/api/admin/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  toggleUserStatus: (id: number) =>
+    apiFetch<AdminUser>(`/api/admin/users/${id}/toggle-status`, { method: 'PATCH' }),
+  deleteUser: (id: number) =>
+    apiFetch<void>(`/api/admin/users/${id}`, { method: 'DELETE' }),
+};
+
+export const templatesApi = {
+  list: () => apiFetch<Template[]>('/api/template'),
+  create: (data: {
+    name: string;
+    topic: string;
+    level: string;
+    generatorType: GeneratorType;
+    minN?: number;
+    maxN?: number;
+    minValue?: number;
+    maxValue?: number;
+    statementPattern: string;
+    referenceSolutionCode: string;
+    languageId: number;
+  }) =>
+    apiFetch<Template>('/api/template', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id: number, data: {
+    name: string;
+    topic: string;
+    level: string;
+    generatorType: GeneratorType;
+    minN?: number;
+    maxN?: number;
+    minValue?: number;
+    maxValue?: number;
+    statementPattern: string;
+    referenceSolutionCode: string;
+    languageId: number;
+  }) =>
+    apiFetch<Template>(`/api/template/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  delete: (id: number) =>
+    apiFetch<void>(`/api/template/${id}`, { method: 'DELETE' }),
+};

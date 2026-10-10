@@ -7,6 +7,7 @@ import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -77,10 +78,25 @@ public class JudgeService {
             String time = (String) response.get("time");
             Integer memory = (Integer) response.get("memory");
 
-            results.add(new TestCaseResult(tc.getInput(), expected, actualOutput, passed, statusDesc, time, memory));
+            TestCaseResult tcResult = new TestCaseResult(tc.getInput(), expected, actualOutput, passed, statusDesc, time, memory);
+            String errorOutput = decode(response.get("compile_output"));
+            if (errorOutput == null) {
+                errorOutput = decode(response.get("stderr"));
+            }
+            tcResult.setErrorOutput(errorOutput);
+            results.add(tcResult);
         }
 
         return results;
+    }
+
+    // Judge0 tra cac truong output dang base64 (co the kem xuong dong)
+    private static String decode(Object base64) {
+        if (!(base64 instanceof String s) || s.isBlank()) {
+            return null;
+        }
+        String text = new String(Base64.getMimeDecoder().decode(s), StandardCharsets.UTF_8).trim();
+        return text.isEmpty() ? null : text;
     }
 
 }

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
   ArrowLeft,
-  BookOpen,
   Calendar,
   CheckCircle2,
   Flame,
@@ -13,13 +12,12 @@ import {
   PieChart,
 } from 'lucide-react';
 import { Header } from '@/layout/Header';
-import { LEVEL_COLORS, TOPIC_INFOS, type AuthMode } from '@/types';
+import { type AuthMode } from '@/types';
 import {
   MOCK_STREAK,
   MOCK_XP,
   MOCK_WEEKLY,
   MOCK_ACTIVITY_LOG,
-  MOCK_TOPIC_PROGRESS,
   MOCK_SUBMISSIONS,
 } from '@/data/userMockData';
 

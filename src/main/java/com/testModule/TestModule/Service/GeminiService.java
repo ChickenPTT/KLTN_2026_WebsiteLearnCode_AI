@@ -132,6 +132,9 @@ public class GeminiService {
                     "- Input: %s | Expected: %s | Actual: %s | Passed: %s | Status: %s%n",
                     tc.getInput(), tc.getExpectedOutput(), tc.getActualOutput(), tc.isPassed(), tc.getStatus()
             ));
+            if (tc.getErrorOutput() != null) {
+                prompt.append("  Lỗi biên dịch/runtime: ").append(tc.getErrorOutput()).append("\n");
+            }
         }
 
         prompt.append("\nTrả về CHÍNH XÁC theo JSON schema sau, không thêm text nào khác ngoài JSON:\n");

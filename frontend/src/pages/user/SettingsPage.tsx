@@ -5,7 +5,6 @@ import {
   Sun,
   Monitor,
   Globe,
-  Sliders,
   Bell,
   Lock,
   CheckCircle2,
@@ -16,7 +15,6 @@ import {
   KeyRound,
   Eye,
   EyeOff,
-  Sparkles,
 } from 'lucide-react';
 import { Header } from '@/layout/Header';
 import { SearchableSelect } from '@/components/SearchableSelect';

@@ -34,7 +34,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if (!token.isEmpty() && jwtTokenProvider.isValid(token)) {
                 Long userId = jwtTokenProvider.getUserId(token);
                 User user = userRepository.findById(userId).orElse(null);
-                if (user != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                // Tai khoan bi khoa -> access token con han cung khong dung duoc nua
+                if (user != null && user.isActive() && SecurityContextHolder.getContext().getAuthentication() == null) {
                     AuthUserDetails details = new AuthUserDetails(user);
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(details, null, details.getAuthorities());

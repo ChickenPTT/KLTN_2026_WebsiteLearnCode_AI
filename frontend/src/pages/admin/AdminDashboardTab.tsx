@@ -7,13 +7,19 @@ import {
   Flame,
   GraduationCap,
   Clock,
+  RefreshCw,
 } from 'lucide-react';
-import type { ActivityLog, ExamTemplate, UserRecord } from './admin.types';
+import type { ActivityLog, SampleTemplate, UserRecord } from './admin.types';
+import type { AdminDashboardStats } from '@/lib/api';
 
 interface AdminDashboardTabProps {
   users: UserRecord[];
-  templates: ExamTemplate[];
+  templates: SampleTemplate[];
   activityLogs: ActivityLog[];
+  dashboardStats: AdminDashboardStats | null;
+  dashboardLoading: boolean;
+  dashboardError: string | null;
+  onReloadDashboard: () => void;
   onGoGenerator: () => void;
 }
 
@@ -21,8 +27,14 @@ export function AdminDashboardTab({
   users,
   templates,
   activityLogs,
+  dashboardStats,
+  dashboardLoading,
+  dashboardError,
+  onReloadDashboard,
   onGoGenerator,
 }: AdminDashboardTabProps) {
+  const stats = dashboardStats;
+
   return (
     <div className="admin-tab-content">
       <div className="admin-header-row">
@@ -32,10 +44,21 @@ export function AdminDashboardTab({
             Tổng quan hiệu suất hệ thống, số lượng sinh viên, bài tập và đề thi.
           </p>
         </div>
-        <button className="assessment-primary" onClick={onGoGenerator}>
-          <Sparkles size={16} /> Tạo đề mới ngay
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button className="assessment-ghost" onClick={onReloadDashboard} disabled={dashboardLoading}>
+            <RefreshCw size={16} className={dashboardLoading ? 'spin' : ''} /> Làm mới
+          </button>
+          <button className="assessment-primary" onClick={onGoGenerator}>
+            <Sparkles size={16} /> Tạo đề mới ngay
+          </button>
+        </div>
       </div>
+
+      {dashboardError && (
+        <div style={{ padding: '12px', background: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '24px' }}>
+          {dashboardError}
+        </div>
+      )}
 
       <div className="history-stats-grid" style={{ marginBottom: '32px' }}>
         <div className="history-stat-card">
@@ -43,7 +66,7 @@ export function AdminDashboardTab({
             <Users size={24} />
           </div>
           <div>
-            <strong>{users.length}</strong>
+            <strong>{stats?.totalUsers ?? users.length}</strong>
             <span>Tổng người dùng</span>
           </div>
         </div>
@@ -53,7 +76,7 @@ export function AdminDashboardTab({
             <FileSpreadsheet size={24} />
           </div>
           <div>
-            <strong>{templates.length}</strong>
+            <strong>{stats?.totalTemplates ?? templates.length}</strong>
             <span>Template đề thi</span>
           </div>
         </div>
@@ -63,7 +86,7 @@ export function AdminDashboardTab({
             <Code2 size={24} />
           </div>
           <div>
-            <strong>342</strong>
+            <strong>{stats?.submissionsToday ?? 0}</strong>
             <span>Lượt nộp hôm nay</span>
           </div>
         </div>
@@ -73,7 +96,7 @@ export function AdminDashboardTab({
             <Sparkles size={24} />
           </div>
           <div>
-            <strong>96.4%</strong>
+            <strong>{stats?.aiAccuracy.toFixed(1) ?? '96.4'}%</strong>
             <span>Độ chính xác AI chấm</span>
           </div>
         </div>
@@ -85,22 +108,33 @@ export function AdminDashboardTab({
             <TrendingUp size={18} /> Hoạt động nộp bài 7 ngày qua
           </h3>
           <div className="weekly-chart">
-            {[
-              { day: 'T2', count: 120 },
-              { day: 'T3', count: 190 },
-              { day: 'T4', count: 240 },
-              { day: 'T5', count: 310 },
-              { day: 'T6', count: 280 },
-              { day: 'T7', count: 342 },
-              { day: 'CN', count: 160 },
+            {stats?.weeklySubmissions.map((d) => {
+              const maxCount = Math.max(...stats.weeklySubmissions.map(s => s.count), 1);
+              return (
+                <div className="weekly-col" key={d.day}>
+                  <span className="weekly-count">{d.count}</span>
+                  <div className="weekly-bar-track">
+                    <div
+                      className="weekly-bar-fill"
+                      style={{ height: `${(d.count / maxCount) * 100}%` }}
+                    />
+                  </div>
+                  <span className="weekly-day">{d.day}</span>
+                </div>
+              );
+            }) ?? [
+              { day: 'T2', count: 0 },
+              { day: 'T3', count: 0 },
+              { day: 'T4', count: 0 },
+              { day: 'T5', count: 0 },
+              { day: 'T6', count: 0 },
+              { day: 'T7', count: 0 },
+              { day: 'CN', count: 0 },
             ].map((d) => (
               <div className="weekly-col" key={d.day}>
                 <span className="weekly-count">{d.count}</span>
                 <div className="weekly-bar-track">
-                  <div
-                    className="weekly-bar-fill"
-                    style={{ height: `${(d.count / 342) * 100}%` }}
-                  />
+                  <div className="weekly-bar-fill" style={{ height: '0%' }} />
                 </div>
                 <span className="weekly-day">{d.day}</span>
               </div>
@@ -113,20 +147,15 @@ export function AdminDashboardTab({
             <Flame size={18} /> Chủ đề sinh viên làm nhiều nhất
           </h3>
           <div className="topic-progress-list">
-            {[
-              { name: 'Array & Mảng', pct: 88, color: '#78d39e' },
-              { name: 'String & Chuỗi', pct: 72, color: '#5e8dfa' },
-              { name: 'Hash Table', pct: 64, color: '#f5c95d' },
-              { name: 'Binary Search', pct: 51, color: '#a995ff' },
-            ].map((t) => (
+            {stats?.topTopics.map((t) => (
               <div className="topic-progress-row" key={t.name}>
                 <span className="topic-progress-name" style={{ textAlign: 'left', width: '130px' }}>{t.name}</span>
                 <div className="topic-progress-track">
-                  <div className="topic-progress-fill" style={{ width: `${t.pct}%`, background: t.color }} />
+                  <div className="topic-progress-fill" style={{ width: `${t.percentage}%`, background: t.color }} />
                 </div>
-                <span className="topic-progress-pct" style={{ color: t.color }}>{t.pct}%</span>
+                <span className="topic-progress-pct" style={{ color: t.color }}>{t.percentage}%</span>
               </div>
-            ))}
+            )) ?? <p style={{ color: '#7d8599', fontSize: '13px' }}>Không có dữ liệu</p>}
           </div>
         </div>
       </div>
@@ -146,66 +175,27 @@ export function AdminDashboardTab({
             {/* Donut SVG Pie Chart */}
             <div style={{ position: 'relative', width: '150px', height: '150px', flexShrink: 0, margin: '0 auto' }}>
               <svg width="150" height="150" viewBox="0 0 150 150">
-                {/* Expert (25% -> 84.82) */}
-                <circle
-                  cx="75"
-                  cy="75"
-                  r="54"
-                  fill="transparent"
-                  stroke="#a995ff"
-                  strokeWidth="18"
-                  strokeDasharray="84.82 339.29"
-                  strokeDashoffset="0"
-                  transform="rotate(-90 75 75)"
-                />
-                {/* Advanced (25% -> 84.82) */}
-                <circle
-                  cx="75"
-                  cy="75"
-                  r="54"
-                  fill="transparent"
-                  stroke="#f5c95d"
-                  strokeWidth="18"
-                  strokeDasharray="84.82 339.29"
-                  strokeDashoffset="-84.82"
-                  transform="rotate(-90 75 75)"
-                />
-                {/* Intermediate (25% -> 84.82) */}
-                <circle
-                  cx="75"
-                  cy="75"
-                  r="54"
-                  fill="transparent"
-                  stroke="#5e8dfa"
-                  strokeWidth="18"
-                  strokeDasharray="84.82 339.29"
-                  strokeDashoffset="-169.64"
-                  transform="rotate(-90 75 75)"
-                />
-                {/* Basic (12.5% -> 42.41) */}
-                <circle
-                  cx="75"
-                  cy="75"
-                  r="54"
-                  fill="transparent"
-                  stroke="#78d39e"
-                  strokeWidth="18"
-                  strokeDasharray="42.41 339.29"
-                  strokeDashoffset="-254.46"
-                  transform="rotate(-90 75 75)"
-                />
-                {/* Beginner (12.5% -> 42.41) */}
-                <circle
-                  cx="75"
-                  cy="75"
-                  r="54"
-                  fill="transparent"
-                  stroke="#7d8599"
-                  strokeWidth="18"
-                  strokeDasharray="42.41 339.29"
-                  strokeDashoffset="-296.87"
-                  transform="rotate(-90 75 75)"
-                />
+                {stats?.levelDistribution.map((level, index) => {
+                  const circumference = 2 * Math.PI * 54;
+                  const previousPercentage = stats.levelDistribution.slice(0, index)
+                    .reduce((sum, l) => sum + l.percentage, 0);
+                  const strokeDasharray = `${(level.percentage / 100) * circumference} ${circumference}`;
+                  const offset = -1 * (previousPercentage / 100) * circumference;
+                  return (
+                    <circle
+                      key={level.level}
+                      cx="75"
+                      cy="75"
+                      r="54"
+                      fill="transparent"
+                      stroke={level.color}
+                      strokeWidth="18"
+                      strokeDasharray={strokeDasharray}
+                      strokeDashoffset={offset}
+                      transform="rotate(-90 75 75)"
+                    />
+                  );
+                }) ?? <circle cx="75" cy="75" r="54" fill="transparent" stroke="#7d8599" strokeWidth="18" />}
               </svg>
               {/* Donut Center Label */}
               <div
@@ -219,28 +209,22 @@ export function AdminDashboardTab({
                   textAlign: 'center',
                 }}
               >
-                <strong style={{ fontSize: '18px', lineHeight: 1.1 }}>8</strong>
+                <strong style={{ fontSize: '18px', lineHeight: 1.1 }}>{stats?.totalUsers ?? users.length}</strong>
                 <span style={{ fontSize: '11px', opacity: 0.7 }}>Tài khoản</span>
               </div>
             </div>
 
             {/* Pie Chart Legend */}
             <div style={{ flex: 1, minWidth: '180px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {[
-                { level: 'Nâng cao (Expert)', label: '2 TK (25%)', color: '#a995ff' },
-                { level: 'Khá (Advanced)', label: '2 TK (25%)', color: '#f5c95d' },
-                { level: 'Trung bình (Intermediate)', label: '2 TK (25%)', color: '#5e8dfa' },
-                { level: 'Cơ bản (Basic)', label: '1 TK (12.5%)', color: '#78d39e' },
-                { level: 'Mới bắt đầu (Beginner)', label: '1 TK (12.5%)', color: '#7d8599' },
-              ].map((item) => (
+              {stats?.levelDistribution.map((item) => (
                 <div key={item.level} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: item.color, display: 'inline-block' }} />
                     <span className="level-legend-text" style={{ fontWeight: 500 }}>{item.level}</span>
                   </div>
-                  <span style={{ color: item.color, fontWeight: 700 }}>{item.label}</span>
+                  <span style={{ color: item.color, fontWeight: 700 }}>{item.count} TK ({item.percentage}%)</span>
                 </div>
-              ))}
+              )) ?? <p style={{ color: '#7d8599', fontSize: '13px' }}>Không có dữ liệu</p>}
             </div>
           </div>
         </div>
@@ -251,7 +235,7 @@ export function AdminDashboardTab({
             <Clock size={18} /> Lịch sử thao tác hệ thống (Audit Log)
           </h3>
           <div className="audit-log-list" style={{ minHeight: '230px', maxHeight: '250px', overflowY: 'auto', paddingRight: '4px', flex: 1 }}>
-            {activityLogs.map((log) => (
+            {(stats?.auditLogs.length > 0 ? stats.auditLogs : activityLogs).map((log) => (
               <div key={log.id} className="audit-log-item">
                 <span className={`audit-action-badge ${log.action.toLowerCase()}`}>
                   {log.action === 'CREATE' ? 'Thêm' : log.action === 'UPDATE' ? 'Sửa' : log.action === 'DELETE' ? 'Xóa' : 'Khóa'}

@@ -6,10 +6,7 @@ import com.testModule.TestModule.Model.TestCaseEntity;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * De bai gui cho sinh vien: KHONG co referenceSolution va chi lo test case mau (vi du),
- * test case con lai dung de cham nen phai giu kin.
- */
+
 public record ProblemView(
         Long id,
         String statement,
@@ -20,7 +17,8 @@ public record ProblemView(
         Problem.SourceType sourceType,
         LocalDateTime createdAt,
         List<Sample> samples,
-        int testCaseCount
+        int testCaseCount,
+        String templateName
 ) {
     /** So test case dau tien duoc cong khai lam vi du */
     public static final int SAMPLE_COUNT = 1;
@@ -34,6 +32,10 @@ public record ProblemView(
                 .limit(SAMPLE_COUNT)
                 .map(tc -> new Sample(tc.getInput(), tc.getExpectedOutput()))
                 .toList();
+        String templateName = null;
+        if(p.getTemplate() != null){
+            templateName = p.getTemplate().getName();
+        }
         return new ProblemView(
                 p.getId(),
                 p.getStatement(),
@@ -44,7 +46,8 @@ public record ProblemView(
                 p.getSourceType(),
                 p.getCreatedAt(),
                 samples,
-                testCases.size()
+                testCases.size(),
+                templateName
         );
     }
 }

@@ -8,6 +8,8 @@ public class TestCaseResult{
     private String status;
     private String time;
     private Integer memory;
+    // Loi bien dich / stderr (neu co) — de sinh vien va AI biet vi sao sai
+    private String errorOutput;
 
     public TestCaseResult(String input, String expectedOutput, String actualOutput, boolean passed, String status, String time, Integer memory) {
         this.input = input;
@@ -72,6 +74,14 @@ public class TestCaseResult{
 
     public void setMemory(Integer memory) {
         this.memory = memory;
+    }
+
+    public String getErrorOutput() {
+        return errorOutput;
+    }
+
+    public void setErrorOutput(String errorOutput) {
+        this.errorOutput = errorOutput;
     }
 }
 
