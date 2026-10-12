@@ -12,26 +12,27 @@ import {
 import { Brand } from '@/components/Brand';
 import { useAuth } from '@/hooks/useAuth';
 import type { AuthMode } from '@/types';
+import type { UserRole } from '@/data/mockAuth';
 
 interface AuthPageProps {
   onBack: () => void;
   initialMode: AuthMode;
-  /** Goi khi doi tab dang nhap/dang ky (de dong bo URL /login <-> /signup) */
-  onModeChange?: (mode: AuthMode) => void;
-  /** Goi sau khi dang nhap/dang ky thanh cong — vai tro lay tu backend, khong cho nguoi dung chon */
-  onLoginSuccess?: () => void;
+  onLoginSuccess?: (isNewUser?: boolean, role?: UserRole) => void;
 }
 
-export function AuthPage({ onBack, initialMode, onModeChange, onLoginSuccess }: AuthPageProps) {
+export function AuthPage({ onBack, initialMode, onLoginSuccess }: AuthPageProps) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Form fields
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
 
-  const { login, signup, loading, error, clearError, backend } = useAuth();
+  const { login, signup, loading, error, clearError } = useAuth();
   const isSignup = mode === 'signup';
 
   const switchMode = (next: AuthMode) => {
@@ -39,18 +40,35 @@ export function AuthPage({ onBack, initialMode, onModeChange, onLoginSuccess }: 
     setName('');
     setEmail('');
     setPassword('');
+    setConfirmPassword('');
+    setLocalError(null);
     clearError();
-    onModeChange?.(next);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearError();
-    const res = isSignup ? await signup(name, email, password) : await login(email, password);
+    setLocalError(null);
+
+    let res: { success: boolean; isNewUser?: boolean; role?: UserRole } = { success: false, isNewUser: false, role: undefined };
+    if (isSignup) {
+      if (password !== confirmPassword) {
+        setLocalError('Mật khẩu xác nhận không khớp.');
+        return;
+      }
+      // Đăng ký mặc định là student
+      res = await signup(name, email, password);
+    } else {
+      // Đăng nhập
+      res = await login(email, password);
+    }
+
     if (res.success) {
-      onLoginSuccess?.();
+      onLoginSuccess?.(res.isNewUser, res.role);
     }
   };
+
+  const displayError = error || localError;
 
   return (
     <div className="auth-shell">
@@ -71,8 +89,7 @@ export function AuthPage({ onBack, initialMode, onModeChange, onLoginSuccess }: 
             <div><strong>30+</strong><span>Trường ĐH</span></div>
           </div>
 
-          {/* Gợi ý tài khoản mock — chỉ hiện khi chưa kết nối backend */}
-          {backend === 'mock' && (
+          {/* Gợi ý tài khoản mock */}
           <div className="auth-visual-hint">
             <p style={{ marginTop: '1.5rem', fontSize: '0.78rem', opacity: 0.6 }}>
               🧪 Mock test accounts:
@@ -83,7 +100,6 @@ export function AuthPage({ onBack, initialMode, onModeChange, onLoginSuccess }: 
               admin@demo.com &nbsp;/ demo1234 (Quản trị viên)
             </p>
           </div>
-          )}
         </div>
       </div>
 
@@ -111,7 +127,7 @@ export function AuthPage({ onBack, initialMode, onModeChange, onLoginSuccess }: 
           <div className="auth-divider"><span>hoặc</span></div>
 
           {/* Error banner */}
-          {error && (
+          {displayError && (
             <div
               style={{
                 background: 'rgba(239,68,68,0.12)',
@@ -123,7 +139,7 @@ export function AuthPage({ onBack, initialMode, onModeChange, onLoginSuccess }: 
                 color: '#f87171',
               }}
             >
-              {error}
+              {displayError}
             </div>
           )}
 
@@ -172,7 +188,6 @@ export function AuthPage({ onBack, initialMode, onModeChange, onLoginSuccess }: 
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={8}
-                  maxLength={32}
                 />
                 <button
                   type="button"
@@ -185,11 +200,37 @@ export function AuthPage({ onBack, initialMode, onModeChange, onLoginSuccess }: 
               </div>
             </label>
 
+            {isSignup && (
+              <label className="auth-field">
+                <span className="auth-label">Xác nhận mật khẩu</span>
+                <div className="auth-input-wrap">
+                  <Lock size={17} className="auth-input-icon" />
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    placeholder="Nhập lại mật khẩu"
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    minLength={8}
+                  />
+                  <button
+                    type="button"
+                    className="auth-eye"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    aria-label={showConfirmPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  >
+                    {showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
+              </label>
+            )}
+
             <button type="submit" className="auth-submit" disabled={loading}>
               {loading
                 ? 'Đang xử lý...'
                 : isSignup
-                  ? 'Đăng ký (Tài khoản Sinh viên)'
+                  ? 'Đăng ký'
                   : 'Đăng nhập'}{' '}
               <ChevronRight size={17} />
             </button>

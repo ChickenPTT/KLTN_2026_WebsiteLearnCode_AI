@@ -5,7 +5,7 @@ import type { UserRecord } from './admin.types';
 interface AdminAddUserModalProps {
   existingUsers: UserRecord[];
   onClose: () => void;
-  onAddUser: (user: { name: string; email: string; password: string; role: 'student' | 'teacher' | 'admin' }) => void;
+  onAddUser: (user: { name: string; email: string; role: 'student' | 'teacher' | 'admin' }) => void;
 }
 
 export function AdminAddUserModal({
@@ -15,8 +15,9 @@ export function AdminAddUserModal({
 }: AdminAddUserModalProps) {
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState<'student' | 'teacher' | 'admin'>('student');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [addUserError, setAddUserError] = useState<string | null>(null);
 
   const validateEmail = (email: string) => {
@@ -35,19 +36,22 @@ export function AdminAddUserModal({
       setAddUserError('Định dạng email không hợp lệ (ví dụ: name@domain.com).');
       return;
     }
-    if (newUserPassword.length < 6) {
+    if (existingUsers.some((u) => u.email.toLowerCase() === newUserEmail.trim().toLowerCase())) {
+      setAddUserError('Email này đã tồn tại trong hệ thống.');
+      return;
+    }
+    if (newPassword.length < 6) {
       setAddUserError('Mật khẩu phải có ít nhất 6 ký tự.');
       return;
     }
-    if (existingUsers.some((u) => u.email.toLowerCase() === newUserEmail.trim().toLowerCase())) {
-      setAddUserError('Email này đã tồn tại trong hệ thống.');
+    if (newPassword !== confirmPassword) {
+      setAddUserError('Xác nhận mật khẩu không khớp.');
       return;
     }
 
     onAddUser({
       name: newUserName.trim(),
       email: newUserEmail.trim().toLowerCase(),
-      password: newUserPassword,
       role: newUserRole,
     });
   };
@@ -85,6 +89,28 @@ export function AdminAddUserModal({
               placeholder="user@example.com"
               value={newUserEmail}
               onChange={(e) => setNewUserEmail(e.target.value)}
+              className="admin-input"
+              required
+            />
+          </label>
+          <label className="auth-field">
+            <span className="auth-label">Mật khẩu</span>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="admin-input"
+              required
+            />
+          </label>
+          <label className="auth-field">
+            <span className="auth-label">Xác nhận mật khẩu</span>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               className="admin-input"
               required
             />

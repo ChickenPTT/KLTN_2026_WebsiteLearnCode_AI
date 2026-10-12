@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import {
-  ArrowLeft,
   Search,
   Play,
   Code2,
@@ -24,10 +23,9 @@ import {
   RotateCcw,
   type LucideIcon,
 } from 'lucide-react';
-import type { TopicInfo, AuthMode } from '@/types';
-import { usePublishedProblems } from '@/hooks/usePublishedProblems';
-import { useSubmissionStatus } from '@/hooks/useSubmissionStatus';
-import { sameTopic } from '@/lib/problemsApi';
+import { PRACTICE_PROBLEMS, type PracticeProblem, type TopicInfo, type AuthMode } from '@/types';
+import { MOCK_SUBMISSIONS } from '@/data/userMockData';
+import { Pagination } from '@/components/Pagination';
 import { Header } from '@/layout/Header';
 import { Footer } from '@/layout/Footer';
 
@@ -68,6 +66,13 @@ interface TopicDetailPageProps {
   onLoggedOut?: () => void;
 }
 
+// Helper to get exact practice problems for a topic
+function getTopicProblems(topic: TopicInfo): PracticeProblem[] {
+  return PRACTICE_PROBLEMS.filter(
+    (p) => p.topic.toLowerCase() === topic.name.toLowerCase() && p.isPublic !== false
+  );
+}
+
 export function TopicDetailPage({
   topic,
   onBack,
@@ -84,13 +89,12 @@ export function TopicDetailPage({
   const [search, setSearch] = useState('');
   const [diffFilter, setDiffFilter] = useState<'All' | 'Easy' | 'Medium' | 'Hard'>('All');
   const [sortOrder, setSortOrder] = useState<'default' | 'name' | 'diff-asc' | 'diff-desc'>('default');
+  const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
   const TopicIcon = ICON_MAP[topic.icon] ?? Code2;
 
-  const { problems, loading, error, reload } = usePublishedProblems();
-  const submissionMap = useSubmissionStatus();
-  const allProblems = useMemo(() => problems.filter((p) => sameTopic(p.topic, topic.name)), [problems, topic]);
+  const allProblems = useMemo(() => getTopicProblems(topic), [topic]);
 
   // Filtering & Sorting
   const filteredProblems = useMemo(() => {
@@ -112,11 +116,22 @@ export function TopicDetailPage({
   }, [allProblems, search, diffFilter, sortOrder]);
 
   // Pagination Math
-  const totalPages = Math.ceil(filteredProblems.length / ITEMS_PER_PAGE) || 1;
+  const totalPages = Math.ceil(filteredProblems.length / pageSize) || 1;
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
   const paginatedProblems = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredProblems.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredProblems, currentPage]);
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredProblems.slice(start, start + pageSize);
+  }, [filteredProblems, safeCurrentPage, pageSize]);
+
+  // Submission status mapping
+  const submissionMap = useMemo(() => {
+    const map = new Map<string, 'passed' | 'failed'>();
+    MOCK_SUBMISSIONS.forEach((sub) => {
+      map.set(sub.problem.toLowerCase(), sub.status);
+    });
+    return map;
+  }, []);
 
   const handlePageChange = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -139,13 +154,6 @@ export function TopicDetailPage({
       />
 
       <main className="topic-detail-main">
-        {/* Top navigation back button */}
-        <div className="topic-detail-nav">
-          <button className="topic-detail-back-btn" onClick={onBack}>
-            <ArrowLeft size={16} /> Danh sách chủ đề
-          </button>
-        </div>
-
         {/* Hero Header */}
         <div className="topic-detail-hero">
           <div className="topic-detail-hero-icon">
@@ -217,7 +225,7 @@ export function TopicDetailPage({
             <select
               className="topic-sort-select"
               value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
+              onChange={(e) => setSortOrder(e.target.value as any)}
             >
               <option value="default">Sắp xếp: Mặc định</option>
               <option value="name">Tên bài A-Z</option>
@@ -229,25 +237,7 @@ export function TopicDetailPage({
 
         {/* Problem Grid */}
         <div className="topic-problems-container">
-          {loading ? (
-            <div className="empty-problems-state">
-              <Clock size={40} strokeWidth={1.2} />
-              <h3>Đang tải bài tập...</h3>
-            </div>
-          ) : error ? (
-            <div className="empty-problems-state">
-              <Code2 size={40} strokeWidth={1.2} />
-              <h3>Không tải được bài tập</h3>
-              <p>{error}</p>
-              <button className="assessment-ghost" onClick={reload}>Thử lại</button>
-            </div>
-          ) : allProblems.length === 0 ? (
-            <div className="empty-problems-state">
-              <Code2 size={40} strokeWidth={1.2} />
-              <h3>Chưa có bài tập nào cho chủ đề này</h3>
-              <p>Giảng viên chưa xuất bản bài tập thuộc chủ đề {topic.name}.</p>
-            </div>
-          ) : paginatedProblems.length === 0 ? (
+          {paginatedProblems.length === 0 ? (
             <div className="empty-problems-state">
               <Code2 size={40} strokeWidth={1.2} />
               <h3>Không tìm thấy bài tập phù hợp</h3>
@@ -256,7 +246,16 @@ export function TopicDetailPage({
           ) : (
             <div className="topic-problems-grid">
               {paginatedProblems.map((p) => {
-                const subStatus = submissionMap.get(p.id);
+                const subStatus =
+                  submissionMap.get(p.title.toLowerCase()) ||
+                  (p.id === 'two-sum' ||
+                  p.id === 'valid-parentheses' ||
+                  p.id === 'reverse-linked-list' ||
+                  p.id === 'best-time-to-buy-stock'
+                    ? 'passed'
+                    : p.id === 'binary-search'
+                    ? 'failed'
+                    : undefined);
 
                 return (
                   <article
@@ -327,42 +326,21 @@ export function TopicDetailPage({
         </div>
 
         {/* Pagination Section */}
-        {totalPages > 1 && (
-          <div className="topic-pagination">
-            <span className="pagination-info">
-              Hiển thị {(currentPage - 1) * ITEMS_PER_PAGE + 1} -{' '}
-              {Math.min(currentPage * ITEMS_PER_PAGE, filteredProblems.length)} trên tổng số{' '}
-              {filteredProblems.length} bài
-            </span>
-
-            <div className="pagination-buttons">
-              <button
-                className="pagination-arrow"
-                disabled={currentPage === 1}
-                onClick={() => handlePageChange(currentPage - 1)}
-              >
-                <ChevronLeft size={16} />
-              </button>
-
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-                <button
-                  key={pageNum}
-                  className={`pagination-num ${currentPage === pageNum ? 'is-active' : ''}`}
-                  onClick={() => handlePageChange(pageNum)}
-                >
-                  {pageNum}
-                </button>
-              ))}
-
-              <button
-                className="pagination-arrow"
-                disabled={currentPage === totalPages}
-                onClick={() => handlePageChange(currentPage + 1)}
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
+        {filteredProblems.length > 0 && (
+          <Pagination
+            currentPage={safeCurrentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={filteredProblems.length}
+            onPageChange={(page) => {
+              setCurrentPage(page);
+              window.scrollTo({ top: 120, behavior: 'smooth' });
+            }}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+          />
         )}
       </main>
 

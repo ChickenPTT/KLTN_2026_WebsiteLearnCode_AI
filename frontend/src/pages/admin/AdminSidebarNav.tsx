@@ -6,6 +6,7 @@ import {
   Code2,
   FileSpreadsheet,
   Sparkles,
+  Clock,
   ChevronLeft,
   ChevronRight,
   Settings,
@@ -86,6 +87,15 @@ export function AdminSidebarNav({
         >
           <Sparkles size={18} />
           {!isCollapsed && <span>Generate đề thi AI</span>}
+        </button>
+
+        <button
+          className={`admin-nav-item ${activeTab === 'logs' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('logs')}
+          title={isCollapsed ? 'Lịch sử thao tác' : undefined}
+        >
+          <Clock size={18} />
+          {!isCollapsed && <span>Lịch sử thao tác</span>}
         </button>
       </nav>
     </aside>

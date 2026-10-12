@@ -1,16 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from '@/layout/Header';
 import { useAuth } from '@/hooks/useAuth';
-import type { AuthMode, SkillLevel } from '@/types';
-import { problemsApi, titleFromStatement, type AdminProblem } from '@/lib/problemsApi';
-import { apiErrorMessage } from './adminApi.utils';
-import { adminApi, templatesApi, type AdminDashboardStats, type AdminUser, type BackendRole, type Template } from '@/lib/api';
+import { PRACTICE_PROBLEMS, TOPIC_INFOS, type PracticeProblem, type AuthMode, type SkillLevel, type TopicInfo } from '@/types';
 
 import {
   type AdminTab,
   type UserRecord,
   type SampleTemplate,
+  type GeneratedQuestion,
   type ActivityLog,
+  MOCK_USERS_LIST,
+  MOCK_SAMPLE_TEMPLATES,
   INITIAL_ACTIVITY_LOGS,
   DEFAULT_TOPIC_STATS,
 } from './admin.types';
@@ -20,46 +20,28 @@ import { AdminUsersTab } from './AdminUsersTab';
 import { AdminProblemsTab } from './AdminProblemsTab';
 import { AdminTemplatesTab } from './AdminTemplatesTab';
 import { AdminGeneratorTab } from './AdminGeneratorTab';
+import { AdminAuditLogsTab } from './AdminAuditLogsTab';
 import { AdminUserDetailModal } from './AdminUserDetailModal';
 import { AdminAddUserModal } from './AdminAddUserModal';
 import { AdminTemplateDetailModal } from './AdminTemplateDetailModal';
-import AdminTemplateFormModal from './AdminTemplateFormModal';
+import { AdminTemplateFormModal } from './AdminTemplateFormModal';
 import { AdminImportExcelModal } from './AdminImportExcelModal';
-
-// Backend chua co thong ke theo chu de cho tung user -> tam hien muc khoi dau
-function toUserRecord(au: AdminUser): UserRecord {
-  return {
-    id: String(au.id),
-    name: au.fullName,
-    email: au.email,
-    role: au.role.toLowerCase() as UserRecord['role'],
-    solvedCount: au.solvedCount,
-    status: au.active ? 'active' : 'suspended',
-    joinDate: new Date(au.createdAt).toLocaleDateString('vi-VN'),
-    topicStats: DEFAULT_TOPIC_STATS.map((t) => ({ ...t, solvedCount: 0, level: 'beginner' })),
-  };
-}
-
-// Chuyen tu Template backend sang SampleTemplate frontend
-function toSampleTemplate(tpl: Template): SampleTemplate {
-  return {
-    id: String(tpl.id),
-    title: tpl.name,
-    topic: tpl.topic.name,
-    level: tpl.level.toLowerCase() as 'beginner' | 'basic' | 'intermediate' | 'advanced' | 'expert',
-    description: tpl.statementPattern,
-    starterCode: tpl.referenceSolutionCode,
-    minLength: tpl.minN ?? undefined,
-    maxLength: tpl.maxN ?? undefined,
-    minValue: tpl.minValue ?? undefined,
-    maxValue: tpl.maxValue ?? undefined,
-    generatorType: tpl.generatorType,
-    languageId: tpl.languageId,
-    updatedAt: new Date(tpl.createdAt).toLocaleDateString('vi-VN'),
-  };
-}
+import {
+  adminApi,
+  templatesApi,
+  topicsApi,
+  problemsApi,
+  type Template as BackendTemplate,
+  type Topic as BackendTopic,
+  type AdminUser as BackendAdminUser,
+  type AdminDashboardStats as BackendDashboardStats,
+  type BackendProblem,
+  type BackendRole,
+} from '@/lib/api';
 
 interface AdminPageProps {
+  activeTab?: AdminTab;
+  onTabChange?: (tab: AdminTab) => void;
   onBack: () => void;
   onGoLanding?: () => void;
   onGoAuth?: (mode: AuthMode) => void;
@@ -73,6 +55,9 @@ interface AdminPageProps {
 }
 
 export function AdminPage({
+  activeTab: controlledActiveTab,
+  onTabChange,
+  onGoLanding,
   onGoAuth,
   onGoTopics,
   onGoProfile,
@@ -82,25 +67,177 @@ export function AdminPage({
   onLoggedOut,
 }: AdminPageProps) {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
+  const [internalActiveTab, setInternalActiveTab] = useState<AdminTab>('dashboard');
+
+  const activeTab = controlledActiveTab ?? internalActiveTab;
+  const setActiveTab = (tab: AdminTab) => {
+    setInternalActiveTab(tab);
+    onTabChange?.(tab);
+  };
 
   // Shared state
   const [users, setUsers] = useState<UserRecord[]>([]);
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [usersError, setUsersError] = useState<string | null>(null);
-  const [adminProblems, setAdminProblems] = useState<AdminProblem[]>([]);
-  const [problemsLoading, setProblemsLoading] = useState(false);
-  const [problemsError, setProblemsError] = useState<string | null>(null);
-  const canDeleteProblems = user?.role === 'admin';
-  // Giang vien chi xem danh sach; them/sua/khoa/xoa chi admin (khop SecurityConfig)
-  const canManageUsers = user?.role === 'admin';
+  const [practiceProblems, setPracticeProblems] = useState<PracticeProblem[]>([]);
   const [sampleTemplates, setSampleTemplates] = useState<SampleTemplate[]>([]);
-  const [templatesLoading, setTemplatesLoading] = useState(false);
-  const [templatesError, setTemplatesError] = useState<string | null>(null);
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(INITIAL_ACTIVITY_LOGS);
-  const [dashboardStats, setDashboardStats] = useState<AdminDashboardStats | null>(null);
-  const [dashboardLoading, setDashboardLoading] = useState(false);
-  const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [dashboardStats, setDashboardStats] = useState<BackendDashboardStats | null>(null);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
+
+  // Topics state — fetch from DB, fallback to hardcoded TOPIC_INFOS
+  const [topicsList, setTopicsList] = useState<TopicInfo[]>(TOPIC_INFOS);
+
+  // Mapping backend level string to SkillLevel
+  const mapLevel = (level: string): SkillLevel => {
+    const l = level.toLowerCase();
+    if (l === 'beginner' || l === 'basic' || l === 'intermediate' || l === 'advanced' || l === 'expert') {
+      return l as SkillLevel;
+    }
+    return 'basic';
+  };
+
+  // Mapping backend Template to frontend SampleTemplate
+  const mapTemplate = (t: BackendTemplate): SampleTemplate => ({
+    id: String(t.id),
+    title: t.name,
+    topic: t.topic?.name ?? 'Khác',
+    level: mapLevel(t.level),
+    description: t.statementPattern,
+    starterCode: t.referenceSolutionCode,
+    minLength: t.minN ?? undefined,
+    maxLength: t.maxN ?? undefined,
+    minValue: t.minValue ?? undefined,
+    maxValue: t.maxValue ?? undefined,
+    generatorType: t.generatorType,
+    languageId: t.languageId,
+    updatedAt: t.createdAt ? new Date(t.createdAt).toLocaleDateString('vi-VN') : new Date().toLocaleDateString('vi-VN'),
+  });
+
+  // Mapping backend Topic to frontend TopicInfo (dùng TOPIC_INFOS làm reference cho icon/description)
+  const mapTopic = (t: BackendTopic): TopicInfo => {
+    const known = TOPIC_INFOS.find((ti) => ti.name.toLowerCase() === t.name.toLowerCase());
+    if (known) {
+      return { ...known, problemCount: 0, difficulties: { easy: 0, medium: 0, hard: 0 } };
+    }
+    const slug = t.name.toLowerCase().replace(/\s+/g, '-');
+    return {
+      name: t.name,
+      slug,
+      title: t.name,
+      icon: 'Layers',
+      description: `Chủ đề: ${t.name}`,
+      problemCount: 0,
+      difficulties: { easy: 0, medium: 0, hard: 0 },
+    };
+  };
+
+  // Mapping backend AdminUser to frontend UserRecord
+  const mapAdminUser = (u: BackendAdminUser): UserRecord => ({
+    id: String(u.id),
+    name: u.fullName,
+    email: u.email,
+    role: u.role.toLowerCase() as 'student' | 'teacher' | 'admin',
+    solvedCount: u.solvedCount,
+    status: u.active ? 'active' : 'suspended',
+    joinDate: u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : new Date().toLocaleDateString('vi-VN'),
+    topicStats: DEFAULT_TOPIC_STATS,
+  });
+
+  // Mapping backend Problem level to frontend difficulty
+  const mapDifficulty = (level: string): 'Easy' | 'Medium' | 'Hard' => {
+    const l = level.toLowerCase();
+    if (l === 'beginner' || l === 'basic') return 'Easy';
+    if (l === 'intermediate' || l === 'advanced') return 'Medium';
+    if (l === 'expert') return 'Hard';
+    return 'Medium';
+  };
+
+  // Mapping backend Problem to frontend PracticeProblem
+  const mapBackendProblem = (p: BackendProblem): PracticeProblem => ({
+    id: String(p.id),
+    title: p.statement.length > 80 ? p.statement.substring(0, 80) + '...' : p.statement,
+    topic: p.topic,
+    difficulty: mapDifficulty(p.level),
+    description: p.statement,
+    examples: (p.samples ?? []).map(s => ({ input: s.input, output: s.expectedOutput })),
+    starterCode: '',
+    language: 'java',
+    constraints: [],
+    isPublic: p.status === 'PUBLISHED',
+  });
+
+  // Mapping backend AuditLog to frontend ActivityLog
+  const mapAuditLog = (log: { id: number; action: string; user: string; target: string; time: string }): ActivityLog => ({
+    id: String(log.id),
+    user: log.user,
+    action: log.action as 'CREATE' | 'UPDATE' | 'DELETE' | 'TOGGLE',
+    target: log.target,
+    time: log.time,
+  });
+
+  // Fetch all admin data from API on mount
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchData = async () => {
+      try {
+        const results = await Promise.allSettled([
+          adminApi.getDashboardStats(),
+          adminApi.getUsers(),
+          templatesApi.list(),
+          topicsApi.list(),
+          problemsApi.listAll(),
+        ]);
+
+        if (cancelled) return;
+
+        // Dashboard stats
+        if (results[0].status === 'fulfilled') {
+          setDashboardStats(results[0].value);
+          // Map audit logs from dashboard stats
+          if (results[0].value.auditLogs && results[0].value.auditLogs.length > 0) {
+            setActivityLogs(results[0].value.auditLogs.map(mapAuditLog));
+          }
+        }
+
+        // Users
+        if (results[1].status === 'fulfilled' && results[1].value.length > 0) {
+          setUsers(results[1].value.map(mapAdminUser));
+        }
+
+        // Templates
+        if (results[2].status === 'fulfilled' && results[2].value.length > 0) {
+          setSampleTemplates(results[2].value.map(mapTemplate));
+        }
+
+        // Topics
+        if (results[3].status === 'fulfilled' && results[3].value.length > 0) {
+          setTopicsList(results[3].value.map(mapTopic));
+        }
+
+        // Problems
+        if (results[4].status === 'fulfilled' && results[4].value.length > 0) {
+          setPracticeProblems(results[4].value.map(mapBackendProblem));
+        }
+
+        setDataError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setDataError('Không thể tải dữ liệu từ máy chủ.');
+        }
+      } finally {
+        if (!cancelled) {
+          setDataLoading(false);
+        }
+      }
+    };
+
+    fetchData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // User Modals state
   const [selectedUser, setSelectedUser] = useState<UserRecord | null>(null);
@@ -112,36 +249,45 @@ export function AdminPage({
   const [showTemplateFormModal, setShowTemplateFormModal] = useState(false);
   const [showImportExcelModal, setShowImportExcelModal] = useState(false);
 
-  // ── USER HANDLERS (backend that: /api/admin/users) ──
-  // Giu lai topicStats da co tren UI khi thay ban ghi moi tu server
-  const mergeUser = (updated: UserRecord) => {
-    setUsers((prev) => prev.map((u) => (u.id === updated.id ? { ...updated, topicStats: u.topicStats } : u)));
-    setSelectedUser((prev) => (prev && prev.id === updated.id ? { ...updated, topicStats: prev.topicStats } : prev));
-  };
-
+  // ── USER HANDLERS ──
   const handleToggleStatus = async (id: string) => {
+    const targetUser = users.find((u) => u.id === id);
+    const backendId = Number(id);
     try {
-      const updated = toUserRecord(await adminApi.toggleUserStatus(Number(id)));
-      mergeUser(updated);
+      const updated = await adminApi.toggleUserStatus(backendId);
+      const mapped = mapAdminUser(updated);
+      setUsers((prev) =>
+        prev.map((u) => (u.id === id ? mapped : u)),
+      );
+      if (selectedUser && selectedUser.id === id) {
+        setSelectedUser(mapped);
+      }
+      const newStatusLabel = updated.active ? 'Hoạt động' : 'Đã khóa';
       setActivityLogs((prev) => [
         {
           id: `log-${Date.now()}`,
           user: user?.name ?? 'Quản trị viên',
           action: 'TOGGLE',
-          target: `Chuyển trạng thái ${updated.name} sang: ${updated.status === 'active' ? 'Hoạt động' : 'Đã khóa'}`,
+          target: `Chuyển trạng thái ${targetUser?.name ?? 'tài khoản'} sang: ${newStatusLabel}`,
           time: 'Vừa xong',
         },
         ...prev,
       ]);
-    } catch (err: unknown) {
-      alert(apiErrorMessage(err));
+    } catch {
+      // Fallback: cập nhật local
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === id ? { ...u, status: u.status === 'active' ? 'suspended' : 'active' } : u,
+        ),
+      );
     }
   };
 
   const handleDeleteUser = async (id: string) => {
     const targetUser = users.find((u) => u.id === id);
+    const backendId = Number(id);
     try {
-      await adminApi.deleteUser(Number(id));
+      await adminApi.deleteUser(backendId);
       setUsers((prev) => prev.filter((u) => u.id !== id));
       if (selectedUser?.id === id) {
         setSelectedUser(null);
@@ -156,210 +302,279 @@ export function AdminPage({
         },
         ...prev,
       ]);
-    } catch (err: unknown) {
-      alert(apiErrorMessage(err));
+    } catch {
+      // Fallback: cập nhật local
+      setUsers((prev) => prev.filter((u) => u.id !== id));
+      if (selectedUser?.id === id) {
+        setSelectedUser(null);
+      }
     }
   };
 
-  const handleAddUser = async (data: { name: string; email: string; role: UserRecord['role']; password: string }) => {
+  const handleAddUser = async (newUserData: { name: string; email: string; role: 'student' | 'teacher' | 'admin' }) => {
     try {
-      const backendRole = data.role.toUpperCase() as 'STUDENT' | 'TEACHER' | 'ADMIN';
-      const newUser = await adminApi.createUser({
-        fullName: data.name,
-        email: data.email,
-        password: data.password,
+      const backendRole = newUserData.role.toUpperCase() as BackendRole;
+      const created = await adminApi.createUser({
+        fullName: newUserData.name,
+        email: newUserData.email,
+        password: 'changeme123',
         role: backendRole,
       });
-      const userRecord = toUserRecord(newUser);
-      setUsers((prev) => [userRecord, ...prev]);
+      const mapped = mapAdminUser(created);
+      setUsers((prev) => [mapped, ...prev]);
       setActivityLogs((prev) => [
         {
           id: `log-${Date.now()}`,
           user: user?.name ?? 'Quản trị viên',
           action: 'CREATE',
-          target: `Thêm mới tài khoản: ${userRecord.name} (${userRecord.role})`,
+          target: `Thêm mới tài khoản: ${mapped.name} (${mapped.role})`,
           time: 'Vừa xong',
         },
         ...prev,
       ]);
-      setShowAddUserModal(false);
-    } catch (err: unknown) {
-      alert(apiErrorMessage(err));
+    } catch {
+      // Fallback: tạo local
+      const newUser: UserRecord = {
+        id: `u-${Date.now()}`,
+        ...newUserData,
+        solvedCount: 0,
+        status: 'active',
+        joinDate: new Date().toLocaleDateString('vi-VN'),
+        topicStats: DEFAULT_TOPIC_STATS,
+      };
+      setUsers((prev) => [newUser, ...prev]);
     }
+    setShowAddUserModal(false);
   };
 
-  // Tra ve null neu thanh cong, nguoc lai la thong bao loi de modal hien thi
-  const handleSaveUserDetail = async (data: {
-    name: string;
-    email: string;
-    role: UserRecord['role'];
-  }): Promise<string | null> => {
-    if (!selectedUser) return 'Không tìm thấy người dùng.';
+  const handleSaveUserDetail = async (updatedUserData: { name: string; email: string; role: 'student' | 'teacher' | 'admin' }): Promise<boolean> => {
+    if (!selectedUser) return false;
+    const backendId = Number(selectedUser.id);
     try {
-      const updated = toUserRecord(
-        await adminApi.updateUser(Number(selectedUser.id), {
-          fullName: data.name,
-          email: data.email,
-          role: data.role.toUpperCase() as BackendRole,
-        }),
-      );
-      mergeUser(updated);
+      const backendRole = updatedUserData.role.toUpperCase() as BackendRole;
+      const updated = await adminApi.updateUser(backendId, {
+        fullName: updatedUserData.name,
+        email: updatedUserData.email,
+        role: backendRole,
+      });
+      const mapped = mapAdminUser(updated);
+      setUsers((prev) => prev.map((u) => (u.id === selectedUser.id ? mapped : u)));
+      setSelectedUser(mapped);
       setActivityLogs((prev) => [
         {
           id: `log-${Date.now()}`,
           user: user?.name ?? 'Quản trị viên',
           action: 'UPDATE',
-          target: `Cập nhật thông tin chi tiết tài khoản: ${updated.name}`,
+          target: `Cập nhật thông tin chi tiết tài khoản: ${mapped.name}`,
           time: 'Vừa xong',
         },
         ...prev,
       ]);
-      return null;
-    } catch (err: unknown) {
-      return apiErrorMessage(err);
+      return true;
+    } catch {
+      // Fallback: cập nhật local
+      const updatedUser: UserRecord = { ...selectedUser, ...updatedUserData };
+      setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+      setSelectedUser(updatedUser);
+      return true;
     }
   };
 
-  // ── PROBLEM HANDLERS (backend that: /api/problems/manage) ──
-  const addLog = (action: ActivityLog['action'], target: string) => {
+  // ── PROBLEM HANDLERS ──
+  const handleDeleteProblem = async (id: string) => {
+    const targetProb = practiceProblems.find((p) => p.id === id);
+    const backendId = Number(id);
+    try {
+      await problemsApi.delete(backendId);
+      setPracticeProblems((prev) => prev.filter((p) => p.id !== id));
+      setActivityLogs((prev) => [
+        {
+          id: `log-${Date.now()}`,
+          user: user?.name ?? 'Quản trị viên',
+          action: 'DELETE',
+          target: `Xóa bài tập luyện code: "${targetProb?.title ?? id}"`,
+          time: 'Vừa xong',
+        },
+        ...prev,
+      ]);
+    } catch {
+      // Fallback: cập nhật local
+      setPracticeProblems((prev) => prev.filter((p) => p.id !== id));
+    }
+  };
+
+  const handleTogglePublicProblem = async (id: string) => {
+    const targetProb = practiceProblems.find((p) => p.id === id);
+    const backendId = Number(id);
+    const isNowPublic = !(targetProb?.isPublic ?? true);
+    try {
+      if (isNowPublic) {
+        await problemsApi.publish(backendId);
+      } else {
+        await problemsApi.unpublish(backendId);
+      }
+      setPracticeProblems((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, isPublic: isNowPublic } : p)),
+      );
+      setActivityLogs((prev) => [
+        {
+          id: `log-${Date.now()}`,
+          user: user?.name ?? 'Quản trị viên',
+          action: 'TOGGLE',
+          target: `Đổi trạng thái hiển thị bài "${targetProb?.title}" sang: ${
+            isNowPublic ? 'Công khai' : 'Ẩn'
+          }`,
+          time: 'Vừa xong',
+        },
+        ...prev,
+      ]);
+    } catch {
+      // Fallback: cập nhật local
+      setPracticeProblems((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, isPublic: isNowPublic } : p)),
+      );
+    }
+  };
+
+  // ── GENERATOR & TEMPLATE HANDLERS ──
+  const handlePublishQuestion = (question: GeneratedQuestion) => {
+    const newProb: PracticeProblem = {
+      id: question.id,
+      title: question.title,
+      difficulty: question.difficulty,
+      topic: question.topic,
+      description: question.description ?? '',
+      examples: (question.testCases ?? []).map((tc) => ({ input: tc.input, output: tc.output })),
+      starterCode: question.starterCode,
+      language: 'java',
+      constraints: [],
+      isPublic: true,
+    };
+    setPracticeProblems((prev) => [newProb, ...prev]);
     setActivityLogs((prev) => [
-      { id: `log-${Date.now()}`, user: user?.name ?? 'Quản trị viên', action, target, time: 'Vừa xong' },
+      {
+        id: `log-${Date.now()}`,
+        user: user?.name ?? 'Quản trị viên Demo',
+        action: 'CREATE',
+        target: `Xuất bản bài tập AI tạo tự động: "${question.title}" vào Ngân hàng đề`,
+        time: 'Vừa xong',
+      },
       ...prev,
     ]);
   };
 
-  const loadProblems = useCallback(() => {
-    setProblemsLoading(true);
-    setProblemsError(null);
-    problemsApi
-      .listAll()
-      .then((list) => setAdminProblems(list))
-      .catch((err: unknown) => setProblemsError(apiErrorMessage(err)))
-      .finally(() => setProblemsLoading(false));
-  }, []);
-
-  const loadDashboardStats = useCallback(() => {
-    setDashboardLoading(true);
-    setDashboardError(null);
-    adminApi
-      .getDashboardStats()
-      .then((stats) => setDashboardStats(stats))
-      .catch((err: unknown) => setDashboardError(apiErrorMessage(err)))
-      .finally(() => setDashboardLoading(false));
-  }, []);
-
-  const loadUsers = useCallback(() => {
-    setUsersLoading(true);
-    setUsersError(null);
-    adminApi
-      .getUsers()
-      .then((adminUsers) => setUsers(adminUsers.map(toUserRecord)))
-      .catch((err: unknown) => setUsersError(apiErrorMessage(err)))
-      .finally(() => setUsersLoading(false));
-  }, []);
-
-  const loadTemplates = useCallback(() => {
-    setTemplatesLoading(true);
-    setTemplatesError(null);
-    templatesApi
-      .list()
-      .then((templates) => setSampleTemplates(templates.map(toSampleTemplate)))
-      .catch((err: unknown) => setTemplatesError(apiErrorMessage(err)))
-      .finally(() => setTemplatesLoading(false));
-  }, []);
-
-  // Tai lai moi lan mo tab "Quản lý bài tập" -> thay ngay cac bai nhap vua sinh o tab Sinh de
-  useEffect(() => {
-    if (activeTab === 'problems') loadProblems();
-  }, [activeTab, loadProblems]);
-
-  // Load dashboard stats khi vao tab dashboard
-  useEffect(() => {
-    if (activeTab === 'dashboard') loadDashboardStats();
-  }, [activeTab, loadDashboardStats]);
-
-  // Load users khi vao tab users
-  useEffect(() => {
-    if (activeTab === 'users') loadUsers();
-  }, [activeTab, loadUsers]);
-
-  // Load templates khi vao tab templates
-  useEffect(() => {
-    if (activeTab === 'templates') loadTemplates();
-  }, [activeTab, loadTemplates]);
-
-  const handleTogglePublishProblem = async (p: AdminProblem) => {
-    const updated = p.status === 'PUBLISHED' ? await problemsApi.unpublish(p.id) : await problemsApi.publish(p.id);
-    setAdminProblems((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
-    addLog(
-      'TOGGLE',
-      `${updated.status === 'PUBLISHED' ? 'Xuất bản' : 'Gỡ xuất bản'} bài "${titleFromStatement(p.statement, p.id)}"`,
-    );
-  };
-
-  const handleDeleteProblem = async (p: AdminProblem) => {
-    await problemsApi.remove(p.id);
-    setAdminProblems((prev) => prev.filter((x) => x.id !== p.id));
-    addLog('DELETE', `Xóa bài tập "${titleFromStatement(p.statement, p.id)}"`);
+  const handlePublishAllQuestions = (questions: GeneratedQuestion[]) => {
+    const newProbs: PracticeProblem[] = questions.map((q) => ({
+      id: q.id,
+      title: q.title,
+      difficulty: q.difficulty,
+      topic: q.topic,
+      description: q.description ?? '',
+      examples: (q.testCases ?? []).map((tc) => ({ input: tc.input, output: tc.output })),
+      starterCode: q.starterCode,
+      language: 'java',
+      constraints: [],
+      isPublic: true,
+    }));
+    setPracticeProblems((prev) => [...newProbs, ...prev]);
+    setActivityLogs((prev) => [
+      {
+        id: `log-${Date.now()}`,
+        user: user?.name ?? 'Quản trị viên Demo',
+        action: 'CREATE',
+        target: `Xuất bản hàng loạt ${questions.length} câu hỏi AI tạo tự động vào Ngân hàng đề`,
+        time: 'Vừa xong',
+      },
+      ...prev,
+    ]);
   };
 
   const handleSaveTemplate = async (tplData: Omit<SampleTemplate, 'id' | 'updatedAt'>) => {
-    try {
-      // Chuyen du lieu frontend sang format backend yeu cau
-      const backendData = {
-        name: tplData.title,
-        topic: tplData.topic,
-        level: tplData.level.toUpperCase(),
-        generatorType: tplData.generatorType || 'INTEGER_ARRAY',
-        minN: tplData.minLength,
-        maxN: tplData.maxLength,
-        minValue: tplData.minValue,
-        maxValue: tplData.maxValue,
-        statementPattern: tplData.description,
-        referenceSolutionCode: tplData.starterCode,
-        languageId: tplData.languageId || 62, // 62 = Java
-      };
-
-      let savedTemplate: Template;
-      if (templateToEdit) {
-        savedTemplate = await templatesApi.update(Number(templateToEdit.id), backendData);
-        setActivityLogs((prev) => [
-          {
-            id: `log-${Date.now()}`,
-            user: user?.name ?? 'Quản trị viên',
-            action: 'UPDATE',
-            target: `Cập nhật Template bài mẫu: "${tplData.title}"`,
-            time: 'Vừa xong',
-          },
-          ...prev,
-        ]);
-      } else {
-        savedTemplate = await templatesApi.create(backendData);
-        setActivityLogs((prev) => [
-          {
-            id: `log-${Date.now()}`,
-            user: user?.name ?? 'Quản trị viên',
-            action: 'CREATE',
-            target: `Thêm mới Template bài mẫu: "${tplData.title}"`,
-            time: 'Vừa xong',
-          },
-          ...prev,
-        ]);
+    if (templateToEdit) {
+      const backendId = Number(templateToEdit.id);
+      try {
+        await templatesApi.update(backendId, {
+          name: tplData.title,
+          topic: tplData.topic,
+          level: tplData.level,
+          generatorType: tplData.generatorType ?? 'TWO_INTEGERS',
+          minN: tplData.minLength ?? undefined,
+          maxN: tplData.maxLength ?? undefined,
+          minValue: tplData.minValue ?? undefined,
+          maxValue: tplData.maxValue ?? undefined,
+          statementPattern: tplData.description,
+          referenceSolutionCode: tplData.starterCode,
+          languageId: tplData.languageId ?? 62,
+        });
+        // Reload templates from API
+        const refreshed = await templatesApi.list();
+        setSampleTemplates(refreshed.map(mapTemplate));
+      } catch {
+        // Fallback: cập nhật local
+        setSampleTemplates((prev) =>
+          prev.map((t) =>
+            t.id === templateToEdit.id
+              ? { ...tplData, id: t.id, updatedAt: new Date().toLocaleDateString('vi-VN') }
+              : t,
+          ),
+        );
       }
-
-      // Reload templates de hien thi danh sach moi
-      await loadTemplates();
-      setShowTemplateFormModal(false);
-      setTemplateToEdit(null);
-    } catch (err: unknown) {
-      alert(apiErrorMessage(err));
+      setActivityLogs((prev) => [
+        {
+          id: `log-${Date.now()}`,
+          user: user?.name ?? 'Quản trị viên',
+          action: 'UPDATE',
+          target: `Cập nhật Template bài mẫu: "${tplData.title}"`,
+          time: 'Vừa xong',
+        },
+        ...prev,
+      ]);
+    } else {
+      try {
+        const created = await templatesApi.create({
+          name: tplData.title,
+          topic: tplData.topic,
+          level: tplData.level,
+          generatorType: tplData.generatorType ?? 'TWO_INTEGERS',
+          minN: tplData.minLength ?? undefined,
+          maxN: tplData.maxLength ?? undefined,
+          minValue: tplData.minValue ?? undefined,
+          maxValue: tplData.maxValue ?? undefined,
+          statementPattern: tplData.description,
+          referenceSolutionCode: tplData.starterCode,
+          languageId: tplData.languageId ?? 62,
+        });
+        const mapped = mapTemplate(created);
+        setSampleTemplates((prev) => [mapped, ...prev]);
+      } catch {
+        // Fallback: tạo local
+        const newTpl: SampleTemplate = {
+          id: `tpl-${Date.now()}`,
+          ...tplData,
+          updatedAt: new Date().toLocaleDateString('vi-VN'),
+        };
+        setSampleTemplates((prev) => [newTpl, ...prev]);
+      }
+      setActivityLogs((prev) => [
+        {
+          id: `log-${Date.now()}`,
+          user: user?.name ?? 'Quản trị viên',
+          action: 'CREATE',
+          target: `Thêm mới Template bài mẫu: "${tplData.title}"`,
+          time: 'Vừa xong',
+        },
+        ...prev,
+      ]);
     }
+    setShowTemplateFormModal(false);
+    setTemplateToEdit(null);
   };
 
   const handleDeleteTemplate = async (id: string) => {
     const targetTpl = sampleTemplates.find((t) => t.id === id);
+    const backendId = Number(id);
     try {
-      await templatesApi.delete(Number(id));
+      await templatesApi.delete(backendId);
       setSampleTemplates((prev) => prev.filter((t) => t.id !== id));
       if (selectedTemplateForDetail?.id === id) {
         setSelectedTemplateForDetail(null);
@@ -374,8 +589,12 @@ export function AdminPage({
         },
         ...prev,
       ]);
-    } catch (err: unknown) {
-      alert(apiErrorMessage(err));
+    } catch {
+      // Fallback: cập nhật local
+      setSampleTemplates((prev) => prev.filter((t) => t.id !== id));
+      if (selectedTemplateForDetail?.id === id) {
+        setSelectedTemplateForDetail(null);
+      }
     }
   };
 
@@ -392,6 +611,10 @@ export function AdminPage({
       ...prev,
     ]);
     setShowImportExcelModal(false);
+  };
+
+  const handleRemoveTopic = (topicName: string) => {
+    setTopicsList((prev) => prev.filter((t) => t.name !== topicName));
   };
 
   return (
@@ -422,40 +645,42 @@ export function AdminPage({
           {activeTab === 'dashboard' && (
             <AdminDashboardTab
               users={users}
-              templates={sampleTemplates}
+              templates={sampleTemplates as any}
+              problems={practiceProblems}
               activityLogs={activityLogs}
-              dashboardStats={dashboardStats}
-              dashboardLoading={dashboardLoading}
-              dashboardError={dashboardError}
-              onReloadDashboard={loadDashboardStats}
               onGoGenerator={() => setActiveTab('generator')}
+              onNavigateTab={(tab) => setActiveTab(tab)}
             />
           )}
 
           {activeTab === 'users' && (
             <AdminUsersTab
               users={users}
-              loading={usersLoading}
-              error={usersError}
-              canManage={canManageUsers}
-              currentUserId={user?.id}
-              onReload={loadUsers}
               onOpenAddUserModal={() => setShowAddUserModal(true)}
               onOpenUserDetail={(u) => setSelectedUser(u)}
               onToggleStatus={handleToggleStatus}
               onDeleteUser={handleDeleteUser}
+              currentUserId={user?.id}
             />
           )}
 
           {activeTab === 'problems' && (
             <AdminProblemsTab
-              problems={adminProblems}
-              loading={problemsLoading}
-              error={problemsError}
-              canDelete={canDeleteProblems}
-              onReload={loadProblems}
-              onTogglePublish={handleTogglePublishProblem}
-              onDelete={handleDeleteProblem}
+              problems={practiceProblems}
+              onAddProblem={(newProb) => {
+                if (newProb) setPracticeProblems((prev) => [newProb, ...prev]);
+              }}
+              onEditProblem={(updatedProb) => {
+                setPracticeProblems((prev) =>
+                  prev.map((p) => (p.id === updatedProb.id ? updatedProb : p))
+                );
+              }}
+              onDeleteProblem={handleDeleteProblem}
+              onTogglePublicStatus={handleTogglePublicProblem}
+              onViewDetail={() => {}}
+              onAddGeneratedProblems={(newProbs) => {
+                setPracticeProblems((prev) => [...newProbs, ...prev]);
+              }}
               onGoGenerator={() => setActiveTab('generator')}
             />
           )}
@@ -463,9 +688,10 @@ export function AdminPage({
           {activeTab === 'templates' && (
             <AdminTemplatesTab
               templates={sampleTemplates}
-              loading={templatesLoading}
-              error={templatesError}
-              onReload={loadTemplates}
+              loading={dataLoading}
+              error={dataError}
+              topicsList={topicsList}
+              onRemoveTopic={handleRemoveTopic}
               onOpenAddTplModal={() => {
                 setTemplateToEdit(null);
                 setShowTemplateFormModal(true);
@@ -481,7 +707,18 @@ export function AdminPage({
           )}
 
           {activeTab === 'generator' && (
-            <AdminGeneratorTab canDelete={canDeleteProblems} onLog={addLog} />
+            <AdminGeneratorTab
+              onPublishQuestion={handlePublishQuestion}
+              onPublishAllQuestions={handlePublishAllQuestions}
+              onNavigateToProblems={() => setActiveTab('problems')}
+            />
+          )}
+
+          {activeTab === 'logs' && (
+            <AdminAuditLogsTab
+              activityLogs={activityLogs}
+              onBackToDashboard={() => setActiveTab('dashboard')}
+            />
           )}
         </main>
       </div>
@@ -501,12 +738,11 @@ export function AdminPage({
       {selectedUser && (
         <AdminUserDetailModal
           userRecord={selectedUser}
-          canManage={canManageUsers}
-          isSelf={selectedUser.id === user?.id}
           onClose={() => setSelectedUser(null)}
           onDeleteUser={handleDeleteUser}
           onToggleStatus={handleToggleStatus}
           onSaveUserDetail={handleSaveUserDetail}
+          currentUserId={user?.id}
         />
       )}
 

@@ -6,23 +6,20 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 interface AdminUserDetailModalProps {
   userRecord: UserRecord;
-  canManage: boolean;
-  isSelf: boolean;
   onClose: () => void;
   onDeleteUser: (id: string) => void;
   onToggleStatus: (id: string) => void;
-  /** Tra ve null neu luu thanh cong, nguoc lai la thong bao loi tu server. */
-  onSaveUserDetail: (updatedData: { name: string; email: string; role: 'student' | 'teacher' | 'admin' }) => Promise<string | null>;
+  onSaveUserDetail: (updatedData: { name: string; email: string; role: 'student' | 'teacher' | 'admin' }) => boolean;
+  currentUserId?: string;
 }
 
 export function AdminUserDetailModal({
   userRecord,
-  canManage,
-  isSelf,
   onClose,
   onDeleteUser,
   onToggleStatus,
   onSaveUserDetail,
+  currentUserId,
 }: AdminUserDetailModalProps) {
   const [editName, setEditName] = useState(userRecord.name);
   const [editEmail, setEditEmail] = useState(userRecord.email);
@@ -30,15 +27,13 @@ export function AdminUserDetailModal({
   const [editUserError, setEditUserError] = useState<string | null>(null);
   const [editUserSaved, setEditUserSaved] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [saving, setSaving] = useState(false);
 
   const validateEmail = (email: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   };
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canManage || saving) return;
     setEditUserError(null);
 
     if (editName.trim().length < 2) {
@@ -50,17 +45,13 @@ export function AdminUserDetailModal({
       return;
     }
 
-    setSaving(true);
-    const error = await onSaveUserDetail({
+    const success = onSaveUserDetail({
       name: editName.trim(),
       email: editEmail.trim().toLowerCase(),
       role: editRole,
     });
-    setSaving(false);
 
-    if (error) {
-      setEditUserError(error);
-    } else {
+    if (success) {
       setEditUserSaved(true);
       setTimeout(() => setEditUserSaved(false), 2500);
     }
@@ -118,7 +109,6 @@ export function AdminUserDetailModal({
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
               className="admin-input"
-              disabled={!canManage}
               required
             />
           </label>
@@ -130,7 +120,6 @@ export function AdminUserDetailModal({
               value={editEmail}
               onChange={(e) => setEditEmail(e.target.value)}
               className="admin-input"
-              disabled={!canManage}
               required
             />
           </label>
@@ -141,8 +130,6 @@ export function AdminUserDetailModal({
               value={editRole}
               onChange={(e) => setEditRole(e.target.value as any)}
               className="admin-select"
-              disabled={!canManage || isSelf}
-              title={isSelf ? 'Không thể tự đổi vai trò của chính mình' : undefined}
             >
               <option value="student">Sinh viên</option>
               <option value="teacher">Giảng viên</option>
@@ -183,7 +170,7 @@ export function AdminUserDetailModal({
 
         {/* Modal Actions */}
         <div className="dialog-actions" style={{ justifyContent: 'space-between' }}>
-          {canManage && !isSelf ? (
+          {userRecord.id !== currentUserId && (
             <button
               type="button"
               className="history-view-btn"
@@ -192,8 +179,6 @@ export function AdminUserDetailModal({
             >
               <Trash2 size={15} /> Xóa người dùng này
             </button>
-          ) : (
-            <span />
           )}
 
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -204,7 +189,7 @@ export function AdminUserDetailModal({
             >
               Đóng
             </button>
-            {canManage && !isSelf && (
+            {userRecord.id !== currentUserId && (
               <button
                 type="button"
                 className="dialog-cancel"
@@ -213,16 +198,13 @@ export function AdminUserDetailModal({
                 {userRecord.status === 'active' ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
               </button>
             )}
-            {canManage && (
-              <button
-                type="button"
-                className="dialog-confirm primary"
-                onClick={handleFormSubmit}
-                disabled={saving}
-              >
-                {saving ? 'Đang lưu...' : 'Lưu chỉnh sửa'}
-              </button>
-            )}
+            <button
+              type="button"
+              className="dialog-confirm primary"
+              onClick={handleFormSubmit}
+            >
+              Lưu chỉnh sửa
+            </button>
           </div>
         </div>
 

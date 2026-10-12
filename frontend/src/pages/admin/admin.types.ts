@@ -1,6 +1,6 @@
 import type { SkillLevel } from '@/types';
 
-export type AdminTab = 'dashboard' | 'users' | 'problems' | 'templates' | 'generator';
+export type AdminTab = 'dashboard' | 'users' | 'problems' | 'templates' | 'generator' | 'logs';
 
 export interface UserTopicStat {
   topic: string;
@@ -20,7 +20,7 @@ export interface UserRecord {
 }
 
 export interface ActivityLog {
-  id: string | number;
+  id: string;
   user: string;
   action: 'CREATE' | 'UPDATE' | 'DELETE' | 'TOGGLE';
   target: string;
@@ -47,12 +47,37 @@ export interface SampleTemplate {
   updatedAt: string;
 }
 
+export interface GeneratedQuestion {
+  id: string;
+  title: string;
+  topic: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+  starterCode: string;
+  description?: string;
+  sampleInput?: string;
+  sampleOutput?: string;
+  isPublic?: boolean; // Trạng thái xuất bản / public
+  tags?: string[];
+  points?: number;
+  initialCode?: string;
+  testCases?: { input: string; output: string }[];
+  aiGuidePrompt?: string;
+}
+
 export const INITIAL_ACTIVITY_LOGS: ActivityLog[] = [
   { id: 'log-1', user: 'Quản trị viên Demo', action: 'CREATE', target: 'Thêm tài khoản Vũ Đức Thành (Sinh viên)', time: '10 phút trước' },
   { id: 'log-2', user: 'Quản trị viên Demo', action: 'UPDATE', target: 'Cập nhật thông tin tài khoản Phạm Minh Anh', time: '35 phút trước' },
   { id: 'log-3', user: 'Quản trị viên Demo', action: 'CREATE', target: 'Tạo Template bài mẫu "Two Sum - Hash Map"', time: '2 giờ trước' },
   { id: 'log-4', user: 'TS. Nguyễn Quốc Bảo', action: 'DELETE', target: 'Xóa câu hỏi bài tập nháp #104', time: '5 giờ trước' },
   { id: 'log-5', user: 'Quản trị viên Demo', action: 'TOGGLE', target: 'Thay đổi trạng thái (Khóa): Lê Thị Mai', time: '1 ngày trước' },
+  { id: 'log-6', user: 'TS. Nguyễn Quốc Bảo', action: 'CREATE', target: 'Xuất bản 3 bài tập AI sinh tự động chủ đề Binary Search', time: '1 ngày trước' },
+  { id: 'log-7', user: 'Quản trị viên Demo', action: 'UPDATE', target: 'Cập nhật thông số chấm bài Sandbox AI v2.4', time: '2 ngày trước' },
+  { id: 'log-8', user: 'Quản trị viên Demo', action: 'CREATE', target: 'Import hàng loạt 12 Template từ file Excel template_cntt_2026.xlsx', time: '3 ngày trước' },
+  { id: 'log-9', user: 'TS. Nguyễn Quốc Bảo', action: 'CREATE', target: 'Thêm tài khoản Giảng viên Demo (teacher@demo.com)', time: '4 ngày trước' },
+  { id: 'log-10', user: 'Quản trị viên Demo', action: 'UPDATE', target: 'Tối ưu Prompts phân tích lỗi Gemini Pro', time: '5 ngày trước' },
+  { id: 'log-11', user: 'System Auto-Backup', action: 'CREATE', target: 'Tự động sao lưu dữ liệu hệ thống định kỳ (Automated Snapshot)', time: '6 ngày trước' },
+  { id: 'log-12', user: 'Quản trị viên Demo', action: 'TOGGLE', target: 'Mở khóa tài khoản Trần Văn Hoàng', time: '1 tuần trước' },
+  { id: 'log-13', user: 'Quản trị viên Demo', action: 'CREATE', target: 'Khởi tạo hệ thống Mnemonic Admin Console v2.0', time: '2 tuần trước' },
 ];
 
 export const DEFAULT_TOPIC_STATS: UserTopicStat[] = [

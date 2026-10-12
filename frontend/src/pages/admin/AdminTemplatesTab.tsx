@@ -47,6 +47,8 @@ interface AdminTemplatesTabProps {
   loading?: boolean;
   error?: string | null;
   onReload?: () => void;
+  topicsList: TopicInfo[];
+  onRemoveTopic?: (topicName: string) => void;
   onOpenAddTplModal: () => void;
   onOpenImportExcelModal: () => void;
   onOpenDetailModal: (tpl: SampleTemplate) => void;
@@ -59,6 +61,8 @@ export function AdminTemplatesTab({
   loading = false,
   error = null,
   onReload,
+  topicsList,
+  onRemoveTopic,
   onOpenAddTplModal,
   onOpenImportExcelModal,
   onOpenDetailModal,
@@ -67,9 +71,6 @@ export function AdminTemplatesTab({
 }: AdminTemplatesTabProps) {
   // Navigation & Selected Topic State
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
-
-  // Topic Management State
-  const [topicsList, setTopicsList] = useState<TopicInfo[]>(TOPIC_INFOS);
 
   // Confirmation Modals State
   const [deletingTopic, setDeletingTopic] = useState<string | null>(null);
@@ -106,7 +107,7 @@ export function AdminTemplatesTab({
   // Handle Delete Topic
   const handleConfirmDeleteTopic = () => {
     if (!deletingTopic) return;
-    setTopicsList((prev) => prev.filter((t) => t.name !== deletingTopic));
+    onRemoveTopic?.(deletingTopic);
     if (selectedTopic === deletingTopic) {
       setSelectedTopic(null);
     }

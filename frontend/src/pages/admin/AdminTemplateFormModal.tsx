@@ -96,7 +96,6 @@ function AdminTemplateFormModal({
     });
   };
 
-  // @ts-ignore
   return (
     <div className="dialog-overlay" onClick={onClose}>
       <div
@@ -287,4 +286,5 @@ function AdminTemplateFormModal({
   );
 }
 
-export default AdminTemplateFormModal
+export { AdminTemplateFormModal };
+export default AdminTemplateFormModal;

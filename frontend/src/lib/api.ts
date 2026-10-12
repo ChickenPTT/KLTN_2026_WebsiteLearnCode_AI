@@ -244,6 +244,16 @@ export const adminApi = {
     apiFetch<void>(`/api/admin/users/${id}`, { method: 'DELETE' }),
 };
 
+export interface Topic {
+  id: number;
+  name: string;
+  colorTag: string;
+}
+
+export const topicsApi = {
+  list: () => apiFetch<Topic[]>('/api/topics'),
+};
+
 export const templatesApi = {
   list: () => apiFetch<Template[]>('/api/template'),
   create: (data: {
@@ -282,4 +292,60 @@ export const templatesApi = {
     }),
   delete: (id: number) =>
     apiFetch<void>(`/api/template/${id}`, { method: 'DELETE' }),
+  generate: (templateId: number, useAiParaphrase?: boolean) =>
+    apiFetch<BackendProblem>('/api/template/generate', {
+      method: 'POST',
+      body: JSON.stringify({ template_id: templateId, use_ai_paraphrase: useAiParaphrase ?? false }),
+    }),
+};
+
+// ── Problem types ──
+
+export interface BackendProblemSample {
+  input: string;
+  expectedOutput: string;
+}
+
+export interface BackendProblem {
+  id: number;
+  statement: string;
+  topic: string;
+  level: string;
+  languageId: number;
+  status: 'DRAFT' | 'PUBLISHED';
+  sourceType: 'MANUAL' | 'AI_GENERATED';
+  createdAt: string;
+  samples: BackendProblemSample[];
+  testCaseCount: number;
+  templateName: string | null;
+}
+
+export const problemsApi = {
+  // Admin: lấy tất cả problems (bao gồm draft)
+  listAll: () => apiFetch<BackendProblem[]>('/api/problems/manage'),
+  // Lấy problems đã publish
+  listPublished: () => apiFetch<BackendProblem[]>('/api/problems'),
+  // Lấy drafts
+  listDrafts: () => apiFetch<BackendProblem[]>('/api/problems/drafts'),
+  delete: (id: number) =>
+    apiFetch<void>(`/api/problems/${id}`, { method: 'DELETE' }),
+  publish: (id: number) =>
+    apiFetch<BackendProblem>(`/api/problems/${id}/publish`, { method: 'PUT' }),
+  unpublish: (id: number) =>
+    apiFetch<BackendProblem>(`/api/problems/${id}/unpublish`, { method: 'PUT' }),
+};
+
+// ── History types ──
+
+export interface BackendHistoryItem {
+  id: number;
+  problemId: number;
+  topic: string;
+  level: string;
+  passed: boolean;
+  submittedAt: string;
+}
+
+export const historyApi = {
+  myHistory: () => apiFetch<BackendHistoryItem[]>('/api/history/me'),
 };

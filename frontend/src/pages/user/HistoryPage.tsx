@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Header } from '@/layout/Header';
 import { SearchableSelect } from '@/components/SearchableSelect';
+import { Pagination } from '@/components/Pagination';
 import { TOPICS, type AuthMode } from '@/types';
 import {
   MOCK_SUBMISSIONS,
@@ -66,6 +67,7 @@ export function HistoryPage({
   
   const [selectedRecord, setSelectedRecord] = useState<SubmissionRecord | null>(null);
   const [selectedAttemptId, setSelectedAttemptId] = useState<string>('');
+  const [pageSize, setPageSize] = useState(10);
   const [subPage, setSubPage] = useState(1);
 
   const filteredSubmissions = useMemo(() => {
@@ -83,11 +85,13 @@ export function HistoryPage({
   const passedSubs = MOCK_SUBMISSIONS.filter((s) => s.status === 'passed').length;
   const passRate = Math.round((passedSubs / totalSubs) * 100);
 
-  const totalSubPages = Math.max(1, Math.ceil(filteredSubmissions.length / SUBS_PER_PAGE));
+  const totalSubPages = Math.ceil(filteredSubmissions.length / pageSize) || 1;
+  const safeSubPage = Math.min(subPage, totalSubPages);
+
   const paginatedSubmissions = useMemo(() => {
-    const start = (subPage - 1) * SUBS_PER_PAGE;
-    return filteredSubmissions.slice(start, start + SUBS_PER_PAGE);
-  }, [filteredSubmissions, subPage]);
+    const start = (safeSubPage - 1) * pageSize;
+    return filteredSubmissions.slice(start, start + pageSize);
+  }, [filteredSubmissions, safeSubPage, pageSize]);
 
   const handleOpenDetail = (record: SubmissionRecord) => {
     setSelectedRecord(record);
@@ -120,12 +124,6 @@ export function HistoryPage({
       />
 
       <main className="history-main">
-        <div style={{ marginBottom: '8px' }}>
-          <button className="auth-back" style={{ position: 'static' }} onClick={onBack}>
-            <ArrowLeft size={18} /> Quay lại
-          </button>
-        </div>
-
         {/* ── Title & Intro ── */}
         <div className="history-header">
           <h1 className="history-title" style={{ fontSize: '26px' }}>
@@ -295,40 +293,17 @@ export function HistoryPage({
           </table>
 
           {/* ── Pagination Bar ── */}
-          <div className="admin-pagination-bar">
-            <span className="pagination-info">
-              Hiển thị {filteredSubmissions.length > 0 ? (subPage - 1) * SUBS_PER_PAGE + 1 : 0} -{' '}
-              {Math.min(subPage * SUBS_PER_PAGE, filteredSubmissions.length)} trên tổng số{' '}
-              {filteredSubmissions.length} lượt nộp
-            </span>
-            <div className="pagination-controls">
-              <button
-                className="pagination-btn"
-                disabled={subPage === 1}
-                onClick={() => setSubPage((p) => Math.max(1, p - 1))}
-              >
-                <ChevronLeft size={16} /> Trước
-              </button>
-
-              {Array.from({ length: totalSubPages }).map((_, i) => (
-                <button
-                  key={i + 1}
-                  className={`pagination-num ${subPage === i + 1 ? 'is-active' : ''}`}
-                  onClick={() => setSubPage(i + 1)}
-                >
-                  {i + 1}
-                </button>
-              ))}
-
-              <button
-                className="pagination-btn"
-                disabled={subPage === totalSubPages}
-                onClick={() => setSubPage((p) => Math.min(totalSubPages, p + 1))}
-              >
-                Tiếp <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
+          <Pagination
+            currentPage={safeSubPage}
+            totalPages={totalSubPages}
+            pageSize={pageSize}
+            totalItems={filteredSubmissions.length}
+            onPageChange={setSubPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setSubPage(1);
+            }}
+          />
         </div>
       </main>
 

@@ -32,10 +32,13 @@ export function buildTopics(problems: PracticeProblem[]): TopicInfo[] {
   });
   const extra = extraNames.map((name): TopicInfo => {
     const list = problems.filter((p) => sameTopic(p.topic, name));
+    const capitalized = capitalize(name);
     return {
-      name: capitalize(name),
+      name: capitalized,
+      slug: capitalized.toLowerCase().replace(/\s+/g, '-'),
+      title: capitalized,
       icon: 'Code2',
-      description: `Các bài tập thuộc chủ đề ${capitalize(name)}.`,
+      description: `Các bài tập thuộc chủ đề ${capitalized}.`,
       problemCount: list.length,
       difficulties: countDifficulties(list),
     };

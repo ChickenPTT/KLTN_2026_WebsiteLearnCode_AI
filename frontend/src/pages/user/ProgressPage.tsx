@@ -1,23 +1,27 @@
 import { useState } from 'react';
 import {
   ArrowLeft,
+  BookOpen,
   Calendar,
   CheckCircle2,
   Flame,
   Zap,
   Activity,
   History,
+  ArrowRight,
   X,
   RotateCcw,
   PieChart,
+  HelpCircle,
 } from 'lucide-react';
 import { Header } from '@/layout/Header';
-import { type AuthMode } from '@/types';
+import { LEVEL_COLORS, TOPIC_INFOS, type AuthMode } from '@/types';
 import {
   MOCK_STREAK,
   MOCK_XP,
   MOCK_WEEKLY,
   MOCK_ACTIVITY_LOG,
+  MOCK_TOPIC_PROGRESS,
   MOCK_SUBMISSIONS,
 } from '@/data/userMockData';
 
@@ -29,6 +33,7 @@ interface ProgressPageProps {
   onGoProfile?: () => void;
   onGoProgress?: () => void;
   onGoHistory?: () => void;
+  onGoScoringGuide?: () => void;
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
   onLoggedOut?: () => void;
@@ -102,6 +107,7 @@ export function ProgressPage({
   onGoProfile,
   onGoProgress,
   onGoHistory,
+  onGoScoringGuide,
   onGoAdmin,
   onGoSettings,
   onLoggedOut,
@@ -130,12 +136,6 @@ export function ProgressPage({
       />
 
       <main className="progress-main">
-        <div style={{ marginBottom: '10px' }}>
-          <button className="auth-back" style={{ position: 'static' }} onClick={onBack}>
-            <ArrowLeft size={18} /> Quay lại
-          </button>
-        </div>
-
         {/* ── Page Header ── */}
         <div className="page-header" style={{ marginBottom: '8px' }}>
           <h1 className="page-title" style={{ fontSize: '26px' }}>
@@ -296,9 +296,26 @@ export function ProgressPage({
 
         {/* ── Section 3: Thống kê trình độ theo từng chủ đề ── */}
         <div className="progress-topics-card" style={{ marginTop: '8px' }}>
-          <h2 className="progress-section-title">
-            <Flame size={14} className="title-icon" style={{ color: '#f59e0b' }} /> Thống kê trình độ theo từng chủ đề
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h2 className="progress-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '15px' }}>
+                <Flame size={16} className="title-icon" style={{ color: '#f59e0b' }} /> Thống kê trình độ theo từng chủ đề
+              </h2>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#7d8599' }}>
+                Theo dõi năng lực và tiến độ luyện tập của bạn theo từng chủ đề.
+              </p>
+            </div>
+            {onGoScoringGuide && (
+              <button
+                type="button"
+                className="view-activity-log-btn"
+                onClick={onGoScoringGuide}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', fontSize: '12.5px' }}
+              >
+                <HelpCircle size={14} /> Cách tính điểm
+              </button>
+            )}
+          </div>
           <div className="topic-skill-list scrollable" style={{ maxHeight: '240px' }}>
             {TOPIC_SKILL_STATS.map((topic) => (
               <div className="topic-skill-row three-cols" key={topic.name}>
@@ -328,8 +345,29 @@ export function ProgressPage({
               <p>Tra cứu lại mã nguồn đã nộp, bộ test case, thời gian chạy và bài học từ AI cho từng bài tập.</p>
             </div>
             <div className="topics-cta-actions">
-              <button className="auth-submit-btn" style={{ width: 'auto', padding: '10px 20px' }} onClick={onGoHistory}>
-                Đến trang Lịch sử nộp bài
+              <button
+                type="button"
+                className="primary-button"
+                style={{
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  padding: '12px 22px',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 16px rgba(59, 130, 246, 0.45)',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+                onClick={onGoHistory}
+              >
+                <History size={16} />
+                <span>Đến trang Lịch sử nộp bài</span>
+                <ArrowRight size={16} />
               </button>
             </div>
           </div>

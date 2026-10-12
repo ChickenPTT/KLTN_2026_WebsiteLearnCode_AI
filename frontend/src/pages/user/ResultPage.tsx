@@ -1,6 +1,6 @@
 import { ArrowRight, Sparkles, Trophy } from 'lucide-react';
 import { Header } from '@/layout/Header';
-import { LEVEL_COLORS, LEVEL_LABELS, type TopicScore, type AuthMode, type SkillLevel } from '@/types';
+import { LEVEL_COLORS, LEVEL_LABELS, type SkillLevel, type TopicScore, type AuthMode } from '@/types';
 
 interface ResultPageProps {
   scores: TopicScore[];
@@ -115,7 +115,7 @@ export function ResultPage({
           <Sparkles size={16} />
           <p>
             {counts.beginner > 4
-              ? `Bạn có ${counts.beginner} chủ đề ở mức mới bắt đầu — hệ thống sẽ ưu tiên nội dung nhập môn để xây dựng nền tảng vững chắc.`
+              ? `Bạn có ${counts.beginner} chủ đề cơ bản — hệ thống sẽ ưu tiên nội dung nhập môn để xây dựng nền tảng vững chắc.`
               : counts.advanced >= Math.floor(total / 2)
                 ? `Bạn đã thành thạo ${counts.advanced}/${total} chủ đề — hệ thống sẽ tập trung vào các bài khó hơn.`
                 : `Bạn đang ở giai đoạn phát triển — hệ thống sẽ xen kẽ bài ôn và bài nâng cao để tiến bộ nhanh nhất.`}

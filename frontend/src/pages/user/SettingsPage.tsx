@@ -5,6 +5,7 @@ import {
   Sun,
   Monitor,
   Globe,
+  Sliders,
   Bell,
   Lock,
   CheckCircle2,
@@ -15,6 +16,7 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  Sparkles,
 } from 'lucide-react';
 import { Header } from '@/layout/Header';
 import { SearchableSelect } from '@/components/SearchableSelect';
@@ -229,15 +231,8 @@ export function SettingsPage({
           </div>
         )}
 
-        {/* Nút quay lại & Tiêu đề */}
+        {/* Tiêu đề */}
         <div style={{ marginBottom: '24px' }}>
-          <button
-            className="topic-detail-back-btn"
-            onClick={onBack}
-            style={{ marginBottom: '16px' }}
-          >
-            <ArrowLeft size={16} /> Quay lại
-          </button>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
@@ -581,23 +576,15 @@ export function SettingsPage({
                 </div>
 
                 {streakNotif && (
-                  <div style={{ background: '#161b26', padding: '14px 18px', borderRadius: '8px', border: '1px solid #283248', width: '280px' }}>
-                    <label style={{ fontSize: '13px', fontWeight: 600, color: '#cbd5e1', display: 'block', marginBottom: '6px' }}>
+                  <div className="admin-card-box" style={{ padding: '14px 18px', width: '280px' }}>
+                    <label className="auth-label" style={{ display: 'block', marginBottom: '6px' }}>
                       Thời gian nhắc nhở hàng ngày
                     </label>
                     <input
                       type="time"
                       value={reminderTime}
                       onChange={(e) => setReminderTime(e.target.value)}
-                      style={{
-                        width: '100%',
-                        background: '#0d121d',
-                        border: '1px solid #334155',
-                        color: '#f8fafc',
-                        padding: '8px 12px',
-                        borderRadius: '6px',
-                        fontSize: '14px',
-                      }}
+                      className="admin-modal-input"
                     />
                   </div>
                 )}
@@ -648,7 +635,7 @@ export function SettingsPage({
                       value={currPassword}
                       onChange={(e) => setCurrPassword(e.target.value)}
                       placeholder="••••••••"
-                      style={{ background: '#161b26', border: '1px solid #283248', color: '#f8fafc', padding: '10px 14px', borderRadius: '8px' }}
+                      className="admin-modal-input"
                     />
                   </div>
 
@@ -659,7 +646,7 @@ export function SettingsPage({
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Ít nhất 6 ký tự"
-                      style={{ background: '#161b26', border: '1px solid #283248', color: '#f8fafc', padding: '10px 14px', borderRadius: '8px' }}
+                      className="admin-modal-input"
                     />
                   </div>
 
@@ -671,7 +658,7 @@ export function SettingsPage({
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Nhập lại mật khẩu mới"
-                        style={{ width: '100%', background: '#161b26', border: '1px solid #283248', color: '#f8fafc', padding: '10px 14px', borderRadius: '8px' }}
+                        className="admin-modal-input"
                       />
                       <button
                         type="button"

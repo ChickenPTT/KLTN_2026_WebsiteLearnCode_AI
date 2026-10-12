@@ -1,40 +1,43 @@
 import { useState } from 'react';
-import { Search, Filter, UserPlus, Eye, Trash2, ChevronLeft, ChevronRight, AlertTriangle, ShieldAlert, RefreshCw } from 'lucide-react';
+import { Search, Filter, UserPlus, Eye, Trash2, AlertTriangle, ShieldAlert } from 'lucide-react';
 import type { UserRecord } from './admin.types';
+import { Pagination } from '@/components/Pagination';
 
 interface AdminUsersTabProps {
   users: UserRecord[];
-  loading: boolean;
-  error: string | null;
-  canManage: boolean;
-  currentUserId?: string;
-  onReload: () => void;
   onOpenAddUserModal: () => void;
   onOpenUserDetail: (u: UserRecord) => void;
   onToggleStatus: (id: string) => void;
   onDeleteUser: (id: string) => void;
+  currentUserId?: string;
 }
 
 export function AdminUsersTab({
   users,
-  loading,
-  error,
-  canManage,
-  currentUserId,
-  onReload,
   onOpenAddUserModal,
   onOpenUserDetail,
   onToggleStatus,
   onDeleteUser,
+  currentUserId,
 }: AdminUsersTabProps) {
   const [userSearch, setUserSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'student' | 'teacher' | 'admin'>('all');
   const [userPage, setUserPage] = useState(1);
-  const USERS_PER_PAGE = 5;
+  const [pageSize, setPageSize] = useState(10);
 
   // Confirmation Modals State
   const [deletingUser, setDeletingUser] = useState<UserRecord | null>(null);
   const [togglingUser, setTogglingUser] = useState<UserRecord | null>(null);
+
+  // Stat calculations
+  const totalUsers = users.length;
+  const adminAndTeacherCount = users.filter(
+    (u) => u.role === 'admin' || u.role === 'teacher',
+  ).length;
+  const studentCount = users.filter(
+    (u) => u.role === 'student' || u.role === ('user' as any) || !u.role,
+  ).length;
+  const activeCount = users.filter((u) => u.status === 'active').length;
 
   const filteredUsers = users.filter((u) => {
     const matchSearch =
@@ -44,10 +47,10 @@ export function AdminUsersTab({
     return matchSearch && matchRole;
   });
 
-  const totalUserPages = Math.max(1, Math.ceil(filteredUsers.length / USERS_PER_PAGE));
+  const totalUserPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
   const paginatedUsers = filteredUsers.slice(
-    (userPage - 1) * USERS_PER_PAGE,
-    userPage * USERS_PER_PAGE,
+    (userPage - 1) * pageSize,
+    userPage * pageSize,
   );
 
   return (
@@ -118,30 +121,50 @@ export function AdminUsersTab({
         </div>
       )}
 
-      <div className="admin-header-row">
+      <div className="admin-header-row" style={{ marginBottom: '20px' }}>
         <div>
           <h1 className="admin-page-title">Quản lý người dùng</h1>
           <p className="admin-page-sub">
             Quản lý danh sách sinh viên, giảng viên và phân quyền tài khoản hệ thống.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button className="assessment-ghost" onClick={onReload} disabled={loading}>
-            <RefreshCw size={16} className={loading ? 'spin' : ''} /> Làm mới
-          </button>
-          {canManage && (
-            <button className="assessment-primary" onClick={onOpenAddUserModal}>
-              <UserPlus size={16} /> Thêm người dùng mới
-            </button>
-          )}
-        </div>
+        <button className="assessment-primary" onClick={onOpenAddUserModal}>
+          <UserPlus size={16} /> Thêm người dùng mới
+        </button>
       </div>
 
-      {error && (
-        <div style={{ padding: '12px', background: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '24px' }}>
-          {error}
+      {/* ── 4 KPI STAT CARDS ── */}
+      <div className="kpi-grid-compact" style={{ marginBottom: '24px' }}>
+        {/* Card 1: Tổng người dùng */}
+        <div className="kpi-card-compact">
+          <div className="kpi-title" style={{ marginBottom: '6px' }}>Tổng số người dùng</div>
+          <div className="kpi-value" style={{ marginBottom: '4px' }}>{totalUsers}</div>
+          <div className="kpi-sub">Trong toàn bộ hệ thống</div>
         </div>
-      )}
+
+        {/* Card 2: Tổng admin + gv */}
+        <div className="kpi-card-compact">
+          <div className="kpi-title" style={{ marginBottom: '6px' }}>Tổng Admin & Giảng viên</div>
+          <div className="kpi-value" style={{ marginBottom: '4px' }}>{adminAndTeacherCount}</div>
+          <div className="kpi-sub">Tài khoản có quyền quản lý</div>
+        </div>
+
+        {/* Card 3: Tổng user */}
+        <div className="kpi-card-compact">
+          <div className="kpi-title" style={{ marginBottom: '6px' }}>Tổng User / Sinh viên</div>
+          <div className="kpi-value" style={{ marginBottom: '4px' }}>{studentCount}</div>
+          <div className="kpi-sub">Tài khoản sinh viên học tập</div>
+        </div>
+
+        {/* Card 4: Account đang hoạt động */}
+        <div className="kpi-card-compact">
+          <div className="kpi-title" style={{ marginBottom: '6px' }}>Account đang hoạt động</div>
+          <div className="kpi-value" style={{ marginBottom: '4px' }}>{activeCount}</div>
+          <div className="kpi-sub">
+            {Math.round((activeCount / (totalUsers || 1)) * 100)}% trên tổng số
+          </div>
+        </div>
+      </div>
 
       <div className="history-filter-bar" style={{ marginBottom: '24px' }}>
         <div className="history-search-wrap">
@@ -186,16 +209,8 @@ export function AdminUsersTab({
             </tr>
           </thead>
           <tbody>
-            {loading && users.length === 0 ? (
-              <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '36px', color: '#7d8599' }}>
-                  Đang tải danh sách người dùng...
-                </td>
-              </tr>
-            ) : paginatedUsers.length > 0 ? (
-              paginatedUsers.map((u) => {
-                const canModify = canManage && u.id !== currentUserId;
-                return (
+            {paginatedUsers.length > 0 ? (
+              paginatedUsers.map((u) => (
                 <tr key={u.id} onClick={() => onOpenUserDetail(u)} style={{ cursor: 'pointer' }}>
                   <td className="history-problem">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -208,25 +223,24 @@ export function AdminUsersTab({
                   <td style={{ color: '#888f9c' }}>{u.email}</td>
                   <td>
                     {/* Toggle Switch UI cho trạng thái */}
-                    <button
-                      type="button"
-                      className={`admin-toggle-switch ${u.status === 'active' ? 'is-on' : 'is-off'}`}
-                      disabled={!canModify}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setTogglingUser(u);
-                      }}
-                      title={
-                        !canModify
-                          ? 'Bạn không thể thay đổi trạng thái tài khoản này'
-                          : u.status === 'active'
-                            ? 'Click để khóa tài khoản'
-                            : 'Click để mở khóa tài khoản'
-                      }
-                    >
-                      <span className="toggle-slider" />
-                      <span className="toggle-label">{u.status === 'active' ? 'Hoạt động' : 'Đã khóa'}</span>
-                    </button>
+                    {u.id === currentUserId ? (
+                      <span style={{ color: '#888f9c', fontSize: '13px', fontStyle: 'italic' }}>
+                        (Tài khoản của bạn)
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className={`admin-toggle-switch ${u.status === 'active' ? 'is-on' : 'is-off'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTogglingUser(u);
+                        }}
+                        title={u.status === 'active' ? 'Click để khóa tài khoản' : 'Click để mở khóa tài khoản'}
+                      >
+                        <span className="toggle-slider" />
+                        <span className="toggle-label">{u.status === 'active' ? 'Hoạt động' : 'Đã khóa'}</span>
+                      </button>
+                    )}
                   </td>
                   <td className="history-time">{u.joinDate}</td>
                   <td>
@@ -238,7 +252,7 @@ export function AdminUsersTab({
                       >
                         <Eye size={15} />
                       </button>
-                      {canModify && (
+                      {u.id !== currentUserId && (
                         <button
                           className="history-view-btn"
                           style={{ color: '#f87171', background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.25)' }}
@@ -251,11 +265,10 @@ export function AdminUsersTab({
                     </div>
                   </td>
                 </tr>
-                );
-              })
+              ))
             ) : (
               <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '36px', color: '#7d8599' }}>
+                <td colSpan={5} className="admin-page-sub" style={{ textAlign: 'center', padding: '36px' }}>
                   Không tìm thấy người dùng nào phù hợp.
                 </td>
               </tr>
@@ -263,40 +276,18 @@ export function AdminUsersTab({
           </tbody>
         </table>
 
-        {/* ── thanh Phân trang (Pagination) ── */}
-        <div className="admin-pagination-bar">
-          <span className="pagination-info">
-            Hiển thị {filteredUsers.length > 0 ? (userPage - 1) * USERS_PER_PAGE + 1 : 0} -{' '}
-            {Math.min(userPage * USERS_PER_PAGE, filteredUsers.length)} trên tổng số {filteredUsers.length} người dùng
-          </span>
-          <div className="pagination-controls">
-            <button
-              className="pagination-btn"
-              disabled={userPage === 1}
-              onClick={() => setUserPage((p) => Math.max(1, p - 1))}
-            >
-              <ChevronLeft size={16} /> Trước
-            </button>
-
-            {Array.from({ length: totalUserPages }).map((_, i) => (
-              <button
-                key={i + 1}
-                className={`pagination-num ${userPage === i + 1 ? 'is-active' : ''}`}
-                onClick={() => setUserPage(i + 1)}
-              >
-                {i + 1}
-              </button>
-            ))}
-
-            <button
-              className="pagination-btn"
-              disabled={userPage === totalUserPages}
-              onClick={() => setUserPage((p) => Math.min(totalUserPages, p + 1))}
-            >
-              Tiếp <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
+        {/* ── thanh Phân trang Đồng bộ (Pagination) ── */}
+        <Pagination
+          currentPage={userPage}
+          totalPages={totalUserPages}
+          pageSize={pageSize}
+          totalItems={filteredUsers.length}
+          onPageChange={(p) => setUserPage(p)}
+          onPageSizeChange={(s) => {
+            setPageSize(s);
+            setUserPage(1);
+          }}
+        />
       </div>
     </div>
   );
