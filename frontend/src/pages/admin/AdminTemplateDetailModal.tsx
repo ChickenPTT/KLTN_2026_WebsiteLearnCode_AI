@@ -96,7 +96,7 @@ export function AdminTemplateDetailModal({
         {/* Starter Code Block */}
         <div className="history-code-block" style={{ marginBottom: '24px', padding: '16px' }}>
           <h4 className="tpl-detail-heading" style={{ margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Code2 size={16} style={{ color: '#5e8dfa' }} /> Mã khởi tạo mẫu (Starter Code)
+            <Code2 size={16} style={{ color: '#5e8dfa' }} /> Mã thực thi bài tập
           </h4>
           <pre className="gen-code-preview" style={{ padding: '14px', borderRadius: '8px', overflowX: 'auto' }}>
             <code>{template.starterCode}</code>

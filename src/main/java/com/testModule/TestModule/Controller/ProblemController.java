@@ -30,15 +30,15 @@ public class ProblemController {
         return problemService.getPublishedProblems().stream().map(ProblemView::from).toList();
     }
 
-//    Giang vien/admin: toan bo bai (ca nhap), day du loi giai + test case
+//    Giang vien/admin: toan bo bai (ca nhap), co samples input/output
     @GetMapping("/manage")
-    public List<Problem> getAllProblems() {
-        return problemService.getAllProblems();
+    public List<ProblemView> getAllProblems() {
+        return problemService.getAllProblems().stream().map(ProblemView::from).toList();
     }
 
     @GetMapping("/drafts")
-    public List<Problem> getDrafts() {
-        return problemService.getDraftProblem();
+    public List<ProblemView> getDrafts() {
+        return problemService.getDraftProblem().stream().map(ProblemView::from).toList();
     }
 
     @GetMapping("/{id}")
@@ -57,13 +57,13 @@ public class ProblemController {
     }
 
     @PutMapping("/{id}/publish")
-    public Problem publishProblem(@PathVariable Long id) {
-        return problemService.publishProblem(id);
+    public ProblemView publishProblem(@PathVariable Long id) {
+        return ProblemView.from(problemService.publishProblem(id));
     }
 
     @PutMapping("/{id}/unpublish")
-    public Problem unpublishProblem(@PathVariable Long id) {
-        return problemService.unpublishProblem(id);
+    public ProblemView unpublishProblem(@PathVariable Long id) {
+        return ProblemView.from(problemService.unpublishProblem(id));
     }
 
     @DeleteMapping("/{id}")

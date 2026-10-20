@@ -1,7 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
-  ArrowLeft,
-  BookOpen,
   Calendar,
   CheckCircle2,
   Flame,
@@ -15,15 +13,12 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { Header } from '@/layout/Header';
-import { LEVEL_COLORS, TOPIC_INFOS, type AuthMode } from '@/types';
-import {
-  MOCK_STREAK,
-  MOCK_XP,
-  MOCK_WEEKLY,
-  MOCK_ACTIVITY_LOG,
-  MOCK_TOPIC_PROGRESS,
-  MOCK_SUBMISSIONS,
-} from '@/data/userMockData';
+import type { AuthMode } from '@/types';
+import { userApi, BackendUnavailableError, type UserStats } from '@/lib/api';
+import { useMyHistory } from '@/hooks/useMyHistory';
+import { usePublishedProblems } from '@/hooks/usePublishedProblems';
+import { buildTopics } from '@/lib/topics';
+import { formatDate, recentActivity, solvedByTopic, topicSkills } from '@/lib/progress';
 
 interface ProgressPageProps {
   onBack: () => void;
@@ -39,68 +34,10 @@ interface ProgressPageProps {
   onLoggedOut?: () => void;
 }
 
-const maxWeekly = Math.max(...MOCK_WEEKLY.map((d) => d.solved), 1);
-
-interface TopicSkillStat {
-  name: string;
-  levelLabel: 'Khá' | 'Trung bình' | 'Cơ bản' | 'Mới bắt đầu' | 'Giỏi';
-  levelColor: string;
-  pct: number;
-  solvedCount: number;
-}
-
-const TOPIC_SKILL_STATS: TopicSkillStat[] = [
-  { name: 'Array', levelLabel: 'Khá', levelColor: '#f59e0b', pct: 70, solvedCount: 2 },
-  { name: 'String', levelLabel: 'Trung bình', levelColor: '#3b82f6', pct: 50, solvedCount: 1 },
-  { name: 'Hash Table', levelLabel: 'Trung bình', levelColor: '#3b82f6', pct: 50, solvedCount: 1 },
-  { name: 'Two Pointers', levelLabel: 'Trung bình', levelColor: '#3b82f6', pct: 50, solvedCount: 1 },
-  { name: 'Linked List', levelLabel: 'Cơ bản', levelColor: '#22c55e', pct: 35, solvedCount: 1 },
-  { name: 'Stack', levelLabel: 'Cơ bản', levelColor: '#22c55e', pct: 35, solvedCount: 1 },
-  { name: 'Queue', levelLabel: 'Mới bắt đầu', levelColor: '#64748b', pct: 20, solvedCount: 0 },
-  { name: 'Recursion', levelLabel: 'Trung bình', levelColor: '#3b82f6', pct: 50, solvedCount: 1 },
-  { name: 'Sorting', levelLabel: 'Trung bình', levelColor: '#3b82f6', pct: 50, solvedCount: 1 },
-  { name: 'Binary Search', levelLabel: 'Cơ bản', levelColor: '#22c55e', pct: 35, solvedCount: 1 },
-  { name: 'Tree', levelLabel: 'Mới bắt đầu', levelColor: '#64748b', pct: 20, solvedCount: 1 },
-  { name: 'Graph', levelLabel: 'Mới bắt đầu', levelColor: '#64748b', pct: 20, solvedCount: 0 },
-];
-
-interface TopicPieData {
-  name: string;
-  count: number;
-  color: string;
-}
-
-const TOPIC_PIE_DATA: TopicPieData[] = [
-  { name: 'Array', count: 2, color: '#f59e0b' },
-  { name: 'String', count: 1, color: '#3b82f6' },
-  { name: 'Hash Table', count: 1, color: '#8b5cf6' },
-  { name: 'Two Pointers', count: 1, color: '#06b6d4' },
-  { name: 'Linked List', count: 1, color: '#10b981' },
-  { name: 'Stack', count: 1, color: '#f43f5e' },
-  { name: 'Recursion', count: 1, color: '#ec4899' },
-  { name: 'Sorting', count: 1, color: '#14b8a6' },
-  { name: 'Binary Search', count: 1, color: '#0ea5e9' },
-  { name: 'Tree', count: 1, color: '#84cc16' },
-];
-
-const totalPieSolved = TOPIC_PIE_DATA.reduce((sum, item) => sum + item.count, 0);
 const RADIUS = 54;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-let currentAccOffset = 0;
-const pieSlices = TOPIC_PIE_DATA.map((item) => {
-  const length = (item.count / totalPieSolved) * CIRCUMFERENCE;
-  const offset = currentAccOffset;
-  currentAccOffset += length;
-  return {
-    ...item,
-    length,
-    offset,
-  };
-});
-
 export function ProgressPage({
-  onBack,
   onGoLanding,
   onGoAuth,
   onGoTopics,
@@ -117,8 +54,60 @@ export function ProgressPage({
   // Hover state for Pie Chart
   const [hoveredPieIndex, setHoveredPieIndex] = useState<number | null>(null);
 
-  const totalSolved = MOCK_SUBMISSIONS.filter((s) => s.status === 'passed').length;
-  const accuracy = Math.round((totalSolved / MOCK_SUBMISSIONS.length) * 100);
+  const [stats, setStats] = useState<UserStats | null>(null);
+  const [statsError, setStatsError] = useState<string | null>(null);
+  const { history, error: historyError } = useMyHistory();
+  const { problems } = usePublishedProblems();
+
+  useEffect(() => {
+    let cancelled = false;
+    userApi
+      .getStats()
+      .then((s) => {
+        if (!cancelled) setStats(s);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setStatsError(
+          err instanceof BackendUnavailableError
+            ? 'Không kết nối được máy chủ.'
+            : err instanceof Error
+              ? err.message
+              : 'Không tải được thống kê.',
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const weekly = useMemo(() => recentActivity(history, 7), [history]);
+  const maxWeekly = Math.max(...weekly.map((d) => d.solved), 1);
+  // Modal: moi nhat truoc
+  const activityLog = useMemo(() => [...weekly].reverse(), [weekly]);
+
+  const pieData = useMemo(() => solvedByTopic(history), [history]);
+  const totalPieSolved = pieData.reduce((sum, item) => sum + item.count, 0);
+  const pieSlices = useMemo(() => {
+    let acc = 0;
+    return pieData.map((item) => {
+      const length = totalPieSolved ? (item.count / totalPieSolved) * CIRCUMFERENCE : 0;
+      const offset = acc;
+      acc += length;
+      return { ...item, length, offset };
+    });
+  }, [pieData, totalPieSolved]);
+
+  const skills = useMemo(
+    () => topicSkills(history, buildTopics(problems).filter((t) => t.problemCount > 0).map((t) => t.name)),
+    [history, problems],
+  );
+
+  const streak = stats?.streak ?? 0;
+  const totalXp = stats?.totalXp ?? 0;
+  const totalSolved = stats?.solvedCount ?? 0;
+  const accuracy = history.length ? Math.round((history.filter((h) => h.passed).length / history.length) * 100) : 0;
+  const loadError = statsError ?? historyError;
 
   return (
     <div className="page-shell">
@@ -146,6 +135,10 @@ export function ProgressPage({
           </p>
         </div>
 
+        {loadError && (
+          <p style={{ color: '#f87171', fontSize: 13, margin: '0 0 8px' }}>Không tải được dữ liệu: {loadError}</p>
+        )}
+
         {/* ── Section 1: Thống kê tổng quan ── */}
         <section className="progress-section" style={{ marginBottom: '6px' }}>
           <div className="progress-overview-cards three-cols">
@@ -154,7 +147,7 @@ export function ProgressPage({
                 <Flame size={20} strokeWidth={1.6} />
               </div>
               <div>
-                <strong>{MOCK_STREAK} ngày</strong>
+                <strong>{streak} ngày</strong>
                 <span>Chuỗi streak liên tục</span>
               </div>
             </div>
@@ -164,7 +157,7 @@ export function ProgressPage({
                 <Zap size={20} strokeWidth={1.6} />
               </div>
               <div>
-                <strong>{MOCK_XP.toLocaleString()} XP</strong>
+                <strong>{totalXp.toLocaleString()} XP</strong>
                 <span>Tổng điểm tích lũy</span>
               </div>
             </div>
@@ -198,8 +191,8 @@ export function ProgressPage({
             </div>
 
             <div className="weekly-chart compact">
-              {MOCK_WEEKLY.map((d) => (
-                <div className="weekly-col" key={d.day}>
+              {weekly.map((d) => (
+                <div className="weekly-col" key={d.date.toISOString()}>
                   <span className="weekly-count">{d.solved > 0 ? d.solved : ''}</span>
                   <div className="weekly-bar-track">
                     <div
@@ -261,10 +254,10 @@ export function ProgressPage({
                 <div className="pie-center-info">
                   {hoveredPieIndex !== null ? (
                     <>
-                      <span className="pie-center-count" style={{ color: TOPIC_PIE_DATA[hoveredPieIndex].color }}>
-                        {TOPIC_PIE_DATA[hoveredPieIndex].count} bài
+                      <span className="pie-center-count" style={{ color: pieData[hoveredPieIndex].color }}>
+                        {pieData[hoveredPieIndex].count} bài
                       </span>
-                      <span className="pie-center-label">{TOPIC_PIE_DATA[hoveredPieIndex].name}</span>
+                      <span className="pie-center-label">{pieData[hoveredPieIndex].name}</span>
                     </>
                   ) : (
                     <>
@@ -277,7 +270,10 @@ export function ProgressPage({
 
               {/* Legend Side */}
               <div className="pie-legend-list scrollable">
-                {TOPIC_PIE_DATA.map((item, idx) => (
+                {pieData.length === 0 && (
+                  <span style={{ fontSize: 13, color: '#7d8599' }}>Chưa giải được bài nào.</span>
+                )}
+                {pieData.map((item, idx) => (
                   <div
                     key={item.name}
                     className={`pie-legend-item ${hoveredPieIndex === idx ? 'is-active' : ''}`}
@@ -317,17 +313,24 @@ export function ProgressPage({
             )}
           </div>
           <div className="topic-skill-list scrollable" style={{ maxHeight: '240px' }}>
-            {TOPIC_SKILL_STATS.map((topic) => (
-              <div className="topic-skill-row three-cols" key={topic.name}>
+            {skills.length === 0 && (
+              <span style={{ fontSize: 13, color: '#7d8599' }}>Chưa có dữ liệu luyện tập.</span>
+            )}
+            {skills.map((topic) => (
+              <div
+                className="topic-skill-row three-cols"
+                key={topic.name}
+                title={`${topic.score}/100 điểm • ${topic.submissions} lần nộp • Độ tin cậy: ${topic.confidence}`}
+              >
                 <span className="topic-skill-name">{topic.name}</span>
                 <div className="topic-skill-track">
                   <div
                     className="topic-skill-fill"
-                    style={{ width: `${topic.pct}%`, backgroundColor: topic.levelColor }}
+                    style={{ width: `${Math.max(topic.score, 2)}%`, backgroundColor: topic.color }}
                   />
                 </div>
-                <span className="topic-skill-label" style={{ color: topic.levelColor }}>
-                  {topic.levelLabel}
+                <span className="topic-skill-label" style={{ color: topic.color }}>
+                  {topic.label} ({topic.score})
                 </span>
               </div>
             ))}
@@ -397,11 +400,14 @@ export function ProgressPage({
             <div className="topic-modal-divider" />
 
             <div className="activity-modal-list">
-              {MOCK_ACTIVITY_LOG.map((act) => (
-                <div key={act.date} className="activity-log-item">
+              {activityLog.map((act, i) => (
+                <div key={act.date.toISOString()} className="activity-log-item">
                   <div className="activity-log-date">
-                    <strong>{act.date}</strong>
-                    <span>Thời gian học: {act.timeSpent}</span>
+                    <strong>
+                      {formatDate(act.date)}
+                      {i === 0 ? ' (Hôm nay)' : ''}
+                    </strong>
+                    <span>{act.day}</span>
                   </div>
                   <div className="activity-log-stats">
                     <span className="log-badge solved">

@@ -23,8 +23,10 @@ import {
   RotateCcw,
   type LucideIcon,
 } from 'lucide-react';
-import { PRACTICE_PROBLEMS, type PracticeProblem, type TopicInfo, type AuthMode } from '@/types';
-import { MOCK_SUBMISSIONS } from '@/data/userMockData';
+import type { TopicInfo, AuthMode } from '@/types';
+import { usePublishedProblems } from '@/hooks/usePublishedProblems';
+import { useSubmissionStatus } from '@/hooks/useSubmissionStatus';
+import { sameTopic } from '@/lib/problemsApi';
 import { Pagination } from '@/components/Pagination';
 import { Header } from '@/layout/Header';
 import { Footer } from '@/layout/Footer';
@@ -66,13 +68,6 @@ interface TopicDetailPageProps {
   onLoggedOut?: () => void;
 }
 
-// Helper to get exact practice problems for a topic
-function getTopicProblems(topic: TopicInfo): PracticeProblem[] {
-  return PRACTICE_PROBLEMS.filter(
-    (p) => p.topic.toLowerCase() === topic.name.toLowerCase() && p.isPublic !== false
-  );
-}
-
 export function TopicDetailPage({
   topic,
   onBack,
@@ -94,7 +89,18 @@ export function TopicDetailPage({
 
   const TopicIcon = ICON_MAP[topic.icon] ?? Code2;
 
-  const allProblems = useMemo(() => getTopicProblems(topic), [topic]);
+  const { problems, loading, error, reload } = usePublishedProblems();
+  const submissionMap = useSubmissionStatus();
+  const allProblems = useMemo(() => problems.filter((p) => sameTopic(p.topic, topic.name)), [problems, topic]);
+  // Dem tu du lieu that (topic co the duoc khoi phuc tu URL voi so lieu mau)
+  const difficultyCounts = useMemo(
+    () => ({
+      easy: allProblems.filter((p) => p.difficulty === 'Easy').length,
+      medium: allProblems.filter((p) => p.difficulty === 'Medium').length,
+      hard: allProblems.filter((p) => p.difficulty === 'Hard').length,
+    }),
+    [allProblems],
+  );
 
   // Filtering & Sorting
   const filteredProblems = useMemo(() => {
@@ -123,15 +129,6 @@ export function TopicDetailPage({
     const start = (safeCurrentPage - 1) * pageSize;
     return filteredProblems.slice(start, start + pageSize);
   }, [filteredProblems, safeCurrentPage, pageSize]);
-
-  // Submission status mapping
-  const submissionMap = useMemo(() => {
-    const map = new Map<string, 'passed' | 'failed'>();
-    MOCK_SUBMISSIONS.forEach((sub) => {
-      map.set(sub.problem.toLowerCase(), sub.status);
-    });
-    return map;
-  }, []);
 
   const handlePageChange = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -165,16 +162,16 @@ export function TopicDetailPage({
             <p>{topic.description}</p>
             <div className="topic-detail-stats-pills">
               <span className="stat-pill total">
-                <Code2 size={14} /> {topic.problemCount} bài tập
+                <Code2 size={14} /> {allProblems.length} bài tập
               </span>
               <span className="stat-pill easy">
-                Cơ bản: {topic.difficulties.easy}
+                Cơ bản: {difficultyCounts.easy}
               </span>
               <span className="stat-pill medium">
-                Trung bình: {topic.difficulties.medium}
+                Trung bình: {difficultyCounts.medium}
               </span>
               <span className="stat-pill hard">
-                Nâng cao: {topic.difficulties.hard}
+                Nâng cao: {difficultyCounts.hard}
               </span>
             </div>
           </div>
@@ -225,7 +222,7 @@ export function TopicDetailPage({
             <select
               className="topic-sort-select"
               value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as any)}
+              onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
             >
               <option value="default">Sắp xếp: Mặc định</option>
               <option value="name">Tên bài A-Z</option>
@@ -237,7 +234,25 @@ export function TopicDetailPage({
 
         {/* Problem Grid */}
         <div className="topic-problems-container">
-          {paginatedProblems.length === 0 ? (
+          {loading ? (
+            <div className="empty-problems-state">
+              <Clock size={40} strokeWidth={1.2} />
+              <h3>Đang tải bài tập...</h3>
+            </div>
+          ) : error ? (
+            <div className="empty-problems-state">
+              <Code2 size={40} strokeWidth={1.2} />
+              <h3>Không tải được bài tập</h3>
+              <p>{error}</p>
+              <button className="assessment-ghost" onClick={reload}>Thử lại</button>
+            </div>
+          ) : allProblems.length === 0 ? (
+            <div className="empty-problems-state">
+              <Code2 size={40} strokeWidth={1.2} />
+              <h3>Chưa có bài tập nào cho chủ đề này</h3>
+              <p>Giảng viên chưa xuất bản bài tập thuộc chủ đề {topic.name}.</p>
+            </div>
+          ) : paginatedProblems.length === 0 ? (
             <div className="empty-problems-state">
               <Code2 size={40} strokeWidth={1.2} />
               <h3>Không tìm thấy bài tập phù hợp</h3>
@@ -246,16 +261,7 @@ export function TopicDetailPage({
           ) : (
             <div className="topic-problems-grid">
               {paginatedProblems.map((p) => {
-                const subStatus =
-                  submissionMap.get(p.title.toLowerCase()) ||
-                  (p.id === 'two-sum' ||
-                  p.id === 'valid-parentheses' ||
-                  p.id === 'reverse-linked-list' ||
-                  p.id === 'best-time-to-buy-stock'
-                    ? 'passed'
-                    : p.id === 'binary-search'
-                    ? 'failed'
-                    : undefined);
+                const subStatus = submissionMap.get(p.id);
 
                 return (
                   <article

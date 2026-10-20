@@ -5,6 +5,7 @@ import com.testModule.TestModule.Security.AuthUserDetails;
 import com.testModule.TestModule.Service.AdminDashboardService;
 import com.testModule.TestModule.Service.UserManagementService;
 import com.testModule.TestModule.dto.AdminDashboardStats;
+import com.testModule.TestModule.dto.AuditLogDto;
 import com.testModule.TestModule.dto.UserManagementDTO;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,13 +20,16 @@ public class AdminController {
 
     private final AdminDashboardService adminDashboardService;
     private final UserManagementService userManagementService;
+    private final com.testModule.TestModule.Service.AuditLogService auditLogService;
 
     public AdminController(
             AdminDashboardService adminDashboardService,
-            UserManagementService userManagementService
+            UserManagementService userManagementService,
+            com.testModule.TestModule.Service.AuditLogService auditLogService
     ) {
         this.adminDashboardService = adminDashboardService;
         this.userManagementService = userManagementService;
+        this.auditLogService = auditLogService;
     }
 
     @GetMapping("/dashboard")
@@ -77,6 +81,21 @@ public class AdminController {
     public void deleteUser(@PathVariable Long id, @AuthenticationPrincipal AuthUserDetails currentUser) {
         userManagementService.deleteUser(currentUser.getUser().getId(), id);
     }
+
+//    @GetMapping("/audit-logs")
+//    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+//    public List<AuditLogDto> getAuditLogs(
+//            @RequestParam(required = false) String action
+//    ) {
+//        if (action != null && !action.isEmpty()) {
+//            return auditLogService.getLogsByAction(action).stream()
+//                .map(AuditLogDto::from)
+//                .toList();
+//        }
+//        return auditLogService.getAllLogs().stream()
+//            .map(AuditLogDto::from)
+//            .toList();
+//    }
 
     public record CreateUserRequest(String fullName, String email, String password, Role role) {}
     public record UpdateUserRequest(String fullName, String email, Role role) {}

@@ -1,10 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
-  ArrowLeft,
   BookOpen,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Clock,
   Code2,
   Filter,
@@ -22,11 +19,11 @@ import {
 import { Header } from '@/layout/Header';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { Pagination } from '@/components/Pagination';
-import { TOPICS, type AuthMode } from '@/types';
-import {
-  MOCK_SUBMISSIONS,
-  type SubmissionRecord,
-} from '@/data/userMockData';
+import type { AuthMode } from '@/types';
+import { historyApi, type BackendHistoryDetail, type BackendHistoryItem } from '@/lib/api';
+import { sameTopic, toDifficulty } from '@/lib/problemsApi';
+import { useMyHistory } from '@/hooks/useMyHistory';
+import { formatDateTime, formatMemory, formatRuntime, languageLabel, topicOf } from '@/lib/progress';
 
 interface HistoryPageProps {
   onBack: () => void;
@@ -47,10 +44,46 @@ const DIFF_COLORS: Record<string, string> = {
   Hard: '#f08a8a',
 };
 
-const SUBS_PER_PAGE = 5;
+const ERROR_TYPE_LABELS: Record<string, string> = {
+  logic: 'Lỗi logic',
+  edge_case: 'Trường hợp biên',
+  runtime: 'Lỗi runtime',
+  compile: 'Lỗi biên dịch',
+  performance: 'Hiệu năng',
+  none: 'Không có lỗi',
+};
+
+/** Cac lan nop cua cung 1 bai, gop thanh 1 dong trong bang */
+interface ProblemRecord {
+  problemId: number;
+  title: string;
+  topic: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+  /** Moi nhat truoc */
+  attempts: BackendHistoryItem[];
+}
+
+function groupByProblem(history: BackendHistoryItem[]): ProblemRecord[] {
+  const map = new Map<number, ProblemRecord>();
+  // history da sap xep moi nhat truoc -> thu tu dong theo lan nop gan nhat
+  history.forEach((h) => {
+    let rec = map.get(h.problemId);
+    if (!rec) {
+      rec = {
+        problemId: h.problemId,
+        title: h.problemTitle,
+        topic: topicOf(h),
+        difficulty: toDifficulty(h.level),
+        attempts: [],
+      };
+      map.set(h.problemId, rec);
+    }
+    rec.attempts.push(h);
+  });
+  return [...map.values()];
+}
 
 export function HistoryPage({
-  onBack,
   onGoLanding,
   onGoAuth,
   onGoTopics,
@@ -64,49 +97,89 @@ export function HistoryPage({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'passed' | 'failed'>('all');
   const [topicFilter, setTopicFilter] = useState<string>('all');
-  
-  const [selectedRecord, setSelectedRecord] = useState<SubmissionRecord | null>(null);
-  const [selectedAttemptId, setSelectedAttemptId] = useState<string>('');
+
+  const [selectedRecord, setSelectedRecord] = useState<ProblemRecord | null>(null);
+  const [selectedAttemptId, setSelectedAttemptId] = useState<number | null>(null);
   const [pageSize, setPageSize] = useState(10);
   const [subPage, setSubPage] = useState(1);
 
-  const filteredSubmissions = useMemo(() => {
-    return MOCK_SUBMISSIONS.filter((s) => {
-      const matchSearch =
-        s.problem.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.topic.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchStatus = statusFilter === 'all' || s.status === statusFilter;
-      const matchTopic = topicFilter === 'all' || s.topic === topicFilter;
+  const { history, loading, error, reload } = useMyHistory();
+  const records = useMemo(() => groupByProblem(history), [history]);
+
+  // Chi tiet (code + nhan xet AI) tai khi mo, cache theo id lan nop
+  const [details, setDetails] = useState<Record<number, BackendHistoryDetail>>({});
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedAttemptId == null || details[selectedAttemptId]) return;
+    let cancelled = false;
+    setDetailError(null);
+    historyApi
+      .myHistoryDetail(selectedAttemptId)
+      .then((d) => {
+        if (!cancelled) setDetails((prev) => ({ ...prev, [d.summary.id]: d }));
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setDetailError(e instanceof Error ? e.message : 'Không tải được chi tiết lần nộp.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAttemptId, details]);
+
+  const topicOptions = useMemo(() => {
+    const names: string[] = [];
+    records.forEach((r) => {
+      if (!names.some((n) => sameTopic(n, r.topic))) names.push(r.topic);
+    });
+    return names.sort((a, b) => a.localeCompare(b));
+  }, [records]);
+
+  const filteredRecords = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return records.filter((r) => {
+      const latestPassed = r.attempts[0].passed;
+      const matchSearch = !q || r.title.toLowerCase().includes(q) || r.topic.toLowerCase().includes(q);
+      const matchStatus =
+        statusFilter === 'all' || (statusFilter === 'passed' ? latestPassed : !latestPassed);
+      const matchTopic = topicFilter === 'all' || sameTopic(r.topic, topicFilter);
       return matchSearch && matchStatus && matchTopic;
     });
-  }, [searchTerm, statusFilter, topicFilter]);
+  }, [records, searchTerm, statusFilter, topicFilter]);
 
-  const totalSubs = MOCK_SUBMISSIONS.length;
-  const passedSubs = MOCK_SUBMISSIONS.filter((s) => s.status === 'passed').length;
-  const passRate = Math.round((passedSubs / totalSubs) * 100);
+  // ── Thong ke tong quan (tren toan bo lich su) ──
+  const totalSubs = history.length;
+  const passRate = totalSubs ? Math.round((history.filter((h) => h.passed).length / totalSubs) * 100) : 0;
+  const runtimes = history.map((h) => h.maxTime).filter((t): t is number => t != null);
+  const avgRuntime = runtimes.length ? runtimes.reduce((a, b) => a + b, 0) / runtimes.length : null;
+  const topTopic = useMemo(() => {
+    const counts = new Map<string, number>();
+    history.forEach((h) => counts.set(topicOf(h), (counts.get(topicOf(h)) ?? 0) + 1));
+    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    return sorted.length ? sorted[0][0] : null;
+  }, [history]);
 
-  const totalSubPages = Math.ceil(filteredSubmissions.length / pageSize) || 1;
+  const totalSubPages = Math.ceil(filteredRecords.length / pageSize) || 1;
   const safeSubPage = Math.min(subPage, totalSubPages);
 
-  const paginatedSubmissions = useMemo(() => {
+  const paginatedRecords = useMemo(() => {
     const start = (safeSubPage - 1) * pageSize;
-    return filteredSubmissions.slice(start, start + pageSize);
-  }, [filteredSubmissions, safeSubPage, pageSize]);
+    return filteredRecords.slice(start, start + pageSize);
+  }, [filteredRecords, safeSubPage, pageSize]);
 
-  const handleOpenDetail = (record: SubmissionRecord) => {
+  const handleOpenDetail = (record: ProblemRecord) => {
     setSelectedRecord(record);
-    if (record.attempts.length > 0) {
-      setSelectedAttemptId(record.attempts[0].attemptId);
-    }
+    setSelectedAttemptId(record.attempts[0]?.id ?? null);
   };
 
   const activeAttempt = useMemo(() => {
     if (!selectedRecord) return null;
-    return (
-      selectedRecord.attempts.find((a) => a.attemptId === selectedAttemptId) ||
-      selectedRecord.attempts[0]
-    );
+    return selectedRecord.attempts.find((a) => a.id === selectedAttemptId) || selectedRecord.attempts[0];
   }, [selectedRecord, selectedAttemptId]);
+
+  const activeDetail = activeAttempt ? details[activeAttempt.id] : undefined;
+  // So thu tu lan nop (1 = cu nhat)
+  const attemptNumber = (rec: ProblemRecord, id: number) => rec.attempts.length - rec.attempts.findIndex((a) => a.id === id);
 
   return (
     <div className="page-shell">
@@ -161,7 +234,7 @@ export function HistoryPage({
               <Zap size={20} />
             </div>
             <div>
-              <strong>48 ms</strong>
+              <strong>{formatRuntime(avgRuntime)}</strong>
               <span>Thời gian chạy trung bình</span>
             </div>
           </div>
@@ -171,7 +244,7 @@ export function HistoryPage({
               <Flame size={20} />
             </div>
             <div>
-              <strong>Array</strong>
+              <strong>{topTopic ?? '—'}</strong>
               <span>Chủ đề làm nhiều nhất</span>
             </div>
           </div>
@@ -211,7 +284,7 @@ export function HistoryPage({
             <SearchableSelect
               options={[
                 { label: 'Tất cả chủ đề', value: 'all' },
-                ...TOPICS.map((t) => ({ label: t, value: t })),
+                ...topicOptions.map((t) => ({ label: t, value: t })),
               ]}
               value={topicFilter}
               onChange={(val) => {
@@ -239,53 +312,71 @@ export function HistoryPage({
               </tr>
             </thead>
             <tbody>
-              {paginatedSubmissions.length > 0 ? (
-                paginatedSubmissions.map((s) => (
-                  <tr key={s.id} onClick={() => handleOpenDetail(s)} style={{ cursor: 'pointer' }}>
-                    <td className="history-problem">{s.problem}</td>
-                    <td>
-                      <span className="practice-topic-tag">{s.topic}</span>
-                    </td>
-                    <td>
-                      <span style={{ color: DIFF_COLORS[s.difficulty], fontWeight: 600 }}>
-                        {s.difficulty}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="attempt-badge">
-                        <RotateCcw size={12} /> {s.attemptCount} lần
-                      </span>
-                    </td>
-                    <td>
-                      {s.status === 'passed' ? (
-                        <span className="history-status pass">
-                          <CheckCircle2 size={14} /> Accepted
+              {loading ? (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#7d8599' }}>
+                    Đang tải lịch sử nộp bài...
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#f08a8a' }}>
+                    Không tải được lịch sử: {error}{' '}
+                    <button className="assessment-ghost" onClick={reload} style={{ marginLeft: 8, padding: '4px 12px' }}>
+                      Thử lại
+                    </button>
+                  </td>
+                </tr>
+              ) : paginatedRecords.length > 0 ? (
+                paginatedRecords.map((r) => {
+                  const latest = r.attempts[0];
+                  return (
+                    <tr key={r.problemId} onClick={() => handleOpenDetail(r)} style={{ cursor: 'pointer' }}>
+                      <td className="history-problem">{r.title}</td>
+                      <td>
+                        <span className="practice-topic-tag">{r.topic}</span>
+                      </td>
+                      <td>
+                        <span style={{ color: DIFF_COLORS[r.difficulty], fontWeight: 600 }}>{r.difficulty}</span>
+                      </td>
+                      <td>
+                        <span className="attempt-badge">
+                          <RotateCcw size={12} /> {r.attempts.length} lần
                         </span>
-                      ) : (
-                        <span className="history-status fail">
-                          <XCircle size={14} /> Wrong Answer
-                        </span>
-                      )}
-                    </td>
-                    <td className="history-time">{s.timestamp}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      <button
-                        className="history-eye-btn"
-                        title="Xem chi tiết các lần nộp & nhận xét hệ thống"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenDetail(s);
-                        }}
-                      >
-                        <Eye size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td>
+                        {latest.passed ? (
+                          <span className="history-status pass">
+                            <CheckCircle2 size={14} /> Accepted
+                          </span>
+                        ) : (
+                          <span className="history-status fail">
+                            <XCircle size={14} /> Wrong Answer
+                          </span>
+                        )}
+                      </td>
+                      <td className="history-time">{formatDateTime(latest.submittedAt)}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          className="history-eye-btn"
+                          title="Xem chi tiết các lần nộp & nhận xét hệ thống"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenDetail(r);
+                          }}
+                        >
+                          <Eye size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#7d8599' }}>
-                    Không tìm thấy bài nộp nào phù hợp với bộ lọc.
+                    {records.length === 0
+                      ? 'Bạn chưa nộp bài nào. Hãy chọn một chủ đề và bắt đầu luyện tập!'
+                      : 'Không tìm thấy bài nộp nào phù hợp với bộ lọc.'}
                   </td>
                 </tr>
               )}
@@ -297,7 +388,7 @@ export function HistoryPage({
             currentPage={safeSubPage}
             totalPages={totalSubPages}
             pageSize={pageSize}
-            totalItems={filteredSubmissions.length}
+            totalItems={filteredRecords.length}
             onPageChange={setSubPage}
             onPageSizeChange={(newSize) => {
               setPageSize(newSize);
@@ -319,13 +410,13 @@ export function HistoryPage({
             <div className="expanded-modal-header">
               <div className="expanded-modal-title-row">
                 <Code2 size={22} className="title-icon" />
-                <h2>{selectedRecord.problem}</h2>
+                <h2>{selectedRecord.title}</h2>
                 <span className="practice-topic-tag">{selectedRecord.topic}</span>
                 <span style={{ color: DIFF_COLORS[selectedRecord.difficulty], fontWeight: 600 }}>
                   {selectedRecord.difficulty}
                 </span>
                 <span className="attempt-badge modal-badge">
-                  <RotateCcw size={12} /> Tổng {selectedRecord.attemptCount} lần nộp
+                  <RotateCcw size={12} /> Tổng {selectedRecord.attempts.length} lần nộp
                 </span>
               </div>
             </div>
@@ -340,17 +431,17 @@ export function HistoryPage({
                 <div className="attempts-list">
                   {selectedRecord.attempts.map((att) => (
                     <button
-                      key={att.attemptId}
-                      className={`attempt-item-btn ${att.attemptId === activeAttempt.attemptId ? 'is-active' : ''}`}
-                      onClick={() => setSelectedAttemptId(att.attemptId)}
+                      key={att.id}
+                      className={`attempt-item-btn ${att.id === activeAttempt.id ? 'is-active' : ''}`}
+                      onClick={() => setSelectedAttemptId(att.id)}
                     >
                       <div className="attempt-item-head">
-                        <span className="attempt-name">Lần {att.attemptNumber}</span>
-                        <span className={`attempt-status-pill ${att.status}`}>
-                          {att.status === 'passed' ? 'Accepted' : 'Wrong Answer'}
+                        <span className="attempt-name">Lần {attemptNumber(selectedRecord, att.id)}</span>
+                        <span className={`attempt-status-pill ${att.passed ? 'passed' : 'failed'}`}>
+                          {att.passed ? 'Accepted' : 'Wrong Answer'}
                         </span>
                       </div>
-                      <span className="attempt-time">{att.timestamp}</span>
+                      <span className="attempt-time">{formatDateTime(att.submittedAt)}</span>
                     </button>
                   ))}
                 </div>
@@ -360,65 +451,105 @@ export function HistoryPage({
               <div className="attempt-detail-content">
                 {/* Stats Summary Bar inside detail */}
                 <div className="attempt-stats-bar">
-                  <div className={`status-pill-large ${activeAttempt.status}`}>
-                    {activeAttempt.status === 'passed' ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
-                    <span>{activeAttempt.status === 'passed' ? 'Accepted' : 'Wrong Answer'}</span>
-                    <span className="test-count">({activeAttempt.testPassedCount}/{activeAttempt.testTotalCount} test cases)</span>
+                  <div className={`status-pill-large ${activeAttempt.passed ? 'passed' : 'failed'}`}>
+                    {activeAttempt.passed ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+                    <span>{activeAttempt.passed ? 'Accepted' : 'Wrong Answer'}</span>
+                    {activeAttempt.totalCount != null && (
+                      <span className="test-count">
+                        ({activeAttempt.passedCount ?? 0}/{activeAttempt.totalCount} test cases)
+                      </span>
+                    )}
                   </div>
 
-                  {/* THỜI GIAN & BỘ NHỚ ĐƯỢC ĐƯA VÀO ĐÂY */}
                   <div className="attempt-metric-pills">
                     <span className="metric-pill">
-                      <Clock size={14} /> Runtime: <strong>{activeAttempt.runtime}</strong>
+                      <Clock size={14} /> Runtime: <strong>{formatRuntime(activeAttempt.maxTime)}</strong>
                     </span>
                     <span className="metric-pill">
-                      <Zap size={14} /> Memory: <strong>{activeAttempt.memory}</strong>
+                      <Zap size={14} /> Memory: <strong>{formatMemory(activeAttempt.maxMemory)}</strong>
                     </span>
                     <span className="metric-pill">
-                      <Terminal size={14} /> Language: <strong>{activeAttempt.language}</strong>
+                      <Terminal size={14} /> Language: <strong>{languageLabel(activeAttempt.languageId)}</strong>
                     </span>
                   </div>
                 </div>
 
-                {/* System & AI Feedback Box */}
-                <div className="ai-feedback-box">
-                  <div className="ai-feedback-head">
-                    <Sparkles size={16} className="sparkle-icon" />
-                    <span>Nhận xét & Đánh giá từ Hệ thống / AI</span>
-                  </div>
+                {detailError && !activeDetail && (
+                  <p style={{ color: '#f08a8a', fontSize: 13 }}>{detailError}</p>
+                )}
+                {!activeDetail && !detailError && (
+                  <p style={{ color: '#7d8599', fontSize: 13 }}>Đang tải chi tiết lần nộp...</p>
+                )}
 
-                  <p className="ai-feedback-overall">{activeAttempt.feedback.overall}</p>
+                {activeDetail && (
+                  <>
+                    {/* System & AI Feedback Box */}
+                    <div className="ai-feedback-box">
+                      <div className="ai-feedback-head">
+                        <Sparkles size={16} className="sparkle-icon" />
+                        <span>Nhận xét & Đánh giá từ Hệ thống / AI</span>
+                      </div>
 
-                  <div className="ai-feedback-grid">
-                    <div className="ai-feedback-chip">
-                      <strong>Độ phức tạp:</strong> {activeAttempt.feedback.complexity}
+                      {activeDetail.aiFeedback ? (
+                        <>
+                          <p className="ai-feedback-overall">
+                            {activeDetail.aiFeedback.explanation || 'AI không có nhận xét thêm cho lần nộp này.'}
+                          </p>
+
+                          <div className="ai-feedback-grid">
+                            {activeDetail.aiFeedback.errorType && (
+                              <div className="ai-feedback-chip">
+                                <strong>Loại lỗi:</strong>{' '}
+                                {ERROR_TYPE_LABELS[activeDetail.aiFeedback.errorType] ?? activeDetail.aiFeedback.errorType}
+                              </div>
+                            )}
+                            {activeDetail.aiFeedback.severity && activeDetail.aiFeedback.severity !== 'none' && (
+                              <div className="ai-feedback-chip">
+                                <strong>Mức độ:</strong>{' '}
+                                {activeDetail.aiFeedback.severity === 'major' ? 'Nghiêm trọng' : 'Nhẹ'}
+                              </div>
+                            )}
+                            {activeDetail.aiFeedback.suspectedLines.length > 0 && (
+                              <div className="ai-feedback-chip">
+                                <strong>Dòng cần xem lại:</strong> {activeDetail.aiFeedback.suspectedLines.join(', ')}
+                              </div>
+                            )}
+                          </div>
+
+                          {activeDetail.aiFeedback.hint && (
+                            <div className="ai-feedback-suggestions">
+                              <div className="suggestions-title">
+                                <Lightbulb size={14} /> Gợi ý cải thiện:
+                              </div>
+                              <ul>
+                                <li>{activeDetail.aiFeedback.hint}</li>
+                              </ul>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="ai-feedback-overall">
+                          {activeAttempt.passed
+                            ? 'Bài làm đã vượt qua toàn bộ test case.'
+                            : 'Lần nộp này chưa có nhận xét từ AI.'}
+                        </p>
+                      )}
                     </div>
-                    <div className="ai-feedback-chip">
-                      <strong>Phong cách code:</strong> {activeAttempt.feedback.codeStyle}
-                    </div>
-                  </div>
 
-                  {activeAttempt.feedback.suggestions.length > 0 && (
-                    <div className="ai-feedback-suggestions">
-                      <div className="suggestions-title"><Lightbulb size={14} /> Gợi ý cải thiện:</div>
-                      <ul>
-                        {activeAttempt.feedback.suggestions.map((sug, idx) => (
-                          <li key={idx}>{sug}</li>
-                        ))}
-                      </ul>
+                    {/* Submitted Code Viewer */}
+                    <div className="history-code-block">
+                      <div className="history-code-header">
+                        <span>
+                          <Terminal size={14} /> Code đã nộp — {languageLabel(activeAttempt.languageId)} (Lần{' '}
+                          {attemptNumber(selectedRecord, activeAttempt.id)})
+                        </span>
+                      </div>
+                      <pre>
+                        <code>{activeDetail.sourceCode ?? '(Lần nộp cũ — hệ thống chưa lưu code)'}</code>
+                      </pre>
                     </div>
-                  )}
-                </div>
-
-                {/* Submitted Code Viewer */}
-                <div className="history-code-block">
-                  <div className="history-code-header">
-                    <span><Terminal size={14} /> Code đã nộp — {activeAttempt.language} (Lần {activeAttempt.attemptNumber})</span>
-                  </div>
-                  <pre>
-                    <code>{activeAttempt.code}</code>
-                  </pre>
-                </div>
+                  </>
+                )}
               </div>
             </div>
 

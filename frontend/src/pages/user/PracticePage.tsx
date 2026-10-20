@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import {
+  ArrowLeft,
   CheckCircle2,
   Clock,
-  Code2,
   Lightbulb,
   Play,
   Send,
@@ -19,14 +19,25 @@ import {
   ChevronUp,
   Shuffle,
 } from 'lucide-react';
-import { PRACTICE_PROBLEMS, type PracticeProblem, type AuthMode } from '@/types';
-import { Brand } from '@/components/Brand';
+import type { PracticeProblem, AuthMode } from '@/types';
 import { Header } from '@/layout/Header';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { usePublishedProblems } from '@/hooks/usePublishedProblems';
+import {
+  judgeApi,
+  problemsApi,
+  STARTER_CODE,
+  toPracticeProblem,
+  type AiFeedback,
+  type CodeLanguage,
+  type TestCaseResult,
+} from '@/lib/problemsApi';
 
 interface PracticePageProps {
   onBack: () => void;
   initialProblemId?: string;
+  /** Chuyen sang bai khac (Bài ngẫu nhiên / Bài tiếp theo) */
+  onGoPractice: (problemId: string) => void;
   onGoLanding?: () => void;
   onGoAuth?: (mode: AuthMode) => void;
   onGoTopics?: () => void;
@@ -46,23 +57,49 @@ const DIFFICULTY_COLORS: Record<string, string> = {
 
 type RunState = 'idle' | 'running' | 'passed' | 'failed';
 
-interface TestResult {
-  passed: boolean;
-  input: string;
-  expected: string;
-  actual: string;
-}
-
 interface SubmitResult {
   passed: boolean;
-  results: TestResult[];
+  label: string;
+  results: TestCaseResult[];
   runtime: string;
   memory: string;
 }
 
+/**
+ * Nhan hien thi cho 1 test case. Judge0 tra "Accepted" khi chuong trinh chay xong ke ca khi in sai,
+ * viec so dap an do backend lam (truong passed) -> sai ma status van Accepted thi la Wrong Answer.
+ */
+function caseLabel(r: TestCaseResult): string {
+  if (r.passed) return 'Accepted';
+  if (!r.status || r.status === 'Accepted') return 'Wrong Answer';
+  return r.status;
+}
+
+function maxRuntime(results: TestCaseResult[]): string {
+  const times = results.map((r) => Number(r.time)).filter((t) => Number.isFinite(t) && t > 0);
+  return times.length ? `${Math.max(...times).toFixed(3)} s` : '—';
+}
+
+function maxMemory(results: TestCaseResult[]): string {
+  const mems = results.map((r) => r.memory ?? 0).filter((m) => m > 0);
+  return mems.length ? `${(Math.max(...mems) / 1024).toFixed(1)} MB` : '—';
+}
+
+const ERROR_TYPE_LABELS: Record<string, string> = {
+  logic: 'Lỗi logic',
+  edge_case: 'Trường hợp biên',
+  runtime: 'Lỗi runtime',
+  compile: 'Lỗi biên dịch',
+  performance: 'Hiệu năng',
+  none: 'Không có lỗi',
+};
+
+const errorMessage = (e: unknown) => (e instanceof Error ? e.message : 'Đã có lỗi xảy ra.');
+
 function PracticePage({
   onBack,
   initialProblemId,
+  onGoPractice,
   onGoLanding,
   onGoAuth,
   onGoTopics,
@@ -73,14 +110,18 @@ function PracticePage({
   onGoSettings,
   onLoggedOut,
 }: PracticePageProps) {
-  const initialProblem = PRACTICE_PROBLEMS.find((p) => p.id === initialProblemId) || PRACTICE_PROBLEMS[0];
-  const [problem, setProblem] = useState<PracticeProblem>(initialProblem);
-  const [language, setLanguage] = useState<'java' | 'python'>('java');
-  const [code, setCode] = useState<string>(
-    initialProblem.starterCodes?.java || initialProblem.starterCode
-  );
+  // Danh sach bai public (cache dung chung) — cho nut "Bài ngẫu nhiên" / "Bài tiếp theo"
+  const { problems: publishedProblems } = usePublishedProblems();
+
+  const [problem, setProblem] = useState<PracticeProblem | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [language, setLanguage] = useState<CodeLanguage>('java');
+  const [code, setCode] = useState<string>(STARTER_CODE.java);
   const [runState, setRunState] = useState<RunState>('idle');
-  const [results, setResults] = useState<TestResult[]>([]);
+  const [results, setResults] = useState<TestCaseResult[]>([]);
+  const [runError, setRunError] = useState<string | null>(null);
+  const [aiFeedback, setAiFeedback] = useState<AiFeedback | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [showWarning, setShowWarning] = useState(true);
 
   // Split resizer state (percentage of full width for problem panel)
@@ -148,55 +189,81 @@ function PracticePage({
     };
   }, [isDragging]);
 
-  const handleSelectProblem = (p: PracticeProblem): void => {
-    setProblem(p);
-    const newCode = p.starterCodes?.[language] || p.starterCode;
-    setCode(newCode);
+  // Tai de bai tu backend (trang duoc mount lai moi khi doi problemId tren URL)
+  useEffect(() => {
+    let cancelled = false;
+    setProblem(null);
+    setLoadError(null);
+    problemsApi
+      .get(initialProblemId ?? '')
+      .then((p) => {
+        if (!cancelled) setProblem(toPracticeProblem(p));
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setLoadError(errorMessage(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialProblemId]);
+
+  const resetResults = () => {
     setRunState('idle');
     setResults([]);
+    setRunError(null);
+    setAiFeedback(null);
+    setAiError(null);
     setSubmitResult(null);
   };
 
-  const handleLanguageChange = (newLang: 'java' | 'python'): void => {
+  const goToProblem = (id: string) => onGoPractice(id);
+
+  const handleLanguageChange = (newLang: CodeLanguage): void => {
+    // Chi thay code khi sinh vien chua sua gi — khong xoa bai dang lam do
+    const untouched = code.trim() === STARTER_CODE[language].trim() || code.trim() === '';
+    if (!untouched && !window.confirm('Đổi ngôn ngữ sẽ thay code hiện tại bằng code mẫu. Tiếp tục?')) return;
     setLanguage(newLang);
-    const newCode = problem.starterCodes?.[newLang] || problem.starterCode;
-    setCode(newCode);
+    setCode(STARTER_CODE[newLang]);
+    resetResults();
   };
 
-  const handleRun = (): void => {
+  const handleRun = async (): Promise<void> => {
+    if (!problem) return;
+    resetResults();
     setRunState('running');
-    setTimeout(() => {
-      const mockResults: TestResult[] = problem.examples.map((ex) => ({
-        passed: Math.random() > 0.3,
-        input: ex.input,
-        expected: ex.output,
-        actual: Math.random() > 0.3 ? ex.output : '[undefined]',
-      }));
-      setResults(mockResults);
-      setRunState(mockResults.every((r) => r.passed) ? 'passed' : 'failed');
-    }, 1200);
+    try {
+      const res = await judgeApi.run(problem.id, code, language);
+      setResults(res.testResults);
+      setRunState(res.passed ? 'passed' : 'failed');
+    } catch (e) {
+      setRunError(errorMessage(e));
+      setRunState('idle');
+    }
   };
 
-  const handleSubmitConfirmed = (): void => {
+  const handleSubmitConfirmed = async (): Promise<void> => {
+    if (!problem) return;
     setShowSubmitConfirm(false);
+    resetResults();
     setRunState('running');
-    setTimeout(() => {
-      const mockResults: TestResult[] = problem.examples.map((ex) => ({
-        passed: Math.random() > 0.15,
-        input: ex.input,
-        expected: ex.output,
-        actual: Math.random() > 0.15 ? ex.output : '[wrong]',
-      }));
-      const allPassed = mockResults.every((r) => r.passed);
-      setResults(mockResults);
-      setRunState(allPassed ? 'passed' : 'failed');
+    try {
+      const res = await judgeApi.submit(problem.id, code, language);
+      setResults(res.testResults);
+      setAiFeedback(res.aiFeedback);
+      setAiError(res.aiError ?? null);
+      setRunState(res.passed ? 'passed' : 'failed');
+      const firstFail = res.testResults.find((r) => !r.passed);
       setSubmitResult({
-        passed: allPassed,
-        results: mockResults,
-        runtime: `${Math.floor(Math.random() * 80 + 12)} ms`,
-        memory: `${(Math.random() * 2 + 40).toFixed(1)} MB`,
+        passed: res.passed,
+        label: firstFail ? caseLabel(firstFail) : 'Accepted',
+        results: res.testResults,
+        runtime: maxRuntime(res.testResults),
+        memory: maxMemory(res.testResults),
       });
-    }, 1500);
+    } catch (e) {
+      setRunError(errorMessage(e));
+      setRunState('idle');
+    }
   };
 
   const handleEditorMount = (editor: unknown): void => {
@@ -213,13 +280,54 @@ function PracticePage({
   };
 
   const handleNextRandomProblem = () => {
-    const pool = PRACTICE_PROBLEMS.filter((p) => p.id !== problem.id && p.isPublic !== false);
-    const picked = pool[Math.floor(Math.random() * pool.length)] || PRACTICE_PROBLEMS[0];
-    setProblem(picked);
-    setCode(picked.starterCodes?.[language] || picked.starterCode);
-    setRunState('idle');
-    setResults([]);
+    const pool = publishedProblems.filter((p) => p.id !== problem?.id);
+    if (pool.length === 0) return;
+    goToProblem(pool[Math.floor(Math.random() * pool.length)].id);
   };
+
+  const handleNextProblem = () => {
+    setSubmitResult(null);
+    if (publishedProblems.length === 0) return;
+    const idx = publishedProblems.findIndex((p) => p.id === problem?.id);
+    const next = publishedProblems[(idx + 1) % publishedProblems.length];
+    if (next.id !== problem?.id) goToProblem(next.id);
+  };
+
+  if (!problem) {
+    return (
+      <div className="practice-shell">
+        <Header
+          hideNav
+          onGoLanding={onGoLanding}
+          onGoAuth={onGoAuth}
+          onGoTopics={onGoTopics}
+          onGoProfile={onGoProfile}
+          onGoProgress={onGoProgress}
+          onGoHistory={onGoHistory}
+          onGoAdmin={onGoAdmin}
+          onGoSettings={onGoSettings}
+          onLoggedOut={onLoggedOut}
+        />
+        <div className="empty-problems-state" style={{ marginTop: 80 }}>
+          {loadError ? (
+            <>
+              <XCircle size={40} strokeWidth={1.2} />
+              <h3>Không mở được bài tập</h3>
+              <p>{loadError}</p>
+              <button className="assessment-ghost" onClick={onBack}>
+                <ArrowLeft size={14} /> Quay lại danh sách bài
+              </button>
+            </>
+          ) : (
+            <>
+              <Clock size={40} strokeWidth={1.2} className="spin" />
+              <h3>Đang tải đề bài...</h3>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="practice-shell">
@@ -260,25 +368,29 @@ function PracticePage({
                 </span>
               </div>
             </div>
-            <p className="problem-description">{problem.description}</p>
+            <p className="problem-description" style={{ whiteSpace: 'pre-wrap' }}>{problem.description}</p>
 
-            <div className="problem-examples">
-              {problem.examples.map((ex, i) => (
-                <div className="problem-example" key={i}>
-                  <div className="example-label">Ví dụ {i + 1}:</div>
-                  <div className="example-line"><span className="example-key">Input:</span> {ex.input}</div>
-                  <div className="example-line"><span className="example-key">Output:</span> {ex.output}</div>
-                  {ex.explanation && (
-                    <div className="example-line"><span className="example-key">Giải thích:</span> {ex.explanation}</div>
-                  )}
-                </div>
-              ))}
-            </div>
+            {problem.examples.length > 0 && (
+              <div className="problem-examples">
+                {problem.examples.map((ex, i) => (
+                  <div className="problem-example" key={i}>
+                    <div className="example-label">Ví dụ {i + 1}:</div>
+                    <div className="example-line"><span className="example-key">Input:</span> <pre style={{ display: 'inline', whiteSpace: 'pre-wrap' }}>{ex.input}</pre></div>
+                    <div className="example-line"><span className="example-key">Output:</span> <pre style={{ display: 'inline', whiteSpace: 'pre-wrap' }}>{ex.output}</pre></div>
+                    {ex.explanation && (
+                      <div className="example-line"><span className="example-key">Giải thích:</span> {ex.explanation}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="problem-constraints">
-              <div className="constraints-label"><ShieldAlert size={14} /> Ràng buộc:</div>
+              <div className="constraints-label"><ShieldAlert size={14} /> Lưu ý:</div>
               <ul>
                 {problem.constraints.map((c, i) => (<li key={i}>{c}</li>))}
+                <li>Đọc dữ liệu từ input chuẩn (stdin) và in kết quả ra màn hình (stdout).</li>
+                <li>Với Java, lớp chứa hàm main phải tên là <code>Main</code>.</li>
               </ul>
             </div>
           </section>
@@ -325,7 +437,7 @@ function PracticePage({
                   <ChevronUp size={14} /> Ẩn đề bài
                 </button>
               </div>
-              <p className="top-problem-desc">{problem.description}</p>
+              <p className="top-problem-desc" style={{ whiteSpace: 'pre-wrap' }}>{problem.description}</p>
               <div className="top-problem-examples">
                 {problem.examples.map((ex, i) => (
                   <div key={i} className="top-problem-example">
@@ -344,7 +456,8 @@ function PracticePage({
                 <select
                   className="editor-lang-select"
                   value={language}
-                  onChange={(e) => handleLanguageChange(e.target.value as 'java' | 'python')}
+                  onChange={(e) => handleLanguageChange(e.target.value as CodeLanguage)}
+                  disabled={runState === 'running'}
                 >
                   <option value="java">Java</option>
                   <option value="python">Python</option>
@@ -378,6 +491,7 @@ function PracticePage({
                 type="button"
                 className="practice-random-btn"
                 onClick={handleNextRandomProblem}
+                disabled={runState === 'running' || publishedProblems.length < 2}
                 title="Đổi sang bài ngẫu nhiên khác"
               >
                 <Shuffle size={14} /> Bài ngẫu nhiên
@@ -422,10 +536,17 @@ function PracticePage({
           <div className="results-panel">
             <div className="results-panel-header">
               {runState === 'idle' && <><Terminal size={15} /> <span>Sẵn sàng chạy code ({language === 'java' ? 'Java' : 'Python'})</span></>}
-              {runState === 'running' && <><Clock size={15} className="spin" /> <span>Đang chấm bài...</span></>}
+              {runState === 'running' && <><Clock size={15} className="spin" /> <span>Đang chấm bài... (có thể mất vài giây)</span></>}
               {runState === 'passed' && <><CheckCircle2 size={15} className="text-green" /> <span>Tất cả test case đã qua!</span></>}
               {runState === 'failed' && <><XCircle size={15} className="text-red" /> <span>Một số test case chưa qua</span></>}
             </div>
+            {runError && (
+              <div className="test-case is-fail" style={{ marginTop: 8 }}>
+                <div className="test-case-head">
+                  <XCircle size={14} /> <span>{runError}</span>
+                </div>
+              </div>
+            )}
             {results.length > 0 && (
               <div className="test-results">
                 {results.map((r, i) => (
@@ -434,22 +555,53 @@ function PracticePage({
                       {r.passed ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
                       <span>Test case {i + 1}</span>
                       <span className={`test-case-status ${r.passed ? 'pass' : 'fail'}`}>
-                        {r.passed ? 'Accepted' : 'Wrong Answer'}
+                        {caseLabel(r)}
                       </span>
                     </div>
                     <div className="test-case-body">
-                      <div><span className="test-key">Input:</span> {r.input}</div>
-                      <div><span className="test-key">Expected:</span> {r.expected}</div>
-                      <div><span className="test-key">Output:</span> {r.actual}</div>
+                      <div><span className="test-key">Input:</span> <pre style={{ display: 'inline', whiteSpace: 'pre-wrap' }}>{r.input}</pre></div>
+                      <div><span className="test-key">Expected:</span> {r.expectedOutput}</div>
+                      <div><span className="test-key">Output:</span> {r.actualOutput || <em>(không có output)</em>}</div>
+                      {r.errorOutput && (
+                        <pre style={{ whiteSpace: 'pre-wrap', color: '#f08a8a', margin: '6px 0 0', fontSize: 12 }}>
+                          {r.errorOutput}
+                        </pre>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
             )}
-            {runState === 'failed' && (
+            {aiFeedback && (
               <div className="ai-hint">
-                <div className="ai-hint-head"><Lightbulb size={15} /> Gợi ý từ AI</div>
-                <p>Hãy kiểm tra các trường hợp biên (edge cases) — đầu vào rỗng, giá trị âm, hoặc mảng chỉ có một phần tử.</p>
+                <div className="ai-hint-head">
+                  <Lightbulb size={15} /> Nhận xét từ AI
+                  {aiFeedback.errorType && (
+                    <span className="test-case-status fail" style={{ marginLeft: 8 }}>
+                      {ERROR_TYPE_LABELS[aiFeedback.errorType] ?? aiFeedback.errorType}
+                    </span>
+                  )}
+                  {aiFeedback.severity && aiFeedback.severity !== 'none' && (
+                    <span className="test-case-status fail" style={{ marginLeft: 4 }}>
+                      {aiFeedback.severity === 'major' ? 'Nghiêm trọng' : 'Nhẹ'}
+                    </span>
+                  )}
+                </div>
+                {aiFeedback.explanation && <p>{aiFeedback.explanation}</p>}
+                {aiFeedback.hint && (
+                  <p style={{ marginTop: 6 }}><strong>Gợi ý:</strong> {aiFeedback.hint}</p>
+                )}
+                {aiFeedback.suspectedLines?.length > 0 && (
+                  <p style={{ marginTop: 6 }}>
+                    <strong>Dòng cần xem lại:</strong> {aiFeedback.suspectedLines.join(', ')}
+                  </p>
+                )}
+              </div>
+            )}
+            {aiError && (
+              <div className="ai-hint">
+                <div className="ai-hint-head"><Lightbulb size={15} /> Nhận xét từ AI</div>
+                <p>{aiError}</p>
               </div>
             )}
           </div>
@@ -481,12 +633,12 @@ function PracticePage({
             </div>
 
             <h2 className="submit-result-title">
-              {submitResult.passed ? 'Chúc mừng! Accepted 🎉' : 'Wrong Answer'}
+              {submitResult.passed ? 'Chúc mừng! Accepted 🎉' : submitResult.label}
             </h2>
             <p className="submit-result-sub">
               {submitResult.passed
                 ? 'Tất cả test case đã qua. Bài giải của bạn được chấp nhận!'
-                : 'Một số test case chưa qua. Xem lại code và thử lại nhé.'}
+                : 'Một số test case chưa qua. Xem nhận xét của AI bên dưới khung code và thử lại nhé.'}
             </p>
 
             <div className="submit-result-stats">
@@ -524,7 +676,8 @@ function PracticePage({
               </button>
               <button
                 className="assessment-primary"
-                onClick={() => { setSubmitResult(null); handleSelectProblem(PRACTICE_PROBLEMS[(PRACTICE_PROBLEMS.findIndex(p => p.id === problem.id) + 1) % PRACTICE_PROBLEMS.length]); }}
+                onClick={handleNextProblem}
+                disabled={publishedProblems.length < 2}
               >
                 Bài tiếp theo <Send size={14} />
               </button>

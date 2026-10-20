@@ -109,6 +109,45 @@ public class AuthService {
         return UserResponse.from(user);
     }
 
+    @Transactional
+    public UserResponse updateUser(Long userId, String fullName, String email) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Chưa đăng nhập."));
+        
+        if (email != null && !email.isBlank()) {
+            String normalizedEmail = normalizeEmail(email);
+            validateEmail(normalizedEmail);
+            if (!user.getEmail().equals(normalizedEmail) && userRepository.existsByEmail(normalizedEmail)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Email đã được đăng ký.");
+            }
+            user.setEmail(normalizedEmail);
+        }
+        
+        if (fullName != null && !fullName.isBlank()) {
+            validateFullName(fullName);
+            user.setFullName(fullName.trim());
+        }
+        
+        return UserResponse.from(user);
+    }
+
+    @Transactional
+    public void changePassword(Long userId, String currentPassword, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Chưa đăng nhập."));
+        
+        if (currentPassword == null || currentPassword.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mật khẩu hiện tại là bắt buộc.");
+        }
+        
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Mật khẩu hiện tại không đúng.");
+        }
+        
+        validatePassword(newPassword);
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+    }
+
     private AuthSession issue(User user) {
         return new AuthSession(toResponse(user), refreshTokenService.create(user));
     }

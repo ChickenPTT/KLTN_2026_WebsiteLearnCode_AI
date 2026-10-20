@@ -15,11 +15,10 @@ import {
 } from 'lucide-react';
 import type { ActivityLog, SampleTemplate, UserRecord } from './admin.types';
 import type { PracticeProblem } from '@/types';
+import type { AdminDashboardStats as BackendDashboardStats } from '@/lib/api';
 import {
-  SUBMISSION_TIMELINE_DATA,
   calculateLevelDistribution,
   getOverviewModules,
-  type TimeRangeFilter,
 } from './dashboardData';
 
 interface AdminDashboardTabProps {
@@ -27,6 +26,7 @@ interface AdminDashboardTabProps {
   templates: SampleTemplate[];
   problems?: PracticeProblem[];
   activityLogs: ActivityLog[];
+  dashboardStats?: BackendDashboardStats | null;
   onGoGenerator: () => void;
   onNavigateTab?: (tab: 'users' | 'problems' | 'templates' | 'generator' | 'logs') => void;
 }
@@ -36,22 +36,73 @@ export function AdminDashboardTab({
   templates,
   problems = [],
   activityLogs,
+  dashboardStats,
   onGoGenerator,
   onNavigateTab,
 }: AdminDashboardTabProps) {
-  const [timeRange, setTimeRange] = useState<TimeRangeFilter>('7d');
   const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
   const [hoveredPieIndex, setHoveredPieIndex] = useState<number | null>(null);
 
-  // Dynamic calculations from mock data source
-  const selectedTimeline = SUBMISSION_TIMELINE_DATA[timeRange];
+  const activeUserCount = users.filter((u) => u.status === 'active').length;
+
+  // ── BUILD REAL SUBMISSION DATA FROM BACKEND ──
+  // Convert backend weeklySubmissions to chart data points
+  const buildRealDataPoints = (): { label: string; date: string; total: number; passed: number; failed: number }[] => {
+    if (!dashboardStats?.weeklySubmissions || dashboardStats.weeklySubmissions.length === 0) return [];
+    const dayLabels = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+    const today = new Date();
+    return dashboardStats.weeklySubmissions.map((ds, i) => {
+      const date = new Date(today);
+      date.setDate(date.getDate() - (6 - i));
+      const dateStr = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+      return {
+        label: dayLabels[i] ?? ds.day,
+        date: dateStr,
+        total: ds.count,
+        passed: ds.passed,
+        failed: ds.count - ds.passed,
+      };
+    });
+  };
+
+  const realDataPoints = buildRealDataPoints();
+  const realTotal7d = dashboardStats?.totalSubmissions7d ?? 0;
+  const realPassed7d = dashboardStats?.passedSubmissions7d ?? 0;
+  const realPassRate7d = realTotal7d > 0 ? Math.round((realPassed7d / realTotal7d) * 1000) / 10 : 0;
+
+  // Always use real data from backend — no mock fallback
+  const selectedTimeline = {
+    periodLabel: '7 ngày qua',
+    totalSubmissions: realTotal7d,
+    passedSubmissions: realPassed7d,
+    failedSubmissions: realTotal7d - realPassed7d,
+    passRatePercentage: realPassRate7d,
+    growthPercentage: 0,
+    dataPoints: realDataPoints.length > 0 ? realDataPoints : [
+      { label: 'T2', date: '', total: 0, passed: 0, failed: 0 },
+      { label: 'T3', date: '', total: 0, passed: 0, failed: 0 },
+      { label: 'T4', date: '', total: 0, passed: 0, failed: 0 },
+      { label: 'T5', date: '', total: 0, passed: 0, failed: 0 },
+      { label: 'T6', date: '', total: 0, passed: 0, failed: 0 },
+      { label: 'T7', date: '', total: 0, passed: 0, failed: 0 },
+      { label: 'CN', date: '', total: 0, passed: 0, failed: 0 },
+    ],
+  };
+
   const levelDist = calculateLevelDistribution(users);
+
+  // Build overview modules with real AI stats
+  const aiGeneratedTotal = dashboardStats?.totalAiGeneratedProblems ?? 0;
+  const aiGeneratedPublished = dashboardStats?.publishedAiGeneratedProblems ?? 0;
+  const aiSuccessRate = aiGeneratedTotal > 0 ? Math.round((aiGeneratedPublished / aiGeneratedTotal) * 1000) / 10 : 0;
+
   const overviewModules = getOverviewModules(
     problems.length > 0 ? problems.length : 24,
     templates.length,
+    aiGeneratedTotal,
+    aiSuccessRate,
+    aiGeneratedPublished,
   );
-
-  const activeUserCount = users.filter((u) => u.status === 'active').length;
 
   // ── PREPARE LINE CHART DATA & Y-AXIS TICKS ──
   const points = selectedTimeline.dataPoints;
@@ -191,30 +242,6 @@ export function AdminDashboardTab({
             </p>
           </div>
 
-          {/* Time Filter Buttons */}
-          <div className="dashboard-filter-group">
-            <button
-              type="button"
-              className={`dashboard-filter-btn ${timeRange === '7d' ? 'active' : ''}`}
-              onClick={() => { setTimeRange('7d'); setHoveredPointIndex(null); }}
-            >
-              7 ngày
-            </button>
-            <button
-              type="button"
-              className={`dashboard-filter-btn ${timeRange === '30d' ? 'active' : ''}`}
-              onClick={() => { setTimeRange('30d'); setHoveredPointIndex(null); }}
-            >
-              30 ngày
-            </button>
-            <button
-              type="button"
-              className={`dashboard-filter-btn ${timeRange === '90d' ? 'active' : ''}`}
-              onClick={() => { setTimeRange('90d'); setHoveredPointIndex(null); }}
-            >
-              90 ngày
-            </button>
-          </div>
         </div>
 
         {/* Chart Sub-header summary & legend */}

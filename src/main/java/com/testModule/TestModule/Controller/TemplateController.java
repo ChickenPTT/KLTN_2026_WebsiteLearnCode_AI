@@ -5,6 +5,7 @@ import com.testModule.TestModule.Model.Template;
 import com.testModule.TestModule.Repository.TemplateRepository;
 import com.testModule.TestModule.Service.ProblemGeneratorService;
 import com.testModule.TestModule.Service.TemplateCommandService;
+import com.testModule.TestModule.dto.ProblemView;
 import com.testModule.TestModule.dto.TemplateWriteRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -39,7 +40,7 @@ public class TemplateController {
     }
 
     @PostMapping("/generate")
-    public Problem generate(@RequestBody Map<String, Object> body) {
+    public ProblemView generate(@RequestBody Map<String, Object> body) {
         if (body == null || body.get("template_id") == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Thiếu template_id.");
         }
@@ -47,7 +48,8 @@ public class TemplateController {
         boolean useAiParaphrase = body.containsKey("use_ai_paraphrase")
                 && Boolean.parseBoolean(body.get("use_ai_paraphrase").toString());
 
-        return problemGeneratorService.generateVariant(templateId, useAiParaphrase);
+        Problem problem = problemGeneratorService.generateVariant(templateId, useAiParaphrase);
+        return ProblemView.from(problem);
     }
 
     @PostMapping

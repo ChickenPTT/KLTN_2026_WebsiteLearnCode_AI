@@ -72,6 +72,26 @@ function parseHash(hashStr: string): {
   };
 }
 
+/**
+ * Chu de tu URL: uu tien TOPIC_INFOS (co icon/mo ta), chu de la do giang vien tao (vd. "basic")
+ * thi dung the mac dinh — TopicDetailPage tu loc bai theo ten va dem so bai tu backend.
+ */
+function resolveTopic(slug: string): TopicInfo {
+  const found = TOPIC_INFOS.find((t) => t.slug === slug || t.title === slug);
+  if (found) return found;
+  const name = slug.replace(/-/g, ' ');
+  const title = name.charAt(0).toUpperCase() + name.slice(1);
+  return {
+    name: title,
+    slug,
+    title,
+    icon: 'Code2',
+    description: `Các bài tập thuộc chủ đề ${title}.`,
+    problemCount: 0,
+    difficulties: { easy: 0, medium: 0, hard: 0 },
+  };
+}
+
 function getInitialNavigationState(): {
   view: View;
   authMode: AuthMode;
@@ -92,10 +112,7 @@ function getInitialNavigationState(): {
       view = hashData.view;
       if (hashData.problemId) selectedProblemId = hashData.problemId;
       if (hashData.topicSlug) {
-        const found = TOPIC_INFOS.find(
-          (t) => t.slug === hashData.topicSlug || t.title === hashData.topicSlug,
-        );
-        if (found) selectedTopic = found;
+        selectedTopic = resolveTopic(hashData.topicSlug);
       }
       if (hashData.authMode) authMode = hashData.authMode;
       if (hashData.adminTab) adminTab = hashData.adminTab;
@@ -228,10 +245,7 @@ function App() {
         targetView = state.view;
         if (state.problemId) targetProblemId = state.problemId;
         if (state.topicSlug) {
-          const found = TOPIC_INFOS.find(
-            (t) => t.slug === state.topicSlug || t.title === state.topicSlug,
-          );
-          if (found) targetTopic = found;
+          targetTopic = resolveTopic(state.topicSlug);
         }
         if (state.authMode) targetAuthMode = state.authMode;
         if (state.adminTab) targetAdminTab = state.adminTab;
@@ -241,10 +255,7 @@ function App() {
         targetView = parsed.view;
         if (parsed.problemId) targetProblemId = parsed.problemId;
         if (parsed.topicSlug) {
-          const found = TOPIC_INFOS.find(
-            (t) => t.slug === parsed.topicSlug || t.title === parsed.topicSlug,
-          );
-          if (found) targetTopic = found;
+          targetTopic = resolveTopic(parsed.topicSlug);
         }
         if (parsed.authMode) targetAuthMode = parsed.authMode;
         if (parsed.adminTab) targetAdminTab = parsed.adminTab;
@@ -443,6 +454,7 @@ function App() {
       <PracticePage
         onBack={() => nav('topic-detail')}
         initialProblemId={selectedProblemId}
+        onGoPractice={goPractice}
         onGoLanding={goLanding}
         onGoAuth={goAuth}
         onGoTopics={goTopics}

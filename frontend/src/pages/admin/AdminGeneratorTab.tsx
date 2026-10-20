@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Sliders, RefreshCw, Sparkles, FileCode, FileCode2, CheckCircle2, Download, Globe, Check, Rocket } from 'lucide-react';
 import { SearchableSelect } from '@/components/SearchableSelect';
-import { TOPICS } from '@/types';
+import { TOPICS, LEVEL_LABELS, type SkillLevel } from '@/types';
 import type { GeneratedQuestion } from './admin.types';
 import { templatesApi, type Template as BackendTemplate } from '@/lib/api';
 
 interface AdminGeneratorTabProps {
-  onPublishQuestion?: (q: GeneratedQuestion) => void;
-  onPublishAllQuestions?: (qs: GeneratedQuestion[]) => void;
-  onNavigateToProblems?: () => void;
+  onPublishQuestion?: (q: GeneratedQuestion) => void | Promise<void>;
+  onPublishAllQuestions?: (qs: GeneratedQuestion[]) => void | Promise<void>;
+  onNavigateToProblems?: () => void | Promise<void>;
 }
 
 export function AdminGeneratorTab({
@@ -48,10 +48,13 @@ export function AdminGeneratorTab({
       ? []
       : backendTemplates
           .filter((t) => (t.topic?.name ?? 'Khác') === genTopic)
-          .map((t) => ({
-            label: t.name,
-            value: String(t.id),
-          }));
+          .map((t) => {
+            const levelLabel = LEVEL_LABELS[t.level as SkillLevel] ?? t.level;
+            return {
+              label: `${t.name} (${levelLabel})`,
+              value: String(t.id),
+            };
+          });
   const [generatedExam, setGeneratedExam] = useState<GeneratedQuestion[] | null>(null);
 
   // Track published question IDs locally
@@ -68,8 +71,10 @@ export function AdminGeneratorTab({
 
       for (let i = 0; i < genCount; i++) {
         const problem = await templatesApi.generate(templateId, genMode === 'new_problem');
+        const levelFromBackend = (problem.level ?? 'beginner').toLowerCase() as SkillLevel;
         const diff: 'Easy' | 'Medium' | 'Hard' =
-          i === 0 ? 'Easy' : i < Math.ceil(genCount * 0.6) ? 'Medium' : 'Hard';
+          levelFromBackend === 'advanced' || levelFromBackend === 'expert' ? 'Hard' :
+          levelFromBackend === 'intermediate' ? 'Medium' : 'Easy';
         generatedProblems.push({
           id: String(problem.id),
           title: problem.statement.length > 80 ? problem.statement.substring(0, 80) + '...' : problem.statement,
@@ -108,9 +113,9 @@ export function AdminGeneratorTab({
     }
   };
 
-  const handlePublishSingle = (q: GeneratedQuestion) => {
+  const handlePublishSingle = async (q: GeneratedQuestion) => {
     setPublishedIds((prev) => new Set(prev).add(q.id));
-    onPublishQuestion?.(q);
+    await onPublishQuestion?.(q);
     setPublishBannerMsg(`🎉 Đã công khai bài "${q.title}" vào danh sách bài học của sinh viên!`);
   };
 
@@ -118,11 +123,10 @@ export function AdminGeneratorTab({
     onNavigateToProblems?.();
   };
 
-  const handlePublishAll = () => {
-    if (!generatedExam) return;
+  const handlePublishAll = async () => {
     const allIds = new Set(generatedExam.map((q) => q.id));
     setPublishedIds(allIds);
-    onPublishAllQuestions?.(generatedExam);
+    await onPublishAllQuestions?.(generatedExam);
     setPublishBannerMsg(`🚀 Đã xuất bản thành công toàn bộ ${generatedExam.length} bài tập mới lên hệ thống cho người dùng học!`);
   };
 

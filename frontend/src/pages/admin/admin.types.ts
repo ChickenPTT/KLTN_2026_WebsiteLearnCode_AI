@@ -35,8 +35,7 @@ export interface SampleTemplate {
   level: SkillLevel;
   description: string;
   starterCode: string;
-  solutionCode?: string;
-  sampleInput?: string;
+  solutionCode?: string;  sampleInput?: string;
   sampleOutput?: string;
   minLength?: number;
   maxLength?: number;

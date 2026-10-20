@@ -146,11 +146,22 @@ export const authApi = {
     }),
   logout: () => apiFetch<void>('/api/auth/logout', { method: 'POST' }),
   completeOnboarding: () => apiFetch<BackendUser>('/api/auth/me/onboarding', { method: 'POST' }),
+  updateProfile: (fullName: string, email: string) =>
+    apiFetch<BackendUser>('/api/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify({ fullName, email }),
+    }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiFetch<void>('/api/auth/me/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
 };
 
 export interface DailySubmission {
   day: string;
   count: number;
+  passed: number;
 }
 
 export interface TopicStats {
@@ -184,6 +195,10 @@ export interface AdminDashboardStats {
   topTopics: TopicStats[];
   levelDistribution: LevelStats[];
   auditLogs: AuditLog[];
+  totalSubmissions7d: number;
+  passedSubmissions7d: number;
+  totalAiGeneratedProblems: number;
+  publishedAiGeneratedProblems: number;
 }
 
 export interface AdminUser {
@@ -242,6 +257,10 @@ export const adminApi = {
     apiFetch<AdminUser>(`/api/admin/users/${id}/toggle-status`, { method: 'PATCH' }),
   deleteUser: (id: number) =>
     apiFetch<void>(`/api/admin/users/${id}`, { method: 'DELETE' }),
+  getAuditLogs: (action?: string) => {
+    const query = action ? `?action=${action}` : '';
+    return apiFetch<AuditLog[]>(`/api/admin/audit-logs${query}`);
+  },
 };
 
 export interface Topic {
@@ -340,12 +359,48 @@ export const problemsApi = {
 export interface BackendHistoryItem {
   id: number;
   problemId: number;
-  topic: string;
-  level: string;
+  problemTitle: string;
+  topic: string | null;
+  level: string | null;
   passed: boolean;
   submittedAt: string;
+  languageId: number | null;
+  /** null voi ban ghi cu (truoc khi luu chi tiet) */
+  passedCount: number | null;
+  totalCount: number | null;
+  /** Giay */
+  maxTime: number | null;
+  /** KB */
+  maxMemory: number | null;
+  aiSeverity: string | null;
+}
+
+export interface BackendHistoryDetail {
+  summary: BackendHistoryItem;
+  sourceCode: string | null;
+  aiFeedback: {
+    errorType: string | null;
+    suspectedLines: number[];
+    explanation: string | null;
+    hint: string | null;
+    severity: string | null;
+  } | null;
 }
 
 export const historyApi = {
   myHistory: () => apiFetch<BackendHistoryItem[]>('/api/history/me'),
+  myHistoryDetail: (id: number) => apiFetch<BackendHistoryDetail>(`/api/history/me/${id}`),
+};
+
+export interface UserStats {
+  streak: number;
+  totalXp: number;
+  solvedCount: number;
+  totalSubmissions: number;
+  topicProgress: Record<string, number>;
+  joinedAt: string | null;
+}
+
+export const userApi = {
+  getStats: () => apiFetch<UserStats>('/api/user/stats'),
 };

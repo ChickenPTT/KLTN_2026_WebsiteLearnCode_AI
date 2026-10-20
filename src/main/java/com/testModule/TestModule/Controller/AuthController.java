@@ -4,8 +4,10 @@ import com.testModule.TestModule.Security.AuthUserDetails;
 import com.testModule.TestModule.Service.AuthService;
 import com.testModule.TestModule.Service.RefreshTokenService;
 import com.testModule.TestModule.dto.AuthResponse;
+import com.testModule.TestModule.dto.ChangePasswordRequest;
 import com.testModule.TestModule.dto.LoginRequest;
 import com.testModule.TestModule.dto.RegisterRequest;
+import com.testModule.TestModule.dto.UpdateProfileRequest;
 import com.testModule.TestModule.dto.UserResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -16,6 +18,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -84,6 +87,17 @@ public class AuthController {
     @PostMapping("/me/onboarding")
     public UserResponse completeOnboarding(Authentication authentication) {
         return authService.completeOnboarding(currentUser(authentication).getUser().getId());
+    }
+
+    @PutMapping("/me")
+    public UserResponse updateProfile(Authentication authentication, @RequestBody UpdateProfileRequest request) {
+        return authService.updateUser(currentUser(authentication).getUser().getId(), request.fullName(), request.email());
+    }
+
+    @PostMapping("/me/change-password")
+    public ResponseEntity<Void> changePassword(Authentication authentication, @RequestBody ChangePasswordRequest request) {
+        authService.changePassword(currentUser(authentication).getUser().getId(), request.currentPassword(), request.newPassword());
+        return ResponseEntity.noContent().build();
     }
 
     private static AuthUserDetails currentUser(Authentication authentication) {

@@ -58,6 +58,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/admin/**").hasAnyRole("ADMIN", "TEACHER")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/run", "/api/submit", "/api/analyze", "/api/history/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/flashcard/decks", "/api/flashcard/decks/**").permitAll()
+                        .requestMatchers("/api/flashcard/decks/**").hasAnyRole("ADMIN", "TEACHER")
+                        .requestMatchers("/api/flashcard/quiz/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

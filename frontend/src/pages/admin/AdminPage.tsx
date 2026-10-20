@@ -11,7 +11,6 @@ import {
   type ActivityLog,
   MOCK_USERS_LIST,
   MOCK_SAMPLE_TEMPLATES,
-  INITIAL_ACTIVITY_LOGS,
   DEFAULT_TOPIC_STATS,
 } from './admin.types';
 import { AdminSidebarNav } from './AdminSidebarNav';
@@ -164,6 +163,7 @@ export function AdminPage({
     language: 'java',
     constraints: [],
     isPublic: p.status === 'PUBLISHED',
+    isAiGenerated: p.sourceType === 'AI_GENERATED',
   });
 
   // Mapping backend AuditLog to frontend ActivityLog
@@ -187,6 +187,7 @@ export function AdminPage({
           templatesApi.list(),
           topicsApi.list(),
           problemsApi.listAll(),
+          adminApi.getAuditLogs(),
         ]);
 
         if (cancelled) return;
@@ -194,10 +195,6 @@ export function AdminPage({
         // Dashboard stats
         if (results[0].status === 'fulfilled') {
           setDashboardStats(results[0].value);
-          // Map audit logs from dashboard stats
-          if (results[0].value.auditLogs && results[0].value.auditLogs.length > 0) {
-            setActivityLogs(results[0].value.auditLogs.map(mapAuditLog));
-          }
         }
 
         // Users
@@ -220,6 +217,11 @@ export function AdminPage({
           setPracticeProblems(results[4].value.map(mapBackendProblem));
         }
 
+        // Audit Logs — load from dedicated API
+        if (results[5].status === 'fulfilled' && results[5].value.length > 0) {
+          setActivityLogs(results[5].value.map(mapAuditLog));
+        }
+
         setDataError(null);
       } catch (err) {
         if (!cancelled) {
@@ -239,6 +241,58 @@ export function AdminPage({
     };
   }, []);
 
+  // Refresh functions to reload data from API after CRUD operations
+  const refreshProblems = async () => {
+    try {
+      const allProblems = await problemsApi.listAll();
+      if (allProblems.length > 0) {
+        setPracticeProblems(allProblems.map(mapBackendProblem));
+      }
+    } catch {
+      // Keep existing data if refresh fails
+    }
+  };
+
+  // Auto-refresh problems list when switching to the problems tab
+  useEffect(() => {
+    if (activeTab === 'problems') {
+      refreshProblems();
+    }
+  }, [activeTab]);
+
+  const refreshUsers = async () => {
+    try {
+      const allUsers = await adminApi.getUsers();
+      if (allUsers.length > 0) {
+        setUsers(allUsers.map(mapAdminUser));
+      }
+    } catch {
+      // Keep existing data if refresh fails
+    }
+  };
+
+  const refreshTemplates = async () => {
+    try {
+      const allTemplates = await templatesApi.list();
+      if (allTemplates.length > 0) {
+        setSampleTemplates(allTemplates.map(mapTemplate));
+      }
+    } catch {
+      // Keep existing data if refresh fails
+    }
+  };
+
+  const refreshAuditLogs = async () => {
+    try {
+      const logs = await adminApi.getAuditLogs();
+      if (logs.length > 0) {
+        setActivityLogs(logs.map(mapAuditLog));
+      }
+    } catch {
+      // Keep existing data if refresh fails
+    }
+  };
+
   // User Modals state
   const [selectedUser, setSelectedUser] = useState<UserRecord | null>(null);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
@@ -255,14 +309,13 @@ export function AdminPage({
     const backendId = Number(id);
     try {
       const updated = await adminApi.toggleUserStatus(backendId);
-      const mapped = mapAdminUser(updated);
-      setUsers((prev) =>
-        prev.map((u) => (u.id === id ? mapped : u)),
-      );
-      if (selectedUser && selectedUser.id === id) {
-        setSelectedUser(mapped);
-      }
       const newStatusLabel = updated.active ? 'Hoạt động' : 'Đã khóa';
+      // Refresh users list from API
+      await refreshUsers();
+      // Refresh audit logs from API
+      await refreshAuditLogs();
+    } catch {
+      // Fallback: cập nhật local
       setActivityLogs((prev) => [
         {
           id: `log-${Date.now()}`,
@@ -273,8 +326,6 @@ export function AdminPage({
         },
         ...prev,
       ]);
-    } catch {
-      // Fallback: cập nhật local
       setUsers((prev) =>
         prev.map((u) =>
           u.id === id ? { ...u, status: u.status === 'active' ? 'suspended' : 'active' } : u,
@@ -288,20 +339,13 @@ export function AdminPage({
     const backendId = Number(id);
     try {
       await adminApi.deleteUser(backendId);
-      setUsers((prev) => prev.filter((u) => u.id !== id));
+      // Refresh users list from API
+      await refreshUsers();
+      // Refresh audit logs from API
+      await refreshAuditLogs();
       if (selectedUser?.id === id) {
         setSelectedUser(null);
       }
-      setActivityLogs((prev) => [
-        {
-          id: `log-${Date.now()}`,
-          user: user?.name ?? 'Quản trị viên',
-          action: 'DELETE',
-          target: `Xóa tài khoản người dùng: ${targetUser?.name ?? id}`,
-          time: 'Vừa xong',
-        },
-        ...prev,
-      ]);
     } catch {
       // Fallback: cập nhật local
       setUsers((prev) => prev.filter((u) => u.id !== id));
@@ -321,19 +365,22 @@ export function AdminPage({
         role: backendRole,
       });
       const mapped = mapAdminUser(created);
-      setUsers((prev) => [mapped, ...prev]);
+      // Refresh users list from API
+      await refreshUsers();
+      // Refresh audit logs from API
+      await refreshAuditLogs();
+    } catch {
+      // Fallback: tạo local
       setActivityLogs((prev) => [
         {
           id: `log-${Date.now()}`,
           user: user?.name ?? 'Quản trị viên',
           action: 'CREATE',
-          target: `Thêm mới tài khoản: ${mapped.name} (${mapped.role})`,
+          target: `Thêm mới tài khoản: ${newUserData.name} (${newUserData.role})`,
           time: 'Vừa xong',
         },
         ...prev,
       ]);
-    } catch {
-      // Fallback: tạo local
       const newUser: UserRecord = {
         id: `u-${Date.now()}`,
         ...newUserData,
@@ -358,21 +405,24 @@ export function AdminPage({
         role: backendRole,
       });
       const mapped = mapAdminUser(updated);
-      setUsers((prev) => prev.map((u) => (u.id === selectedUser.id ? mapped : u)));
+      // Refresh users list from API
+      await refreshUsers();
+      // Refresh audit logs from API
+      await refreshAuditLogs();
       setSelectedUser(mapped);
+      return true;
+    } catch {
+      // Fallback: cập nhật local
       setActivityLogs((prev) => [
         {
           id: `log-${Date.now()}`,
           user: user?.name ?? 'Quản trị viên',
           action: 'UPDATE',
-          target: `Cập nhật thông tin chi tiết tài khoản: ${mapped.name}`,
+          target: `Cập nhật thông tin chi tiết tài khoản: ${updatedUserData.name}`,
           time: 'Vừa xong',
         },
         ...prev,
       ]);
-      return true;
-    } catch {
-      // Fallback: cập nhật local
       const updatedUser: UserRecord = { ...selectedUser, ...updatedUserData };
       setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
       setSelectedUser(updatedUser);
@@ -386,7 +436,12 @@ export function AdminPage({
     const backendId = Number(id);
     try {
       await problemsApi.delete(backendId);
-      setPracticeProblems((prev) => prev.filter((p) => p.id !== id));
+      // Refresh problems list from API
+      await refreshProblems();
+      // Refresh audit logs from API
+      await refreshAuditLogs();
+    } catch {
+      // Fallback: cập nhật local
       setActivityLogs((prev) => [
         {
           id: `log-${Date.now()}`,
@@ -397,8 +452,6 @@ export function AdminPage({
         },
         ...prev,
       ]);
-    } catch {
-      // Fallback: cập nhật local
       setPracticeProblems((prev) => prev.filter((p) => p.id !== id));
     }
   };
@@ -413,9 +466,12 @@ export function AdminPage({
       } else {
         await problemsApi.unpublish(backendId);
       }
-      setPracticeProblems((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, isPublic: isNowPublic } : p)),
-      );
+      // Refresh problems list from API
+      await refreshProblems();
+      // Refresh audit logs from API
+      await refreshAuditLogs();
+    } catch {
+      // Fallback: cập nhật local
       setActivityLogs((prev) => [
         {
           id: `log-${Date.now()}`,
@@ -428,8 +484,6 @@ export function AdminPage({
         },
         ...prev,
       ]);
-    } catch {
-      // Fallback: cập nhật local
       setPracticeProblems((prev) =>
         prev.map((p) => (p.id === id ? { ...p, isPublic: isNowPublic } : p)),
       );
@@ -437,56 +491,18 @@ export function AdminPage({
   };
 
   // ── GENERATOR & TEMPLATE HANDLERS ──
-  const handlePublishQuestion = (question: GeneratedQuestion) => {
-    const newProb: PracticeProblem = {
-      id: question.id,
-      title: question.title,
-      difficulty: question.difficulty,
-      topic: question.topic,
-      description: question.description ?? '',
-      examples: (question.testCases ?? []).map((tc) => ({ input: tc.input, output: tc.output })),
-      starterCode: question.starterCode,
-      language: 'java',
-      constraints: [],
-      isPublic: true,
-    };
-    setPracticeProblems((prev) => [newProb, ...prev]);
-    setActivityLogs((prev) => [
-      {
-        id: `log-${Date.now()}`,
-        user: user?.name ?? 'Quản trị viên Demo',
-        action: 'CREATE',
-        target: `Xuất bản bài tập AI tạo tự động: "${question.title}" vào Ngân hàng đề`,
-        time: 'Vừa xong',
-      },
-      ...prev,
-    ]);
+  const handlePublishQuestion = async (question: GeneratedQuestion) => {
+    // Refresh problems list from API
+    await refreshProblems();
+    // Refresh audit logs from API
+    await refreshAuditLogs();
   };
 
-  const handlePublishAllQuestions = (questions: GeneratedQuestion[]) => {
-    const newProbs: PracticeProblem[] = questions.map((q) => ({
-      id: q.id,
-      title: q.title,
-      difficulty: q.difficulty,
-      topic: q.topic,
-      description: q.description ?? '',
-      examples: (q.testCases ?? []).map((tc) => ({ input: tc.input, output: tc.output })),
-      starterCode: q.starterCode,
-      language: 'java',
-      constraints: [],
-      isPublic: true,
-    }));
-    setPracticeProblems((prev) => [...newProbs, ...prev]);
-    setActivityLogs((prev) => [
-      {
-        id: `log-${Date.now()}`,
-        user: user?.name ?? 'Quản trị viên Demo',
-        action: 'CREATE',
-        target: `Xuất bản hàng loạt ${questions.length} câu hỏi AI tạo tự động vào Ngân hàng đề`,
-        time: 'Vừa xong',
-      },
-      ...prev,
-    ]);
+  const handlePublishAllQuestions = async (questions: GeneratedQuestion[]) => {
+    // Refresh problems list from API
+    await refreshProblems();
+    // Refresh audit logs from API
+    await refreshAuditLogs();
   };
 
   const handleSaveTemplate = async (tplData: Omit<SampleTemplate, 'id' | 'updatedAt'>) => {
@@ -519,16 +535,8 @@ export function AdminPage({
           ),
         );
       }
-      setActivityLogs((prev) => [
-        {
-          id: `log-${Date.now()}`,
-          user: user?.name ?? 'Quản trị viên',
-          action: 'UPDATE',
-          target: `Cập nhật Template bài mẫu: "${tplData.title}"`,
-          time: 'Vừa xong',
-        },
-        ...prev,
-      ]);
+      // Refresh audit logs from API
+      await refreshAuditLogs();
     } else {
       try {
         const created = await templatesApi.create({
@@ -555,16 +563,8 @@ export function AdminPage({
         };
         setSampleTemplates((prev) => [newTpl, ...prev]);
       }
-      setActivityLogs((prev) => [
-        {
-          id: `log-${Date.now()}`,
-          user: user?.name ?? 'Quản trị viên',
-          action: 'CREATE',
-          target: `Thêm mới Template bài mẫu: "${tplData.title}"`,
-          time: 'Vừa xong',
-        },
-        ...prev,
-      ]);
+      // Refresh audit logs from API
+      await refreshAuditLogs();
     }
     setShowTemplateFormModal(false);
     setTemplateToEdit(null);
@@ -575,10 +575,15 @@ export function AdminPage({
     const backendId = Number(id);
     try {
       await templatesApi.delete(backendId);
-      setSampleTemplates((prev) => prev.filter((t) => t.id !== id));
+      // Refresh templates list from API
+      await refreshTemplates();
+      // Refresh audit logs from API
+      await refreshAuditLogs();
       if (selectedTemplateForDetail?.id === id) {
         setSelectedTemplateForDetail(null);
       }
+    } catch {
+      // Fallback: cập nhật local
       setActivityLogs((prev) => [
         {
           id: `log-${Date.now()}`,
@@ -589,8 +594,6 @@ export function AdminPage({
         },
         ...prev,
       ]);
-    } catch {
-      // Fallback: cập nhật local
       setSampleTemplates((prev) => prev.filter((t) => t.id !== id));
       if (selectedTemplateForDetail?.id === id) {
         setSelectedTemplateForDetail(null);
@@ -648,6 +651,7 @@ export function AdminPage({
               templates={sampleTemplates as any}
               problems={practiceProblems}
               activityLogs={activityLogs}
+              dashboardStats={dashboardStats}
               onGoGenerator={() => setActiveTab('generator')}
               onNavigateTab={(tab) => setActiveTab(tab)}
             />
@@ -710,7 +714,10 @@ export function AdminPage({
             <AdminGeneratorTab
               onPublishQuestion={handlePublishQuestion}
               onPublishAllQuestions={handlePublishAllQuestions}
-              onNavigateToProblems={() => setActiveTab('problems')}
+              onNavigateToProblems={async () => {
+                await refreshProblems();
+                setActiveTab('problems');
+              }}
             />
           )}
 

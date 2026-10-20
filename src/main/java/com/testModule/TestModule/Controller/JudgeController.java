@@ -56,7 +56,7 @@ public class JudgeController {
     public List<TestCaseResult> submitCode(@RequestBody SubmitRequest body, @AuthenticationPrincipal AuthUserDetails user) {
         Problem problem = loadProblem(body, user);
         List<TestCaseResult> testResults = judge(body, problem, problem.getTestCases().stream());
-        historyService.saveHistory(user.getUser().getId(), problem, testResults);
+        historyService.saveHistory(user.getUser().getId(), problem, body.sourceCode(), languageOf(body, problem), testResults, null);
         return testResults;
     }
 
@@ -65,13 +65,13 @@ public class JudgeController {
     public Map<String, Object> analyzeSubmission(@RequestBody SubmitRequest body, @AuthenticationPrincipal AuthUserDetails user) {
         Problem problem = loadProblem(body, user);
         List<TestCaseResult> testResults = judge(body, problem, problem.getTestCases().stream());
-        historyService.saveHistory(user.getUser().getId(), problem, testResults);
 
         Map<String, Object> response = new HashMap<>();
         response.put("passed", allPassed(testResults));
         response.put("testResults", testResults);
+        AiFeedback aiFeedback = null;
         try {
-            AiFeedback aiFeedback = geminiService.analyzeCode(problem.getStatement(), body.sourceCode(), testResults);
+            aiFeedback = geminiService.analyzeCode(problem.getStatement(), body.sourceCode(), testResults);
             response.put("aiFeedback", aiFeedback);
         } catch (RuntimeException e) {
             // AI loi (het quota, sai JSON...) van tra ket qua cham, chi bo phan nhan xet
@@ -79,6 +79,8 @@ public class JudgeController {
             response.put("aiFeedback", null);
             response.put("aiError", "AI tạm thời không phân tích được bài này. Kết quả chấm vẫn hợp lệ.");
         }
+        // Luu sau khi AI chay xong de lich su giu ca nhan xet
+        historyService.saveHistory(user.getUser().getId(), problem, body.sourceCode(), languageOf(body, problem), testResults, aiFeedback);
         return response;
     }
 
@@ -104,8 +106,12 @@ public class JudgeController {
         return problem;
     }
 
+    private static int languageOf(SubmitRequest body, Problem problem) {
+        return body.languageId() != null ? body.languageId() : problem.getLanguageId();
+    }
+
     private List<TestCaseResult> judge(SubmitRequest body, Problem problem, Stream<TestCaseEntity> testCaseStream) {
-        int languageId = body.languageId() != null ? body.languageId() : problem.getLanguageId();
+        int languageId = languageOf(body, problem);
         if (!ALLOWED_LANGUAGES.contains(languageId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ngôn ngữ không được hỗ trợ.");
         }
