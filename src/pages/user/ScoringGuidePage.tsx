@@ -30,6 +30,8 @@ interface ScoringGuidePageProps {
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
   onLoggedOut?: () => void;
+  onGoFlashcards?: () => void;
+  onGoFlashcardLibrary?: () => void;
 }
 
 export function ScoringGuidePage({
@@ -43,6 +45,8 @@ export function ScoringGuidePage({
   onGoAdmin,
   onGoSettings,
   onLoggedOut,
+  onGoFlashcards,
+  onGoFlashcardLibrary,
 }: ScoringGuidePageProps) {
   return (
     <div className="page-shell">
@@ -51,6 +55,8 @@ export function ScoringGuidePage({
         onGoLanding={onGoLanding}
         onGoAuth={onGoAuth}
         onGoTopics={onGoTopics}
+        onGoFlashcards={onGoFlashcards}
+        onGoFlashcardLibrary={onGoFlashcardLibrary}
         onGoProfile={onGoProfile}
         onGoProgress={onGoProgress}
         onGoHistory={onGoHistory}

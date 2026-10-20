@@ -18,6 +18,11 @@ import { HistoryPage } from '@/pages/user/HistoryPage';
 import { SettingsPage } from '@/pages/user/SettingsPage';
 import { ScoringGuidePage } from '@/pages/user/ScoringGuidePage';
 import { AdminPage } from '@/pages/admin/AdminPage';
+import { FlashcardsPage } from '@/pages/user/FlashcardsPage';
+import { FlashcardDetailPage } from '@/pages/user/FlashcardDetailPage';
+import { FlashcardLibraryPage } from '@/pages/user/FlashcardLibraryPage';
+import { CreateFlashcardSetPage } from '@/pages/user/CreateFlashcardSetPage';
+import { FlashcardMatchPage } from '@/pages/user/FlashcardMatchPage';
 import { TOPIC_INFOS, type TopicInfo } from '@/types';
 
 const VIEW_KEY = 'current_view';
@@ -136,6 +141,8 @@ function App() {
   const [selectedProblemId, setSelectedProblemId] = useState<string>(initialState.selectedProblemId);
   const [selectedTopic, setSelectedTopic] = useState<TopicInfo>(initialState.selectedTopic);
   const [adminTab, setAdminTab] = useState<AdminTab>(initialState.adminTab);
+  const [selectedFlashcardSetId, setSelectedFlashcardSetId] = useState<string>('fc-1');
+  const [editingFlashcardSetId, setEditingFlashcardSetId] = useState<string | null>(null);
 
   const { user } = useAuth();
 
@@ -147,6 +154,7 @@ function App() {
       topic?: TopicInfo;
       authMode?: AuthMode;
       adminTab?: AdminTab;
+      flashcardSetId?: string;
     },
     options?: { replace?: boolean },
   ) => {
@@ -155,6 +163,7 @@ function App() {
     if (params?.topic) setSelectedTopic(params.topic);
     if (params?.authMode) setAuthMode(params.authMode);
     if (params?.adminTab) setAdminTab(params.adminTab);
+    if (params?.flashcardSetId) setSelectedFlashcardSetId(params.flashcardSetId);
 
     const activeProblemId = params?.problemId ?? selectedProblemId;
     const activeTopic = params?.topic ?? selectedTopic;
@@ -289,6 +298,15 @@ function App() {
   const goSettings = () => nav('settings');
   const goScoringGuide = () => nav('scoring-guide');
   const goAdmin = (tab?: AdminTab) => nav('admin', { adminTab: tab ?? 'dashboard' });
+  const goFlashcards = () => nav('flashcards');
+  const goFlashcardLibrary = () => nav('flashcard-library');
+  const goCreateFlashcardSet = (setId?: unknown) => {
+    const validId = typeof setId === 'string' && setId.trim().length > 0 ? setId.trim() : null;
+    setEditingFlashcardSetId(validId);
+    nav('create-flashcard', validId ? { flashcardSetId: validId } : undefined);
+  };
+  const handleSelectFlashcardSet = (setId: string) => nav('flashcard-detail', { flashcardSetId: setId });
+  const goFlashcardMatch = (setId?: string) => nav('flashcard-match', setId ? { flashcardSetId: setId } : undefined);
 
   // "Bắt đầu luyện tập"
   const goStartPractice = () => {
@@ -410,6 +428,8 @@ function App() {
         onSelectTopic={handleSelectTopic}
         onGoPractice={goPractice}
         onGoProfile={goProfile}
+        onGoFlashcards={goFlashcards}
+        onGoFlashcardLibrary={goFlashcardLibrary}
         onGoProgress={goProgress}
         onGoAdmin={() => goAdmin('dashboard')}
         onGoSettings={goSettings}
@@ -428,6 +448,8 @@ function App() {
         onGoLanding={goLanding}
         onGoAuth={goAuth}
         onGoTopics={goTopics}
+        onGoFlashcards={goFlashcards}
+        onGoFlashcardLibrary={goFlashcardLibrary}
         onGoProfile={goProfile}
         onGoProgress={goProgress}
         onGoAdmin={() => goAdmin('dashboard')}
@@ -446,6 +468,8 @@ function App() {
         onGoLanding={goLanding}
         onGoAuth={goAuth}
         onGoTopics={goTopics}
+        onGoFlashcards={goFlashcards}
+        onGoFlashcardLibrary={goFlashcardLibrary}
         onGoProfile={goProfile}
         onGoProgress={goProgress}
         onGoHistory={goHistory}
@@ -470,6 +494,8 @@ function App() {
         onGoLanding={goLanding}
         onGoAuth={goAuth}
         onGoTopics={goTopics}
+        onGoFlashcards={goFlashcards}
+        onGoFlashcardLibrary={goFlashcardLibrary}
         onGoProfile={goProfile}
         onGoProgress={goProgress}
         onGoHistory={goHistory}
@@ -493,6 +519,8 @@ function App() {
         onGoLanding={goLanding}
         onGoAuth={goAuth}
         onGoTopics={goTopics}
+        onGoFlashcards={goFlashcards}
+        onGoFlashcardLibrary={goFlashcardLibrary}
         onGoProfile={goProfile}
         onGoProgress={goProgress}
         onGoHistory={goHistory}
@@ -511,6 +539,8 @@ function App() {
         onGoLanding={goLanding}
         onGoAuth={goAuth}
         onGoTopics={goTopics}
+        onGoFlashcards={goFlashcards}
+        onGoFlashcardLibrary={goFlashcardLibrary}
         onGoProfile={goProfile}
         onGoProgress={goProgress}
         onGoHistory={goHistory}
@@ -535,6 +565,8 @@ function App() {
         onGoLanding={goLanding}
         onGoAuth={goAuth}
         onGoTopics={goTopics}
+        onGoFlashcards={goFlashcards}
+        onGoFlashcardLibrary={goFlashcardLibrary}
         onGoProfile={goProfile}
         onGoProgress={goProgress}
         onGoHistory={goHistory}
@@ -558,6 +590,8 @@ function App() {
         onGoLanding={goLanding}
         onGoAuth={goAuth}
         onGoTopics={goTopics}
+        onGoFlashcards={goFlashcards}
+        onGoFlashcardLibrary={goFlashcardLibrary}
         onGoProfile={goProfile}
         onGoProgress={goProgress}
         onGoHistory={goHistory}
@@ -587,11 +621,130 @@ function App() {
     );
   }
 
+  // ── Flashcards ────────────────────────────────────────────────────────────
+  if (view === 'flashcards') {
+    return (
+      <FlashcardsPage
+        onAuth={goAuth}
+        onGoLanding={goLanding}
+        onGoTopics={goTopics}
+        onGoFlashcards={goFlashcards}
+        onGoFlashcardLibrary={goFlashcardLibrary}
+        onGoCreateSet={() => goCreateFlashcardSet()}
+        onEditSet={(setId) => goCreateFlashcardSet(setId)}
+        onGoProfile={goProfile}
+        onGoProgress={goProgress}
+        onGoHistory={goHistory}
+        onGoAdmin={() => goAdmin('dashboard')}
+        onGoSettings={goSettings}
+        onLoggedOut={handleLoggedOut}
+        onSelectSet={handleSelectFlashcardSet}
+        onBack={goLanding}
+        initialTab="explore"
+      />
+    );
+  }
+
+  // ── Flashcard Library ─────────────────────────────────────────────────────
+  if (view === 'flashcard-library') {
+    return (
+      <FlashcardLibraryPage
+        onBack={goFlashcards}
+        onAuth={goAuth}
+        onGoLanding={goLanding}
+        onGoTopics={goTopics}
+        onGoFlashcards={goFlashcards}
+        onGoFlashcardLibrary={goFlashcardLibrary}
+        onGoCreateSet={() => goCreateFlashcardSet()}
+        onEditSet={(setId) => goCreateFlashcardSet(setId)}
+        onGoProfile={goProfile}
+        onGoProgress={goProgress}
+        onGoHistory={goHistory}
+        onGoAdmin={() => goAdmin('dashboard')}
+        onGoSettings={goSettings}
+        onLoggedOut={handleLoggedOut}
+        onSelectSet={handleSelectFlashcardSet}
+        onGoMatch={goFlashcardMatch}
+      />
+    );
+  }
+
+  // ── Create Flashcard Set ──────────────────────────────────────────────────
+  if (view === 'create-flashcard') {
+    return (
+      <CreateFlashcardSetPage
+        editSetId={editingFlashcardSetId}
+        onBack={goFlashcardLibrary}
+        onAuth={goAuth}
+        onGoLanding={goLanding}
+        onGoTopics={goTopics}
+        onGoFlashcards={goFlashcards}
+        onGoFlashcardLibrary={goFlashcardLibrary}
+        onGoProfile={goProfile}
+        onGoProgress={goProgress}
+        onGoHistory={goHistory}
+        onGoAdmin={() => goAdmin('dashboard')}
+        onGoSettings={goSettings}
+        onLoggedOut={handleLoggedOut}
+        onCreated={(newSetId, studyNow) => {
+          if (studyNow) {
+            handleSelectFlashcardSet(newSetId);
+          } else {
+            goFlashcardLibrary();
+          }
+        }}
+      />
+    );
+  }
+
+  // ── Flashcard Detail ──────────────────────────────────────────────────────
+  if (view === 'flashcard-detail') {
+    return (
+      <FlashcardDetailPage
+        setId={selectedFlashcardSetId}
+        onBack={goFlashcards}
+        onAuth={goAuth}
+        onGoLanding={goLanding}
+        onGoTopics={goTopics}
+        onGoProfile={goProfile}
+        onGoProgress={goProgress}
+        onGoHistory={goHistory}
+        onGoAdmin={() => goAdmin('dashboard')}
+        onGoSettings={goSettings}
+        onLoggedOut={handleLoggedOut}
+        onGoMatch={goFlashcardMatch}
+      />
+    );
+  }
+
+  // ── Flashcard Match (Ghép thẻ ôn luyện) ───────────────────────────────────
+  if (view === 'flashcard-match') {
+    return (
+      <FlashcardMatchPage
+        setId={selectedFlashcardSetId}
+        onBack={() => nav('flashcard-detail', { flashcardSetId: selectedFlashcardSetId })}
+        onAuth={goAuth}
+        onGoLanding={goLanding}
+        onGoTopics={goTopics}
+        onGoFlashcards={goFlashcards}
+        onGoFlashcardLibrary={goFlashcardLibrary}
+        onGoProfile={goProfile}
+        onGoProgress={goProgress}
+        onGoHistory={goHistory}
+        onGoAdmin={() => goAdmin('dashboard')}
+        onGoSettings={goSettings}
+        onLoggedOut={handleLoggedOut}
+      />
+    );
+  }
+
   // ── Landing (default) ─────────────────────────────────────────────────────
   return (
     <LandingPage
       onGoAuth={goAuth}
       onGoTopics={goTopics}
+      onGoFlashcards={goFlashcards}
+      onGoFlashcardLibrary={goFlashcardLibrary}
       onGoProfile={goProfile}
       onGoProgress={goProgress}
       onGoSettings={goSettings}

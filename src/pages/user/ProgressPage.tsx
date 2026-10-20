@@ -37,6 +37,8 @@ interface ProgressPageProps {
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
   onLoggedOut?: () => void;
+  onGoFlashcards?: () => void;
+  onGoFlashcardLibrary?: () => void;
 }
 
 const maxWeekly = Math.max(...MOCK_WEEKLY.map((d) => d.solved), 1);
@@ -111,6 +113,8 @@ export function ProgressPage({
   onGoAdmin,
   onGoSettings,
   onLoggedOut,
+  onGoFlashcards,
+  onGoFlashcardLibrary,
 }: ProgressPageProps) {
   // Modal state for 7-day activity log
   const [showActivityModal, setShowActivityModal] = useState(false);
@@ -127,6 +131,8 @@ export function ProgressPage({
         onGoLanding={onGoLanding}
         onGoAuth={onGoAuth}
         onGoTopics={onGoTopics}
+        onGoFlashcards={onGoFlashcards}
+        onGoFlashcardLibrary={onGoFlashcardLibrary}
         onGoProfile={onGoProfile}
         onGoProgress={onGoProgress}
         onGoHistory={onGoHistory}

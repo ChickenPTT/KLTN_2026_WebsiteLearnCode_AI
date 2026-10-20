@@ -27,6 +27,8 @@ interface ProfilePageProps {
   onGoHistory?: () => void;
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
+  onGoFlashcards?: () => void;
+  onGoFlashcardLibrary?: () => void;
 }
 
 export function ProfilePage({
@@ -39,6 +41,8 @@ export function ProfilePage({
   onGoHistory,
   onGoAdmin,
   onGoSettings,
+  onGoFlashcards,
+  onGoFlashcardLibrary,
 }: ProfilePageProps) {
   const { user, updateUser } = useAuth();
 
@@ -87,6 +91,8 @@ export function ProfilePage({
         onGoLanding={onGoLanding}
         onGoAuth={onGoAuth}
         onGoTopics={onGoTopics}
+        onGoFlashcards={onGoFlashcards}
+        onGoFlashcardLibrary={onGoFlashcardLibrary}
         onGoProfile={onGoProfile}
         onGoProgress={onGoProgress}
         onGoHistory={onGoHistory}

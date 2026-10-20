@@ -39,6 +39,8 @@ interface HistoryPageProps {
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
   onLoggedOut?: () => void;
+  onGoFlashcards?: () => void;
+  onGoFlashcardLibrary?: () => void;
 }
 
 const DIFF_COLORS: Record<string, string> = {
@@ -60,6 +62,8 @@ export function HistoryPage({
   onGoAdmin,
   onGoSettings,
   onLoggedOut,
+  onGoFlashcards,
+  onGoFlashcardLibrary,
 }: HistoryPageProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'passed' | 'failed'>('all');
@@ -115,6 +119,8 @@ export function HistoryPage({
         onGoLanding={onGoLanding}
         onGoAuth={onGoAuth}
         onGoTopics={onGoTopics}
+        onGoFlashcards={onGoFlashcards}
+        onGoFlashcardLibrary={onGoFlashcardLibrary}
         onGoProfile={onGoProfile}
         onGoProgress={onGoProgress}
         onGoHistory={onGoHistory}

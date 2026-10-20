@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Settings,
+  BookOpen,
 } from 'lucide-react';
 import type { AdminTab } from './admin.types';
 
@@ -87,6 +88,15 @@ export function AdminSidebarNav({
         >
           <Sparkles size={18} />
           {!isCollapsed && <span>Generate đề thi AI</span>}
+        </button>
+
+        <button
+          className={`admin-nav-item ${activeTab === 'flashcards' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('flashcards')}
+          title={isCollapsed ? 'Quản lý Flashcards' : undefined}
+        >
+          <BookOpen size={18} />
+          {!isCollapsed && <span>Quản lý Flashcards</span>}
         </button>
 
         <button

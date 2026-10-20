@@ -36,6 +36,8 @@ interface PracticePageProps {
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
   onLoggedOut?: () => void;
+  onGoFlashcards?: () => void;
+  onGoFlashcardLibrary?: () => void;
 }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -72,6 +74,8 @@ function PracticePage({
   onGoAdmin,
   onGoSettings,
   onLoggedOut,
+  onGoFlashcards,
+  onGoFlashcardLibrary,
 }: PracticePageProps) {
   const initialProblem = PRACTICE_PROBLEMS.find((p) => p.id === initialProblemId) || PRACTICE_PROBLEMS[0];
   const [problem, setProblem] = useState<PracticeProblem>(initialProblem);
@@ -229,6 +233,8 @@ function PracticePage({
         onGoLanding={onGoLanding}
         onGoAuth={onGoAuth}
         onGoTopics={onGoTopics}
+        onGoFlashcards={onGoFlashcards}
+        onGoFlashcardLibrary={onGoFlashcardLibrary}
         onGoProfile={onGoProfile}
         onGoProgress={onGoProgress}
         onGoHistory={onGoHistory}

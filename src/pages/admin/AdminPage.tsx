@@ -20,12 +20,14 @@ import { AdminUsersTab } from './AdminUsersTab';
 import { AdminProblemsTab } from './AdminProblemsTab';
 import { AdminTemplatesTab } from './AdminTemplatesTab';
 import { AdminGeneratorTab } from './AdminGeneratorTab';
+import { AdminFlashcardsTab } from './AdminFlashcardsTab';
 import { AdminAuditLogsTab } from './AdminAuditLogsTab';
 import { AdminUserDetailModal } from './AdminUserDetailModal';
 import { AdminAddUserModal } from './AdminAddUserModal';
 import { AdminTemplateDetailModal } from './AdminTemplateDetailModal';
 import { AdminTemplateFormModal } from './AdminTemplateFormModal';
 import { AdminImportExcelModal } from './AdminImportExcelModal';
+import { AdminProfileContent } from './AdminProfileContent';
 
 interface AdminPageProps {
   activeTab?: AdminTab;
@@ -334,7 +336,7 @@ export function AdminPage({
         onGoAdmin={() => setActiveTab('dashboard')}
         onGoAuth={onGoAuth}
         onGoTopics={onGoTopics}
-        onGoProfile={onGoProfile}
+        onGoProfile={() => setActiveTab('profile')}
         onGoProgress={onGoProgress}
         onGoHistory={onGoHistory}
         onGoSettings={onGoSettings}
@@ -417,11 +419,32 @@ export function AdminPage({
             />
           )}
 
+          {activeTab === 'flashcards' && (
+            <AdminFlashcardsTab
+              onLogActivity={(action, target) => {
+                setActivityLogs((prev) => [
+                  {
+                    id: `log-${Date.now()}`,
+                    user: user?.name ?? 'Quản trị viên Demo',
+                    action,
+                    target,
+                    time: 'Vừa xong',
+                  },
+                  ...prev,
+                ]);
+              }}
+            />
+          )}
+
           {activeTab === 'logs' && (
             <AdminAuditLogsTab
               activityLogs={activityLogs}
               onBackToDashboard={() => setActiveTab('dashboard')}
             />
+          )}
+
+          {activeTab === 'profile' && (
+            <AdminProfileContent onBack={() => setActiveTab('dashboard')} />
           )}
         </main>
       </div>

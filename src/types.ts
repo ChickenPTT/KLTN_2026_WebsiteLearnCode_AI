@@ -13,7 +13,12 @@ export type View =
   | 'history'
   | 'settings'
   | 'admin'
-  | 'scoring-guide';
+  | 'scoring-guide'
+  | 'flashcards'
+  | 'flashcard-detail'
+  | 'flashcard-library'
+  | 'create-flashcard'
+  | 'flashcard-match';
 export type AuthMode = 'login' | 'signup';
 
 export type SkillLevel = 'beginner' | 'basic' | 'intermediate' | 'advanced' | 'expert';
@@ -21,6 +26,23 @@ export type SkillLevel = 'beginner' | 'basic' | 'intermediate' | 'advanced' | 'e
 export interface TopicScore {
   topic: string;
   level: SkillLevel;
+}
+
+export interface FlashcardItem {
+  id: string;
+  term: string;
+  definition: string;
+  example?: string;
+}
+
+export interface FlashcardSet {
+  id: string;
+  title: string;
+  wordCount: number;
+  viewCount: number;
+  authorName: string;
+  authorAvatar?: string;
+  cards: FlashcardItem[];
 }
 
 export interface QuizQuestion {

@@ -22,6 +22,8 @@ import type { AuthMode } from '@/types';
 interface LandingPageProps {
   onGoAuth: (mode: AuthMode) => void;
   onGoTopics: () => void;
+  onGoFlashcards?: () => void;
+  onGoFlashcardLibrary?: () => void;
   onGoProfile?: () => void;
   onGoProgress?: () => void;
   onGoSettings?: () => void;
@@ -63,6 +65,8 @@ const features = [
 export function LandingPage({
   onGoAuth,
   onGoTopics,
+  onGoFlashcards,
+  onGoFlashcardLibrary,
   onGoProfile,
   onGoProgress,
   onGoSettings,
@@ -98,6 +102,8 @@ export function LandingPage({
       <Header
         onGoAuth={onGoAuth}
         onGoTopics={onGoTopics}
+        onGoFlashcards={onGoFlashcards}
+        onGoFlashcardLibrary={onGoFlashcardLibrary}
         onScrollFeatures={scrollToFeatures}
         onGoProfile={onGoProfile ?? (() => {})}
         onGoProgress={onGoProgress ?? (() => {})}
