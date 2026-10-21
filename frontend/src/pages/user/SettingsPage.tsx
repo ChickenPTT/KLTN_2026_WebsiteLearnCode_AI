@@ -33,6 +33,8 @@ interface SettingsPageProps {
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
   onLoggedOut?: () => void;
+  onGoFlashcards?: () => void;
+  onGoFlashcardLibrary?: () => void;
 }
 
 export type ThemeOption = 'dark' | 'light' | 'system';
@@ -49,6 +51,8 @@ export function SettingsPage({
   onGoAdmin,
   onGoSettings,
   onLoggedOut,
+  onGoFlashcards,
+  onGoFlashcardLibrary,
 }: SettingsPageProps) {
   // ── State cài đặt ──
   const [theme, setTheme] = useState<ThemeOption>(() => {
@@ -195,6 +199,8 @@ export function SettingsPage({
         onGoLanding={onGoLanding}
         onGoAuth={onGoAuth}
         onGoTopics={onGoTopics}
+        onGoFlashcards={onGoFlashcards}
+        onGoFlashcardLibrary={onGoFlashcardLibrary}
         onGoProfile={onGoProfile}
         onGoProgress={onGoProgress}
         onGoHistory={onGoHistory}

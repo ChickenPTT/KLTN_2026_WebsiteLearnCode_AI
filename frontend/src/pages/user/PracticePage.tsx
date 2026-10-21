@@ -47,6 +47,8 @@ interface PracticePageProps {
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
   onLoggedOut?: () => void;
+  onGoFlashcards?: () => void;
+  onGoFlashcardLibrary?: () => void;
 }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -109,6 +111,8 @@ function PracticePage({
   onGoAdmin,
   onGoSettings,
   onLoggedOut,
+  onGoFlashcards,
+  onGoFlashcardLibrary,
 }: PracticePageProps) {
   // Danh sach bai public (cache dung chung) — cho nut "Bài ngẫu nhiên" / "Bài tiếp theo"
   const { problems: publishedProblems } = usePublishedProblems();
@@ -337,6 +341,8 @@ function PracticePage({
         onGoLanding={onGoLanding}
         onGoAuth={onGoAuth}
         onGoTopics={onGoTopics}
+        onGoFlashcards={onGoFlashcards}
+        onGoFlashcardLibrary={onGoFlashcardLibrary}
         onGoProfile={onGoProfile}
         onGoProgress={onGoProgress}
         onGoHistory={onGoHistory}

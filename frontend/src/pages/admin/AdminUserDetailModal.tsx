@@ -9,7 +9,7 @@ interface AdminUserDetailModalProps {
   onClose: () => void;
   onDeleteUser: (id: string) => void;
   onToggleStatus: (id: string) => void;
-  onSaveUserDetail: (updatedData: { name: string; email: string; role: 'student' | 'teacher' | 'admin' }) => boolean;
+  onSaveUserDetail: (updatedData: { name: string; email: string; role: 'student' | 'teacher' | 'admin' }) => boolean | Promise<boolean>;
   currentUserId?: string;
 }
 
@@ -32,7 +32,7 @@ export function AdminUserDetailModal({
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setEditUserError(null);
 
@@ -45,7 +45,7 @@ export function AdminUserDetailModal({
       return;
     }
 
-    const success = onSaveUserDetail({
+    const success = await onSaveUserDetail({
       name: editName.trim(),
       email: editEmail.trim().toLowerCase(),
       role: editRole,

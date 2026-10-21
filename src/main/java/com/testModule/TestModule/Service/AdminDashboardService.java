@@ -168,7 +168,7 @@ public class AdminDashboardService {
                 return new AdminDashboardStats.AuditLog(
                     log.getId(),
                     log.getAction(),
-                    log.getUser(),
+                    log.getUsername(),
                     log.getTarget(),
                     time
                 );

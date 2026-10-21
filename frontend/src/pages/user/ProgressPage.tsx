@@ -32,6 +32,8 @@ interface ProgressPageProps {
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
   onLoggedOut?: () => void;
+  onGoFlashcards?: () => void;
+  onGoFlashcardLibrary?: () => void;
 }
 
 const RADIUS = 54;
@@ -48,6 +50,8 @@ export function ProgressPage({
   onGoAdmin,
   onGoSettings,
   onLoggedOut,
+  onGoFlashcards,
+  onGoFlashcardLibrary,
 }: ProgressPageProps) {
   // Modal state for 7-day activity log
   const [showActivityModal, setShowActivityModal] = useState(false);
@@ -116,6 +120,8 @@ export function ProgressPage({
         onGoLanding={onGoLanding}
         onGoAuth={onGoAuth}
         onGoTopics={onGoTopics}
+        onGoFlashcards={onGoFlashcards}
+        onGoFlashcardLibrary={onGoFlashcardLibrary}
         onGoProfile={onGoProfile}
         onGoProgress={onGoProgress}
         onGoHistory={onGoHistory}

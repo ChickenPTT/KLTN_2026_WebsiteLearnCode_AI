@@ -28,7 +28,7 @@ interface AdminDashboardTabProps {
   activityLogs: ActivityLog[];
   dashboardStats?: BackendDashboardStats | null;
   onGoGenerator: () => void;
-  onNavigateTab?: (tab: 'users' | 'problems' | 'templates' | 'generator' | 'logs') => void;
+  onNavigateTab?: (tab: import('./admin.types').AdminTab) => void;
 }
 
 export function AdminDashboardTab({

@@ -124,6 +124,7 @@ export function AdminGeneratorTab({
   };
 
   const handlePublishAll = async () => {
+    if (!generatedExam) return;
     const allIds = new Set(generatedExam.map((q) => q.id));
     setPublishedIds(allIds);
     await onPublishAllQuestions?.(generatedExam);

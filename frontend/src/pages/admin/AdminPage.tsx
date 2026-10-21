@@ -19,6 +19,7 @@ import { AdminUsersTab } from './AdminUsersTab';
 import { AdminProblemsTab } from './AdminProblemsTab';
 import { AdminTemplatesTab } from './AdminTemplatesTab';
 import { AdminGeneratorTab } from './AdminGeneratorTab';
+import { AdminFlashcardsTab } from './AdminFlashcardsTab';
 import { AdminAuditLogsTab } from './AdminAuditLogsTab';
 import { AdminUserDetailModal } from './AdminUserDetailModal';
 import { AdminAddUserModal } from './AdminAddUserModal';
@@ -37,6 +38,7 @@ import {
   type BackendProblem,
   type BackendRole,
 } from '@/lib/api';
+import { AdminProfileContent } from './AdminProfileContent';
 
 interface AdminPageProps {
   activeTab?: AdminTab;
@@ -309,7 +311,6 @@ export function AdminPage({
     const backendId = Number(id);
     try {
       const updated = await adminApi.toggleUserStatus(backendId);
-      const newStatusLabel = updated.active ? 'Hoạt động' : 'Đã khóa';
       // Refresh users list from API
       await refreshUsers();
       // Refresh audit logs from API
@@ -321,7 +322,7 @@ export function AdminPage({
           id: `log-${Date.now()}`,
           user: user?.name ?? 'Quản trị viên',
           action: 'TOGGLE',
-          target: `Chuyển trạng thái ${targetUser?.name ?? 'tài khoản'} sang: ${newStatusLabel}`,
+          target: `Chuyển trạng thái ${targetUser?.name ?? 'tài khoản'} sang: ${targetUser?.status === 'active' ? 'Đã khóa' : 'Hoạt động'}`,
           time: 'Vừa xong',
         },
         ...prev,
@@ -628,7 +629,7 @@ export function AdminPage({
         onGoAdmin={() => setActiveTab('dashboard')}
         onGoAuth={onGoAuth}
         onGoTopics={onGoTopics}
-        onGoProfile={onGoProfile}
+        onGoProfile={() => setActiveTab('profile')}
         onGoProgress={onGoProgress}
         onGoHistory={onGoHistory}
         onGoSettings={onGoSettings}
@@ -727,6 +728,25 @@ export function AdminPage({
               onBackToDashboard={() => setActiveTab('dashboard')}
             />
           )}
+
+          {activeTab === 'flashcards' && (
+            <AdminFlashcardsTab
+              onLogActivity={(action, target) => {
+                setActivityLogs((prev) => [
+                  {
+                    id: `log-${Date.now()}`,
+                    user: user?.name ?? 'Quản trị viên Demo',
+                    action,
+                    target,
+                    time: 'Vừa xong',
+                  },
+                  ...prev,
+                ]);
+              }}
+            />
+          )}
+
+          {activeTab === 'profile' && <AdminProfileContent />}
         </main>
       </div>
 

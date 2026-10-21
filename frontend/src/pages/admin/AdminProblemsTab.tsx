@@ -53,13 +53,13 @@ const TOPIC_ICON_MAP: Record<string, LucideIcon> = {
 
 const SOURCE_OPTIONS: SelectOption[] = [
   { value: 'all', label: 'Tất cả nguồn tạo' },
-  { value: 'manual', label: '✏️ Đề thêm tay' },
-  { value: 'ai', label: '✨ AI Generate' },
+  { value: 'manual', label: 'Đề thêm tay' },
+  { value: 'ai', label: 'AI Generate' },
 ];
 
 const TOPIC_OPTIONS: SelectOption[] = [
   { value: 'all', label: 'Tất cả kiểu bài' },
-  ...TOPICS.map((t) => ({ value: t, label: t, icon: TOPIC_ICON_MAP[t] || Layers })),
+  ...TOPICS.map((t) => ({ value: t, label: t })),
 ];
 
 const DIFF_OPTIONS: SelectOption[] = [
@@ -71,14 +71,14 @@ const DIFF_OPTIONS: SelectOption[] = [
 
 const VERIFY_OPTIONS: SelectOption[] = [
   { value: 'all', label: 'Tất cả kiểm thử' },
-  { value: 'verified', label: '🟢 Đã test AI' },
-  { value: 'pending', label: '🟡 Chờ kiểm thử' },
+  { value: 'verified', label: 'Đã test AI' },
+  { value: 'pending', label: 'Chờ kiểm thử' },
 ];
 
 const STATUS_OPTIONS: SelectOption[] = [
   { value: 'all', label: 'Tất cả trạng thái' },
-  { value: 'public', label: '🟢 Public' },
-  { value: 'draft', label: '⚪ Bản nháp' },
+  { value: 'public', label: 'Public' },
+  { value: 'draft', label: 'Bản nháp' },
 ];
 
 const DIFFICULTY_COLORS: Record<string, { bg: string; color: string; border: string; label: string }> = {
@@ -821,7 +821,6 @@ export function AdminProblemsTab({
             options={SOURCE_OPTIONS}
             value={sourceFilter}
             onChange={handleSourceFilterChange}
-            icon={Sparkles}
             placeholder="Nguồn tạo"
             showSearch={false}
           />
@@ -831,7 +830,6 @@ export function AdminProblemsTab({
             options={TOPIC_OPTIONS}
             value={topicFilter}
             onChange={handleTopicFilterChange}
-            icon={Filter}
             placeholder="Kiểu bài"
           />
 
@@ -840,18 +838,7 @@ export function AdminProblemsTab({
             options={DIFF_OPTIONS}
             value={diffFilter}
             onChange={handleDiffFilterChange}
-            icon={Filter}
             placeholder="Độ khó"
-            showSearch={false}
-          />
-
-          {/* Lọc theo Tình trạng AI Test */}
-          <SearchableSelect
-            options={VERIFY_OPTIONS}
-            value={verifyFilter}
-            onChange={handleVerifyFilterChange}
-            icon={FlaskConical}
-            placeholder="Kiểm thử AI"
             showSearch={false}
           />
 
@@ -860,7 +847,6 @@ export function AdminProblemsTab({
             options={STATUS_OPTIONS}
             value={statusFilter}
             onChange={handleStatusFilterChange}
-            icon={Globe}
             placeholder="Trạng thái"
             showSearch={false}
           />
@@ -920,15 +906,6 @@ export function AdminProblemsTab({
                             <div className="prob-title-wrap">
                               <div className="prob-title-text" title={prob.title}>
                                 <span>{prob.title}</span>
-                                {prob.isAiGenerated ? (
-                                  <span className="prob-badge-tag ai">
-                                    <Sparkles size={10} /> AI Generate
-                                  </span>
-                                ) : (
-                                  <span className="prob-badge-tag manual">
-                                    <Edit3 size={10} /> Thêm tay
-                                  </span>
-                                )}
                               </div>
                               <div className="prob-desc-snippet" title={prob.description}>
                                 {prob.description}

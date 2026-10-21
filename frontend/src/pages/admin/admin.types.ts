@@ -1,6 +1,6 @@
 import type { SkillLevel } from '@/types';
 
-export type AdminTab = 'dashboard' | 'users' | 'problems' | 'templates' | 'generator' | 'logs';
+export type AdminTab = 'dashboard' | 'users' | 'problems' | 'templates' | 'generator' | 'flashcards' | 'logs' | 'profile';
 
 export interface UserTopicStat {
   topic: string;

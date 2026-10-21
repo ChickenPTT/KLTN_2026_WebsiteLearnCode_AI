@@ -46,6 +46,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
 interface TopicsPageProps {
   onBack: () => void;
   onAuth: (mode: AuthMode) => void;
+  onGoFlashcards?: () => void;
+  onGoFlashcardLibrary?: () => void;
   onSelectTopic: (topic: TopicInfo) => void;
   onGoPractice: (problemId?: string) => void;
   onGoProfile?: () => void;
@@ -58,6 +60,8 @@ interface TopicsPageProps {
 export function TopicsPage({
   onBack,
   onAuth,
+  onGoFlashcards,
+  onGoFlashcardLibrary,
   onSelectTopic,
   onGoPractice,
   onGoProfile,
@@ -117,6 +121,8 @@ export function TopicsPage({
         onGoLanding={onBack}
         onGoAuth={onAuth}
         onGoTopics={() => {}}
+        onGoFlashcards={onGoFlashcards}
+        onGoFlashcardLibrary={onGoFlashcardLibrary}
         onGoProfile={onGoProfile}
         onGoProgress={onGoProgress}
         onGoAdmin={onGoAdmin}
@@ -126,7 +132,6 @@ export function TopicsPage({
 
       <main className="topics-main">
         <div className="topics-hero">
-          <p className="eyebrow">Chủ đề luyện code</p>
           <h1>Khám phá {topics.length} chủ đề, {problems.length} bài tập</h1>
           <p className="topics-hero-copy">
             {isLoggedIn
