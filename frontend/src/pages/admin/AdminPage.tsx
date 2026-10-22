@@ -166,6 +166,9 @@ export function AdminPage({
     constraints: [],
     isPublic: p.status === 'PUBLISHED',
     isAiGenerated: p.sourceType === 'AI_GENERATED',
+    // Backend không lưu cờ "đã kiểm thử": bài AI đã PUBLISHED nghĩa là đã qua bước kiểm thử
+    // trước khi public -> coi như đã duyệt, tránh reload xong bị rơi lại tab "Đề cần duyệt".
+    isVerified: p.sourceType !== 'AI_GENERATED' || p.status === 'PUBLISHED',
   });
 
   // Mapping backend AuditLog to frontend ActivityLog
@@ -255,9 +258,21 @@ export function AdminPage({
     }
   };
 
-  // Auto-refresh problems list when switching to the problems tab
+  const refreshDashboardStats = async () => {
+    try {
+      setDashboardStats(await adminApi.getDashboardStats());
+    } catch {
+      // Keep existing data if refresh fails
+    }
+  };
+
+  // Auto-refresh data when switching tabs (số liệu dashboard thay đổi sau khi sinh đề / public bài)
   useEffect(() => {
     if (activeTab === 'problems') {
+      refreshProblems();
+    }
+    if (activeTab === 'dashboard') {
+      refreshDashboardStats();
       refreshProblems();
     }
   }, [activeTab]);
@@ -492,7 +507,14 @@ export function AdminPage({
   };
 
   // ── GENERATOR & TEMPLATE HANDLERS ──
+  // Bài sinh từ generator được lưu ở trạng thái DRAFT -> phải gọi API publish thì mới thực sự public
+  const publishGeneratedOnBackend = async (questions: GeneratedQuestion[]) => {
+    const backendIds = questions.map((q) => Number(q.id)).filter((id) => Number.isFinite(id));
+    await Promise.allSettled(backendIds.map((id) => problemsApi.publish(id)));
+  };
+
   const handlePublishQuestion = async (question: GeneratedQuestion) => {
+    await publishGeneratedOnBackend([question]);
     // Refresh problems list from API
     await refreshProblems();
     // Refresh audit logs from API
@@ -500,6 +522,7 @@ export function AdminPage({
   };
 
   const handlePublishAllQuestions = async (questions: GeneratedQuestion[]) => {
+    await publishGeneratedOnBackend(questions);
     // Refresh problems list from API
     await refreshProblems();
     // Refresh audit logs from API

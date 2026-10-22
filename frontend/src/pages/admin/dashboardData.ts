@@ -180,6 +180,8 @@ export function getOverviewModules(
   aiGeneratedTotal = 0,
   aiSuccessRate = 0,
   aiGeneratedPublished = 0,
+  publicProblemCount = problemCount,
+  topicCount = 0,
 ): OverviewModuleStat[] {
   return [
     {
@@ -188,8 +190,8 @@ export function getOverviewModules(
       iconName: 'Code2',
       mainMetric: `${problemCount} bài tập`,
       subMetrics: [
-        { label: 'Công khai', value: `${problemCount} bài` },
-        { label: 'Chủ đề', value: '12 chủ đề' },
+        { label: 'Công khai', value: `${publicProblemCount} bài` },
+        { label: 'Chủ đề', value: `${topicCount} chủ đề` },
       ],
       targetTab: 'problems',
       badgeText: 'Ngân hàng bài tập',

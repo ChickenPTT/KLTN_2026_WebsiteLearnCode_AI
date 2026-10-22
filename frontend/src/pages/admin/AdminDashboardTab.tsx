@@ -92,16 +92,22 @@ export function AdminDashboardTab({
   const levelDist = calculateLevelDistribution(users);
 
   // Build overview modules with real AI stats
-  const aiGeneratedTotal = dashboardStats?.totalAiGeneratedProblems ?? 0;
-  const aiGeneratedPublished = dashboardStats?.publishedAiGeneratedProblems ?? 0;
+  // Ưu tiên đếm trực tiếp từ danh sách bài (luôn được refresh), fallback về số liệu backend
+  const aiProblems = problems.filter((p) => p.isAiGenerated);
+  const aiGeneratedTotal = problems.length > 0 ? aiProblems.length : dashboardStats?.totalAiGeneratedProblems ?? 0;
+  const aiGeneratedPublished = problems.length > 0
+    ? aiProblems.filter((p) => p.isPublic !== false).length
+    : dashboardStats?.publishedAiGeneratedProblems ?? 0;
   const aiSuccessRate = aiGeneratedTotal > 0 ? Math.round((aiGeneratedPublished / aiGeneratedTotal) * 1000) / 10 : 0;
 
   const overviewModules = getOverviewModules(
-    problems.length > 0 ? problems.length : 24,
+    problems.length,
     templates.length,
     aiGeneratedTotal,
     aiSuccessRate,
     aiGeneratedPublished,
+    problems.filter((p) => p.isPublic !== false).length,
+    new Set(problems.map((p) => p.topic).filter(Boolean)).size,
   );
 
   // ── PREPARE LINE CHART DATA & Y-AXIS TICKS ──
