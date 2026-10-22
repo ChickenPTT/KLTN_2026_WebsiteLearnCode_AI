@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from '@/layout/Header';
 import { Footer } from '@/layout/Footer';
 import type { AuthMode } from '@/types';
@@ -7,23 +7,13 @@ import {
   Clock,
   CheckCircle2,
   Trophy,
-  ChevronLeft,
-  ChevronRight,
-  BookOpen,
-  Binary,
-  Database,
-  Cpu,
-  Code2,
-  BrainCircuit,
-  Globe,
 } from 'lucide-react';
 import {
-  ALL_FLASHCARD_SETS,
-  getFlashcardMatchCards,
-  type FlashcardMockSet,
-  type CardIcon,
-} from '@/data/flashcardMockData';
-import type { FlashcardItem } from '@/types';
+  quizApi,
+  type GridCell as BackendGridCell,
+  type RoundResponse as BackendRoundResponse,
+  type QuizResultResponse as BackendQuizResultResponse,
+} from '@/lib/api';
 
 interface FlashcardMatchPageProps {
   setId: string;
@@ -41,50 +31,21 @@ interface FlashcardMatchPageProps {
   onLoggedOut?: () => void;
 }
 
-const ICON_MAP: Record<CardIcon, React.ElementType> = {
-  Binary,
-  Database,
-  Cpu,
-  Code2,
-  BrainCircuit,
-  Globe,
-};
-
 interface MatchTile {
   tileId: string;
-  termId: string;
+  termId: number;
   type: 'term' | 'definition';
   text: string;
 }
 
-// Hàm xáo trộn mảng Fisher-Yates
-function shuffleArray<T>(array: T[]): T[] {
-  const arr = [...array];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
-// Tạo 12 thẻ (6 thuật ngữ + 6 định nghĩa) cho 1 trang 6 từ
-function generateTilesForWords(words: FlashcardItem[], pagePrefix: string): MatchTile[] {
-  const tiles: MatchTile[] = [];
-  words.forEach((w, idx) => {
-    tiles.push({
-      tileId: `${pagePrefix}-term-${w.id || idx}`,
-      termId: w.id || `term-${idx}`,
-      type: 'term',
-      text: w.term,
-    });
-    tiles.push({
-      tileId: `${pagePrefix}-def-${w.id || idx}`,
-      termId: w.id || `term-${idx}`,
-      type: 'definition',
-      text: w.definition,
-    });
-  });
-  return shuffleArray(tiles);
+// Convert backend GridCell to MatchTile
+function backendCellToTile(cell: BackendGridCell): MatchTile {
+  return {
+    tileId: cell.cellId,
+    termId: cell.termId,
+    type: cell.cellType === 'TERM' ? 'term' : 'definition',
+    text: cell.displayText,
+  };
 }
 
 export function FlashcardMatchPage({
@@ -102,130 +63,211 @@ export function FlashcardMatchPage({
   onGoSettings,
   onLoggedOut,
 }: FlashcardMatchPageProps) {
-  const set: FlashcardMockSet | undefined = ALL_FLASHCARD_SETS.find((s) => s.id === setId);
-  const IconComp = set ? ICON_MAP[set.iconName] || Code2 : Code2;
+  const backendDeckId = Number(setId);
+  const deckTitle = setId ? `Deck #${setId}` : 'Bộ từ vựng';
 
-  // Lấy 12 từ vựng chuẩn (chia thành 2 trang x 6 từ)
-  const all12Words = useMemo(() => {
-    return getFlashcardMatchCards(set);
-  }, [set]);
+  // Quiz state from backend
+  const [round, setRound] = useState<BackendRoundResponse | null>(null);
+  const [sessionId, setSessionId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const page1Words = useMemo(() => all12Words.slice(0, 6), [all12Words]);
-  const page2Words = useMemo(() => all12Words.slice(6, 12), [all12Words]);
+  // Current tiles for display
+  const [tiles, setTiles] = useState<MatchTile[]>([]);
+  const [matchedTermIds, setMatchedTermIds] = useState<Set<number>>(new Set());
 
-  // Phân trang: 1 hoặc 2
-  const [currentPage, setCurrentPage] = useState<1 | 2>(1);
-
-  // Tiles cho từng trang
-  const [tilesP1, setTilesP1] = useState<MatchTile[]>([]);
-  const [tilesP2, setTilesP2] = useState<MatchTile[]>([]);
-
-  // Các cặp đã ghép thành công
-  const [matchedP1, setMatchedP1] = useState<Set<string>>(new Set());
-  const [matchedP2, setMatchedP2] = useState<Set<string>>(new Set());
-
-  // Thẻ đang được chọn lần 1
+  // Selected tile
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
-
-  // 2 thẻ ghép sai đang nháy đỏ
   const [wrongTileIds, setWrongTileIds] = useState<string[]>([]);
 
-  // Thống kê & Đồng hồ
-  const [seconds, setSeconds] = useState(0);
-  const [attempts, setAttempts] = useState(0);
-  const [isGameActive, setIsGameActive] = useState(true);
+  // Timer
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [isGameActive, setIsGameActive] = useState(false);
 
-  // Khởi tạo thẻ cho 2 trang khi tải trang hoặc ấn chơi lại
-  const resetGame = useCallback(() => {
-    setTilesP1(generateTilesForWords(page1Words, 'p1'));
-    setTilesP2(generateTilesForWords(page2Words, 'p2'));
-    setMatchedP1(new Set());
-    setMatchedP2(new Set());
-    setSelectedTileId(null);
-    setWrongTileIds([]);
-    setSeconds(0);
-    setAttempts(0);
-    setIsGameActive(true);
-    setCurrentPage(1);
-  }, [page1Words, page2Words]);
+  // Quiz result
+  const [quizResult, setQuizResult] = useState<BackendQuizResultResponse | null>(null);
 
+  // Start quiz on mount
   useEffect(() => {
-    resetGame();
-  }, [resetGame]);
+    if (!backendDeckId) {
+      setError('Không tìm thấy bộ flashcard.');
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    quizApi.startQuiz('BY_DECK', backendDeckId)
+      .then(response => {
+        if (!cancelled) {
+          setRound(response);
+          setSessionId(response.sessionId);
+          setTiles(response.cells.map(backendCellToTile));
+          setTimeRemaining(response.timeRemaining);
+          setIsGameActive(true);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError('Không thể bắt đầu quiz. Vui lòng thử lại.');
+          setLoading(false);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [backendDeckId]);
 
-  // Đồng hồ bấm giờ
+  // Timer countdown
   useEffect(() => {
     if (!isGameActive) return;
     const timer = setInterval(() => {
-      setSeconds((prev) => prev + 1);
+      setTimeRemaining(prev => {
+        if (prev <= 1) {
+          setIsGameActive(false);
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
     return () => clearInterval(timer);
   }, [isGameActive]);
 
-  // Format mm:ss
+  // Update timer from backend response
+  useEffect(() => {
+    if (round) {
+      setTimeRemaining(round.timeRemaining);
+    }
+  }, [round]);
+
+  // Format time
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Trang hiện tại
-  const currentTiles = currentPage === 1 ? tilesP1 : tilesP2;
-  const currentMatched = currentPage === 1 ? matchedP1 : matchedP2;
-  const isCurrentPageDone = currentMatched.size >= 6;
-  const isAllDone = matchedP1.size >= 6 && matchedP2.size >= 6;
+  // Handle tile click
+  const handleTileClick = async (tile: MatchTile) => {
+    if (matchedTermIds.has(tile.termId) || wrongTileIds.length > 0 || !sessionId) return;
 
-  // Dừng đồng hồ khi hoàn thành toàn bộ 2 trang
-  useEffect(() => {
-    if (isAllDone && isGameActive) {
-      setIsGameActive(false);
-    }
-  }, [isAllDone, isGameActive]);
-
-  // Xử lý khi click vào 1 thẻ
-  const handleTileClick = (tile: MatchTile) => {
-    // Không cho click nếu thẻ đã ghép xong hoặc đang trong animation báo lỗi
-    if (currentMatched.has(tile.termId) || wrongTileIds.length > 0) return;
-
-    // Nếu bấm lại chính thẻ đang chọn -> Bỏ chọn
+    // Deselect if clicking same tile
     if (selectedTileId === tile.tileId) {
       setSelectedTileId(null);
       return;
     }
 
-    // Nếu chưa có thẻ nào được chọn -> Chọn thẻ này
+    // First selection
     if (!selectedTileId) {
       setSelectedTileId(tile.tileId);
       return;
     }
 
-    // Đã có thẻ thứ nhất -> Tìm thẻ thứ nhất
-    const firstTile = currentTiles.find((t) => t.tileId === selectedTileId);
+    // Second selection — submit pair to backend
+    const firstTile = tiles.find((t) => t.tileId === selectedTileId);
     if (!firstTile) {
       setSelectedTileId(tile.tileId);
       return;
     }
 
-    setAttempts((prev) => prev + 1);
+    try {
+      const result = await quizApi.submitPair(sessionId, selectedTileId, tile.tileId);
 
-    // Kiểm tra MATCH: Cùng termId nhưng khác loại (1 term + 1 definition)
-    if (firstTile.termId === tile.termId && firstTile.type !== tile.type) {
-      // Ghép đúng!
-      if (currentPage === 1) {
-        setMatchedP1((prev) => new Set(prev).add(tile.termId));
-      } else {
-        setMatchedP2((prev) => new Set(prev).add(tile.termId));
-      }
-      setSelectedTileId(null);
-    } else {
-      // Ghép sai! Báo đỏ và rung trong 500ms
-      setWrongTileIds([firstTile.tileId, tile.tileId]);
-      setTimeout(() => {
-        setWrongTileIds([]);
+      if (result.correct) {
+        // Correct match
+        setMatchedTermIds(prev => new Set(prev).add(tile.termId));
         setSelectedTileId(null);
-      }, 500);
+
+        // Update progress from backend
+        if (round) {
+          setRound(prev => prev ? { ...prev, matchedPairs: result.matchedPairs, timeRemaining: result.timeRemaining } : null);
+        }
+
+        // Check if round completed
+        if (result.roundCompleted) {
+          if (result.quizCompleted) {
+            // Quiz finished — fetch result
+            setIsGameActive(false);
+            const qr = await quizApi.getQuizResult(sessionId);
+            setQuizResult(qr);
+          } else {
+            // Move to next round
+            const nextRound = await quizApi.getNextRound(sessionId);
+            setRound(nextRound);
+            setTiles(nextRound.cells.map(backendCellToTile));
+            setMatchedTermIds(new Set());
+            setSelectedTileId(null);
+          }
+        }
+      } else {
+        // Wrong match — show red flash
+        setWrongTileIds([firstTile.tileId, tile.tileId]);
+        setTimeout(() => {
+          setWrongTileIds([]);
+          setSelectedTileId(null);
+        }, 500);
+      }
+    } catch (err) {
+      console.error('Lỗi khi gửi cặp:', err);
+      setSelectedTileId(null);
     }
   };
+
+  // Restart quiz
+  const handleRestart = () => {
+    setQuizResult(null);
+    setMatchedTermIds(new Set());
+    setSelectedTileId(null);
+    setWrongTileIds([]);
+    setSessionId(null);
+    setRound(null);
+    setTiles([]);
+    if (backendDeckId) {
+      setLoading(true);
+      quizApi.startQuiz('BY_DECK', backendDeckId)
+        .then(response => {
+          setRound(response);
+          setSessionId(response.sessionId);
+          setTiles(response.cells.map(backendCellToTile));
+          setTimeRemaining(response.timeRemaining);
+          setIsGameActive(true);
+          setLoading(false);
+        })
+        .catch(() => {
+          setError('Không thể bắt đầu quiz.');
+          setLoading(false);
+        });
+    }
+  };
+
+  const totalPairs = round?.totalPairs ?? 0;
+  const matchedCount = round?.matchedPairs ?? matchedTermIds.size;
+  const isAllDone = quizResult !== null;
+
+  if (loading) {
+    return (
+      <div className="page-shell">
+        <Header activeView="flashcards" />
+        <main style={{ padding: '40px', textAlign: 'center' }}>
+          <h2>Đang tải quiz...</h2>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="page-shell">
+        <Header activeView="flashcards" onGoLanding={onGoLanding} onGoAuth={onAuth} onGoTopics={onGoTopics} onGoFlashcards={onGoFlashcards} onGoFlashcardLibrary={onGoFlashcardLibrary} onGoProfile={onGoProfile} onGoProgress={onGoProgress} onGoHistory={onGoHistory} onGoAdmin={onGoAdmin} onGoSettings={onGoSettings} onLoggedOut={onLoggedOut} />
+        <main style={{ padding: '40px', textAlign: 'center' }}>
+          <h2>{error}</h2>
+          <button onClick={onBack} className="secondary-button" style={{ marginTop: '16px' }}>
+            Quay lại
+          </button>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="page-shell">
@@ -250,36 +292,35 @@ export function FlashcardMatchPage({
           <div className="fc-match-title-group">
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <h1 className="fc-match-page-title">
-                Ghép thẻ: {set?.title || 'Bộ từ vựng'}
+                Ghép thẻ: {deckTitle}
               </h1>
             </div>
           </div>
 
           {/* Stats: Đồng hồ & Tiến độ & Nút Chơi lại */}
           <div className="fc-match-stats-group">
-            <div className="fc-match-timer-pill" title="Thời gian chơi">
+            <div className="fc-match-timer-pill" title="Thời gian còn lại">
               <Clock size={15} />
-              <span>{formatTime(seconds)}</span>
+              <span>{formatTime(timeRemaining)}</span>
             </div>
-            <div className="fc-match-progress-pill" title="Tiến độ trang hiện tại">
+            <div className="fc-match-progress-pill" title="Tiến độ">
               <CheckCircle2 size={15} />
-              <span>Trang {currentPage}: {currentMatched.size}/6 cặp</span>
+              <span>Round {round?.roundNumber ?? '?'}/{round?.totalRounds ?? '?'}: {matchedCount}/{totalPairs} cặp</span>
             </div>
             <button
               type="button"
               className="fc-match-reset-btn"
-              onClick={resetGame}
-              title="Xáo trộn và chơi lại từ đầu"
+              onClick={handleRestart}
+              title="Chơi lại từ đầu"
             >
               <RotateCcw size={14} /> Chơi lại
             </button>
           </div>
         </div>
 
-
         {/* ── MAIN CONTENT AREA ── */}
         {isAllDone ? (
-          /* TRƯỜNG HỢP: HOÀN THÀNH TOÀN BỘ CẢ 2 TRANG (12 TỪ) */
+          /* TRƯỜNG HỢP: HOÀN THÀNH QUIZ */
           <div className="fc-match-victory-box">
             <div
               style={{
@@ -297,10 +338,10 @@ export function FlashcardMatchPage({
               <Trophy size={36} />
             </div>
             <h2 className="fc-completion-title" style={{ fontSize: '28px', marginBottom: '8px' }}>
-              Xuất sắc! Bạn đã ghép thành công tất cả thẻ!
+              Xuất sắc! Bạn đã hoàn thành quiz!
             </h2>
             <p className="fc-completion-sub" style={{ fontSize: '15px', marginBottom: '24px' }}>
-              Bạn đã hoàn thành ghép cả 2 trang (12 từ vựng) trong thời gian <strong>{formatTime(seconds)}</strong> với <strong>{attempts}</strong> lượt ghép.
+              Điểm: <strong>{quizResult?.totalScore ?? 0}</strong> / <strong>{quizResult?.totalPairs ?? 0}</strong> cặp đúng trong <strong>{quizResult?.totalRounds ?? 0}</strong> round.
             </p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <button
@@ -315,7 +356,7 @@ export function FlashcardMatchPage({
                   color: '#ffffff',
                   border: 'none',
                 }}
-                onClick={resetGame}
+                onClick={handleRestart}
               >
                 <RotateCcw size={16} /> Chơi lại lần nữa
               </button>
@@ -335,77 +376,11 @@ export function FlashcardMatchPage({
               </button>
             </div>
           </div>
-        ) : isCurrentPageDone ? (
-          /* TRƯỜNG HỢP: HOÀN THÀNH TRANG HIỆN TẠI (CHƯA XONG TRANG CÒN LẠI) */
-          <div className="fc-match-victory-box">
-            <div
-              style={{
-                width: '60px',
-                height: '60px',
-                borderRadius: '50%',
-                background: 'rgba(59, 130, 246, 0.15)',
-                color: '#3b82f6',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '14px',
-              }}
-            >
-              <CheckCircle2 size={32} />
-            </div>
-            <h2 className="fc-completion-title" style={{ fontSize: '24px', marginBottom: '8px' }}>
-              Tuyệt vời! Đã hoàn thành 6/6 từ của Trang {currentPage}!
-            </h2>
-            <p className="fc-completion-sub" style={{ fontSize: '14.5px', marginBottom: '20px' }}>
-              {currentPage === 1
-                ? 'Hãy chuyển sang Trang 2 để tiếp tục thử thách 6 từ tiếp theo.'
-                : 'Bạn có thể chuyển về Trang 1 để hoàn thành nếu còn từ chưa ghép.'}
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
-              <button
-                type="button"
-                className="fc-match-reset-btn"
-                style={{
-                  padding: '10px 22px',
-                  borderRadius: '999px',
-                  background: '#3b82f6',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  border: 'none',
-                }}
-                onClick={() => {
-                  setCurrentPage(currentPage === 1 ? 2 : 1);
-                  setSelectedTileId(null);
-                  setWrongTileIds([]);
-                }}
-              >
-                {currentPage === 1 ? 'Sang Trang 2 tiếp tục →' : 'Quay lại Trang 1'}
-              </button>
-              <button
-                type="button"
-                className="fc-match-reset-btn"
-                style={{ padding: '10px 20px', borderRadius: '999px' }}
-                onClick={() => {
-                  if (currentPage === 1) {
-                    setTilesP1(generateTilesForWords(page1Words, 'p1'));
-                    setMatchedP1(new Set());
-                  } else {
-                    setTilesP2(generateTilesForWords(page2Words, 'p2'));
-                    setMatchedP2(new Set());
-                  }
-                  setSelectedTileId(null);
-                  setWrongTileIds([]);
-                }}
-              >
-                <RotateCcw size={15} /> Chơi lại trang này
-              </button>
-            </div>
-          </div>
         ) : (
-          /* ── GRID 12 THẺ (4 CỘT x 3 HÀNG TRÊN MÁY TÍNH | 3 CỘT x 4 HÀNG TRÊN ĐIỆN THOẠI) ── */
+          /* ── GRID THẺ ── */
           <div className="fc-match-grid">
-            {currentTiles.map((tile) => {
-              const isMatched = currentMatched.has(tile.termId);
+            {tiles.map((tile) => {
+              const isMatched = matchedTermIds.has(tile.termId);
               const isSelected = selectedTileId === tile.tileId;
               const isWrong = wrongTileIds.includes(tile.tileId);
 

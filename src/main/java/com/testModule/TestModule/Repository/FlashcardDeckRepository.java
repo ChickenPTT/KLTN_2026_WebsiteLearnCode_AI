@@ -11,6 +11,9 @@ public interface FlashcardDeckRepository extends JpaRepository<FlashcardDeck, Lo
     @Query("SELECT d FROM FlashcardDeck d LEFT JOIN FETCH d.terms WHERE d.id = :id")
     FlashcardDeck findByIdWithTerms(Long id);
 
-    @Query("SELECT d FROM FlashcardDeck d LEFT JOIN FETCH d.terms WHERE d.id IN :ids")
+    @Query("SELECT DISTINCT d FROM FlashcardDeck d LEFT JOIN FETCH d.terms WHERE d.id IN :ids")
     List<FlashcardDeck> findAllByIdWithTerms(List<Long> ids);
+
+    @Query("SELECT DISTINCT d FROM FlashcardDeck d LEFT JOIN FETCH d.terms ORDER BY d.id")
+    List<FlashcardDeck> findAllWithTerms();
 }

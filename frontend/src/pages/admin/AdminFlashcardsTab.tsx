@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   BookOpen,
   Plus,
@@ -22,13 +22,13 @@ import {
 import { Pagination } from '@/components/Pagination';
 import { useAuth } from '@/hooks/useAuth';
 import {
-  ALL_FLASHCARD_SETS,
-  addSystemFlashcardSet,
-  updateFlashcardSet,
-  deleteFlashcardSet,
-  type FlashcardMockSet,
-  type CardIcon,
-} from '@/data/flashcardMockData';
+  flashcardApi,
+  type BackendFlashcardDeck,
+  type BackendFlashcardTerm,
+  type AdminFlashcardStats,
+  type TermRequest,
+} from '@/lib/api';
+import type { CardIcon } from '@/data/flashcardMockData';
 import type { FlashcardItem } from '@/types';
 
 const ICON_MAP: Record<CardIcon, React.ElementType> = {
@@ -49,31 +49,107 @@ const COLOR_PRESETS = [
   { bg: '#FEF2F2', color: '#DC2626', label: 'Rose' },
 ];
 
+const ICON_PRESETS: { icon: CardIcon; bg: string; color: string }[] = [
+  { icon: 'Binary', bg: '#EEF2FF', color: '#4F46E5' },
+  { icon: 'Database', bg: '#ECFDF5', color: '#059669' },
+  { icon: 'Cpu', bg: '#FFF7ED', color: '#EA580C' },
+  { icon: 'Code2', bg: '#EFF6FF', color: '#2563EB' },
+  { icon: 'BrainCircuit', bg: '#FDF4FF', color: '#9333EA' },
+  { icon: 'Globe', bg: '#F0FDF4', color: '#16A34A' },
+];
+
+// Bridge type: backend deck + UI-only fields
+interface AdminFlashcardSet {
+  id: string;
+  backendId: number;
+  title: string;
+  subtitle: string;
+  wordCount: number;
+  viewCount: number;
+  authorName: string;
+  authorRole: 'admin' | 'teacher' | 'student';
+  isPublic: boolean;
+  iconName: CardIcon;
+  iconBg: string;
+  iconColor: string;
+  cards: FlashcardItem[];
+  createdAt: string;
+}
+
 interface AdminFlashcardsTabProps {
   onLogActivity?: (action: 'CREATE' | 'UPDATE' | 'DELETE' | 'TOGGLE', target: string) => void;
 }
 
+function backendDeckToAdminSet(deck: BackendFlashcardDeck, index: number): AdminFlashcardSet {
+  const preset = ICON_PRESETS[index % ICON_PRESETS.length];
+  const role = (deck.authorRole as 'admin' | 'teacher' | 'student') || 'admin';
+  return {
+    id: String(deck.id),
+    backendId: deck.id,
+    title: deck.name,
+    subtitle: deck.description ?? 'Bộ flashcard',
+    wordCount: deck.terms?.length ?? 0,
+    viewCount: deck.viewCount ?? 0,
+    authorName: deck.authorName ?? 'Hệ thống',
+    authorRole: role,
+    isPublic: deck.isPublic ?? true,
+    iconName: preset.icon,
+    iconBg: preset.bg,
+    iconColor: preset.color,
+    cards: (deck.terms ?? []).map(t => ({ id: String(t.id), term: t.term, definition: t.definition, example: '' })),
+    createdAt: deck.createdAt,
+  };
+}
+
 export function AdminFlashcardsTab({ onLogActivity }: AdminFlashcardsTabProps) {
   const { user } = useAuth();
-  const [sets, setSets] = useState<FlashcardMockSet[]>([...ALL_FLASHCARD_SETS]);
+  const [sets, setSets] = useState<AdminFlashcardSet[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [stats, setStats] = useState<AdminFlashcardStats | null>(null);
   const [filterType, setFilterType] = useState<'all' | 'system' | 'user'>('all');
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'teacher' | 'student'>('all');
   const [searchKey, setSearchKey] = useState('');
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Helper xác định role của tác giả
-  const getAuthorRole = (set: FlashcardMockSet): 'admin' | 'teacher' | 'student' => {
-    if (set.authorRole) return set.authorRole;
-    if (set.id.startsWith('my-fc') || set.id.startsWith('user-fc')) return 'student';
-    if (set.authorName.toLowerCase().includes('giảng viên')) return 'teacher';
-    return 'admin';
-  };
+  // Load decks from backend
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+    flashcardApi.listDecks()
+      .then(decks => {
+        if (!cancelled) {
+          const adminSets = decks.map((d, i) => backendDeckToAdminSet(d, i));
+          setSets(adminSets);
+          console.log('[AdminFlashcards] Loaded decks:', adminSets.length);
+        }
+        return flashcardApi.getAdminStats();
+      })
+      .then(statsData => {
+        if (!cancelled) {
+          setStats(statsData);
+          console.log('[AdminFlashcards] Loaded stats:', statsData);
+        }
+      })
+      .catch(err => {
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : 'Không thể tải dữ liệu flashcard';
+          setLoadError(message);
+          console.error('[AdminFlashcards] Failed to load data:', err);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   // Modal States
-  const [previewSet, setPreviewSet] = useState<FlashcardMockSet | null>(null);
-  const [editingSet, setEditingSet] = useState<FlashcardMockSet | null>(null);
-  const [deletingSet, setDeletingSet] = useState<FlashcardMockSet | null>(null);
+  const [previewSet, setPreviewSet] = useState<AdminFlashcardSet | null>(null);
+  const [editingSet, setEditingSet] = useState<AdminFlashcardSet | null>(null);
+  const [deletingSet, setDeletingSet] = useState<AdminFlashcardSet | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
 
   // Form State for Add / Edit Modal
@@ -87,26 +163,25 @@ export function AdminFlashcardsTab({ onLogActivity }: AdminFlashcardsTabProps) {
   const [formCards, setFormCards] = useState<FlashcardItem[]>([]);
   const [formErrors, setFormErrors] = useState<string>('');
 
-  // Overview metrics
-  const totalSets = sets.length;
-  const systemSetsCount = sets.filter((s) => s.authorName !== 'Tôi' && !s.id.startsWith('user-fc') && !s.id.startsWith('my-fc')).length;
-  const userSetsCount = totalSets - systemSetsCount;
-  const unpublicSetsCount = sets.filter((s) => s.isPublic === false).length;
-  const totalWords = sets.reduce((sum, s) => sum + (s.cards?.length || s.wordCount || 0), 0);
-  const adminCount = sets.filter((s) => getAuthorRole(s) === 'admin').length;
-  const teacherCount = sets.filter((s) => getAuthorRole(s) === 'teacher').length;
-  const studentCount = sets.filter((s) => getAuthorRole(s) === 'student').length;
+  // Overview metrics from backend stats
+  const totalSets = stats?.totalDecks ?? sets.length;
+  const systemSetsCount = stats?.adminDecks ?? 0;
+  const userSetsCount = (stats?.teacherDecks ?? 0) + (stats?.studentDecks ?? 0);
+  const unpublicSetsCount = stats?.unpublicDecks ?? sets.filter((s) => !s.isPublic).length;
+  const totalWords = stats?.totalTerms ?? sets.reduce((sum, s) => sum + (s.cards?.length || s.wordCount || 0), 0);
+  const adminCount = stats?.adminDecks ?? sets.filter((s) => s.authorRole === 'admin').length;
+  const teacherCount = stats?.teacherDecks ?? sets.filter((s) => s.authorRole === 'teacher').length;
+  const studentCount = stats?.studentDecks ?? sets.filter((s) => s.authorRole === 'student').length;
 
   // Filtered & Sorted sets
   const filteredSets = useMemo(() => {
     return sets
       .filter((set) => {
-        const isSystem = set.authorName !== 'Tôi' && !set.id.startsWith('user-fc') && !set.id.startsWith('my-fc');
+        const isSystem = set.authorRole === 'admin' || set.authorRole === 'teacher';
         if (filterType === 'system' && !isSystem) return false;
         if (filterType === 'user' && isSystem) return false;
 
-        const role = getAuthorRole(set);
-        if (roleFilter !== 'all' && role !== roleFilter) return false;
+        if (roleFilter !== 'all' && set.authorRole !== roleFilter) return false;
 
         if (searchKey.trim()) {
           const q = searchKey.toLowerCase();
@@ -145,7 +220,7 @@ export function AdminFlashcardsTab({ onLogActivity }: AdminFlashcardsTabProps) {
     setFormErrors('');
   };
 
-  const handleOpenEditModal = (set: FlashcardMockSet) => {
+  const handleOpenEditModal = (set: AdminFlashcardSet) => {
     setIsCreatingNew(false);
     setEditingSet(set);
     setFormTitle(set.title);
@@ -189,7 +264,7 @@ export function AdminFlashcardsTab({ onLogActivity }: AdminFlashcardsTabProps) {
     });
   };
 
-  const handleSaveForm = (e: React.FormEvent) => {
+  const handleSaveForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitle.trim()) {
       setFormErrors('Vui lòng nhập tên bộ thẻ.');
@@ -210,78 +285,114 @@ export function AdminFlashcardsTab({ onLogActivity }: AdminFlashcardsTabProps) {
       return;
     }
 
-    if (isCreatingNew) {
-      const newId = `fc-admin-${Date.now()}`;
-      const newSet: FlashcardMockSet = {
-        id: newId,
-        title: formTitle.trim(),
-        subtitle: formSubtitle.trim() || 'Hệ thống biên soạn',
-        wordCount: validCards.length,
-        viewCount: 0,
-        authorName: user?.name || (user?.role === 'teacher' ? 'Giảng viên Demo' : 'Quản trị viên Demo'),
-        authorRole: (user?.role as 'admin' | 'teacher') || 'admin',
-        isPublic: formIsPublic,
-        iconName: formIcon,
-        iconBg: formIconBg,
-        iconColor: formIconColor,
-        cards: validCards,
-      };
+    const termRequests: TermRequest[] = validCards.map(c => ({ term: c.term, definition: c.definition }));
+    const authorName = user?.name || 'Quản trị viên';
+    const authorRole = (user?.role === 'teacher' ? 'teacher' : 'admin') as 'admin' | 'teacher';
 
-      addSystemFlashcardSet(newSet);
-      setSets([...ALL_FLASHCARD_SETS]);
-      onLogActivity?.('CREATE', `Tạo bộ flashcard hệ thống "${newSet.title}" (${validCards.length} từ)`);
-    } else if (editingSet) {
-      const updatedSet: FlashcardMockSet = {
-        ...editingSet,
-        title: formTitle.trim(),
-        subtitle: formSubtitle.trim() || 'Hệ thống biên soạn',
-        wordCount: validCards.length,
-        authorName: editingSet.authorName,
-        authorRole: editingSet.authorRole || getAuthorRole(editingSet),
-        isPublic: formIsPublic,
-        iconName: formIcon,
-        iconBg: formIconBg,
-        iconColor: formIconColor,
-        cards: validCards,
-      };
-
-      updateFlashcardSet(updatedSet);
-      setSets([...ALL_FLASHCARD_SETS]);
-      onLogActivity?.('UPDATE', `Cập nhật bộ flashcard "${updatedSet.title}"`);
+    try {
+      if (isCreatingNew) {
+        const created = await flashcardApi.bulkCreate({
+          name: formTitle.trim(),
+          description: formSubtitle.trim() || undefined,
+          authorName,
+          authorRole,
+          isPublic: formIsPublic,
+          terms: termRequests,
+        });
+        const newSet = backendDeckToAdminSet(created, sets.length);
+        setSets(prev => [...prev, newSet]);
+        onLogActivity?.('CREATE', `Tạo bộ flashcard "${created.name}" (${termRequests.length} từ)`);
+      } else if (editingSet) {
+        const updated = await flashcardApi.bulkUpdate(editingSet.backendId, {
+          name: formTitle.trim(),
+          description: formSubtitle.trim() || undefined,
+          authorName,
+          authorRole,
+          isPublic: formIsPublic,
+          terms: termRequests,
+        });
+        const updatedSet = backendDeckToAdminSet(updated, editingSet.backendId - 1);
+        // Preserve icon settings from form
+        updatedSet.iconName = formIcon;
+        updatedSet.iconBg = formIconBg;
+        updatedSet.iconColor = formIconColor;
+        setSets(prev => prev.map(s => s.backendId === updatedSet.backendId ? updatedSet : s));
+        onLogActivity?.('UPDATE', `Cập nhật bộ flashcard "${updated.name}"`);
+      }
+    } catch (err: any) {
+      setFormErrors(err.message || 'Có lỗi xảy ra khi lưu.');
+      return;
     }
 
     setIsCreatingNew(false);
     setEditingSet(null);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!deletingSet) return;
-    deleteFlashcardSet(deletingSet.id);
-    setSets([...ALL_FLASHCARD_SETS]);
-    onLogActivity?.('DELETE', `Xóa bộ flashcard "${deletingSet.title}"`);
-    setDeletingSet(null);
-    if (previewSet?.id === deletingSet.id) {
-      setPreviewSet(null);
+    try {
+      await flashcardApi.deleteDeck(deletingSet.backendId);
+      setSets(prev => prev.filter(s => s.backendId !== deletingSet.backendId));
+      onLogActivity?.('DELETE', `Xóa bộ flashcard "${deletingSet.title}"`);
+      setDeletingSet(null);
+      if (previewSet?.backendId === deletingSet.backendId) {
+        setPreviewSet(null);
+      }
+    } catch {
+      alert('Không thể xóa bộ flashcard.');
     }
   };
 
-  const handleTogglePublic = (id: string) => {
-    setSets((prev) =>
-      prev.map((s) => {
-        if (s.id === id) {
-          const newStatus = !(s.isPublic !== false);
-          const updated = { ...s, isPublic: newStatus };
-          updateFlashcardSet(updated);
-          onLogActivity?.(
-            'UPDATE',
-            `Chuyển trạng thái bộ flashcard "${s.title}" sang: ${newStatus ? 'Public' : 'Chưa public'}`
-          );
-          return updated;
-        }
-        return s;
-      })
-    );
+  const handleTogglePublic = async (set: AdminFlashcardSet) => {
+    const newStatus = !set.isPublic;
+    try {
+      const updated = await flashcardApi.togglePublic(set.backendId, newStatus);
+      const updatedSet = backendDeckToAdminSet(updated, set.backendId - 1);
+      // Preserve icon settings
+      updatedSet.iconName = set.iconName;
+      updatedSet.iconBg = set.iconBg;
+      updatedSet.iconColor = set.iconColor;
+      setSets(prev => prev.map(s => s.backendId === set.backendId ? updatedSet : s));
+      onLogActivity?.(
+        'UPDATE',
+        `Chuyển trạng thái bộ flashcard "${set.title}" sang: ${newStatus ? 'Public' : 'Chưa public'}`
+      );
+    } catch {
+      alert('Không thể cập nhật trạng thái.');
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="admin-flashcards-tab">
+        <div style={{ padding: '40px', textAlign: 'center' }}>
+          <h2>Đang tải...</h2>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="admin-flashcards-tab">
+        <div style={{ padding: '40px', textAlign: 'center' }}>
+          <AlertTriangle size={48} style={{ color: '#f59e0b', margin: '0 auto 16px' }} />
+          <h2 style={{ color: '#dc2626', marginBottom: '8px' }}>Lỗi tải dữ liệu</h2>
+          <p style={{ color: '#64748b', marginBottom: '16px' }}>{loadError}</p>
+          <p style={{ color: '#94a3b8', fontSize: '14px' }}>
+            Kiểm tra console trình duyệt (F12) để xem chi tiết lỗi. Đảm bảo backend đang chạy và cơ sở dữ liệu đã được cập nhật.
+          </p>
+          <button
+            className="assessment-primary"
+            style={{ marginTop: '16px' }}
+            onClick={() => window.location.reload()}
+          >
+            Thử lại
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="admin-flashcards-tab">
@@ -437,7 +548,7 @@ export function AdminFlashcardsTab({ onLogActivity }: AdminFlashcardsTabProps) {
                     </td>
                     <td>
                       {(() => {
-                        const role = getAuthorRole(set);
+                        const role = set.authorRole;
                         if (role === 'admin') {
                           return (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(59, 130, 246, 0.12)', color: '#2563eb', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: 600 }}>
@@ -468,8 +579,8 @@ export function AdminFlashcardsTab({ onLogActivity }: AdminFlashcardsTabProps) {
                     <td>
                       <div
                         className="toggle-switch-wrap"
-                        onClick={() => handleTogglePublic(set.id)}
-                        title={set.isPublic !== false ? 'Nhấp để chuyển sang Chưa public' : 'Nhấp để công khai bộ thẻ này'}
+                        onClick={() => handleTogglePublic(set)}
+                        title={set.isPublic ? 'Nhấp để chuyển sang Chưa public' : 'Nhấp để công khai bộ thẻ này'}
                       >
                         <div className={`toggle-switch-btn ${set.isPublic !== false ? 'is-public' : ''}`}>
                           <div className="toggle-switch-knob" />

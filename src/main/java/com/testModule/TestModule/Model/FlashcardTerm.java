@@ -1,5 +1,6 @@
 package com.testModule.TestModule.Model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
 @Entity
@@ -45,6 +46,7 @@ public class FlashcardTerm {
         this.definition = definition;
     }
 
+    @JsonIgnore
     public FlashcardDeck getDeck() {
         return deck;
     }

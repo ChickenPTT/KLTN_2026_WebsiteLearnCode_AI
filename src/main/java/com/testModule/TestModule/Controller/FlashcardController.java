@@ -3,6 +3,9 @@ package com.testModule.TestModule.Controller;
 import com.testModule.TestModule.Model.FlashcardDeck;
 import com.testModule.TestModule.Model.FlashcardTerm;
 import com.testModule.TestModule.Service.FlashcardService;
+import com.testModule.TestModule.dto.AdminFlashcardStats;
+import com.testModule.TestModule.dto.CreateDeckRequest;
+import com.testModule.TestModule.dto.UpdateDeckRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -74,5 +77,37 @@ public class FlashcardController {
     @GetMapping("/{deckId}/terms")
     public List<FlashcardTerm> getTermsByDeck(@PathVariable Long deckId) {
         return flashcardService.getTermsByDeck(deckId);
+    }
+
+    // ── Admin endpoints ──
+
+    @PostMapping("/admin/bulk-create")
+    @ResponseStatus(HttpStatus.CREATED)
+    public FlashcardDeck bulkCreateDeck(@RequestBody CreateDeckRequest request) {
+        return flashcardService.createDeckWithTerms(request);
+    }
+
+    @PutMapping("/admin/{id}/bulk-update")
+    public FlashcardDeck bulkUpdateDeck(@PathVariable Long id, @RequestBody UpdateDeckRequest request) {
+        return flashcardService.updateDeckWithTerms(id, request);
+    }
+
+    @PatchMapping("/{id}/public")
+    public FlashcardDeck togglePublic(@PathVariable Long id, @RequestBody Map<String, Boolean> body) {
+        Boolean isPublic = body.get("isPublic");
+        if (isPublic == null) {
+            throw new org.springframework.web.server.ResponseStatusException(HttpStatus.BAD_REQUEST, "Thiếu trường isPublic.");
+        }
+        return flashcardService.togglePublic(id, isPublic);
+    }
+
+    @PostMapping("/{id}/view")
+    public void incrementViewCount(@PathVariable Long id) {
+        flashcardService.incrementViewCount(id);
+    }
+
+    @GetMapping("/admin/stats")
+    public AdminFlashcardStats getAdminStats() {
+        return flashcardService.getAdminStats();
     }
 }

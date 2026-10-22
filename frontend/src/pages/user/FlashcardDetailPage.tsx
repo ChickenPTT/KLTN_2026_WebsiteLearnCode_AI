@@ -11,7 +11,7 @@ import {
   Maximize,
   RotateCcw,
 } from 'lucide-react';
-import { ALL_FLASHCARD_SETS, markSetCompleted, type FlashcardMockSet } from '@/data/flashcardMockData';
+import { flashcardApi, type BackendFlashcardDeck, type BackendFlashcardTerm } from '@/lib/api';
 
 interface FlashcardDetailPageProps {
   setId: string;
@@ -117,6 +117,10 @@ function ProgressDonut({
   );
 }
 
+function backendTermToCard(term: BackendFlashcardTerm): FlashcardItem {
+  return { id: String(term.id), term: term.term, definition: term.definition };
+}
+
 export function FlashcardDetailPage({
   setId,
   onBack,
@@ -131,7 +135,30 @@ export function FlashcardDetailPage({
   onLoggedOut,
   onGoMatch,
 }: FlashcardDetailPageProps) {
-  const set: FlashcardMockSet | undefined = ALL_FLASHCARD_SETS.find((s) => s.id === setId);
+  const [deck, setDeck] = useState<BackendFlashcardDeck | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Tải chi tiết deck từ backend
+  useEffect(() => {
+    const backendId = Number(setId);
+    if (!backendId) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    flashcardApi.getDeck(backendId)
+      .then(d => {
+        if (!cancelled) { setDeck(d); setLoading(false); }
+      })
+      .catch(() => {
+        if (!cancelled) { setDeck(null); setLoading(false); }
+      });
+    return () => { cancelled = true; };
+  }, [setId]);
+
+  const set: { id: string; title: string; subtitle: string; cards: FlashcardItem[] } | undefined =
+    deck ? { id: String(deck.id), title: deck.name, subtitle: deck.description ?? '', cards: deck.terms.map(backendTermToCard) } : undefined;
 
   const initialCards: FlashcardItem[] = useMemo(() => {
     if (set && set.cards && set.cards.length > 0) return set.cards;
@@ -162,10 +189,10 @@ export function FlashcardDetailPage({
     setIsCompleted(false);
   }, [initialCards]);
 
-  // Mark set as completed in library
+  // Mark set as completed in library (local tracking only)
   useEffect(() => {
     if (isCompleted && set) {
-      markSetCompleted(set.id, knownCardIds.size, initialCards.length);
+      // Progress tracked locally; no backend call needed for flashcard study
     }
   }, [isCompleted, set, knownCardIds.size, initialCards.length]);
 
@@ -283,6 +310,18 @@ export function FlashcardDetailPage({
       document.exitFullscreen().catch(() => {});
     }
   };
+
+  if (loading) {
+    return (
+      <div className="page-shell">
+        <Header activeView="flashcard-detail" />
+        <main style={{ padding: '40px', textAlign: 'center' }}>
+          <h2>Đang tải...</h2>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!set) {
     return (

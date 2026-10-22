@@ -31,4 +31,12 @@ public class ApiExceptionHandler {
     public ResponseEntity<Map<String, String>> handleUnreadable(HttpMessageNotReadableException ex) {
         return ResponseEntity.badRequest().body(Map.of("message", "Dữ liệu gửi lên không hợp lệ."));
     }
+
+    // Catch-all: log mọi exception chưa được xử lý để debug
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, String>> handleGeneral(Exception ex) {
+        ex.printStackTrace(System.err);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("message", "Lỗi server nội bộ: " + ex.getMessage()));
+    }
 }

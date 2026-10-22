@@ -158,7 +158,7 @@ function App() {
   const [selectedProblemId, setSelectedProblemId] = useState<string>(initialState.selectedProblemId);
   const [selectedTopic, setSelectedTopic] = useState<TopicInfo>(initialState.selectedTopic);
   const [adminTab, setAdminTab] = useState<AdminTab>(initialState.adminTab);
-  const [selectedFlashcardSetId, setSelectedFlashcardSetId] = useState<string>('fc-1');
+  const [selectedFlashcardSetId, setSelectedFlashcardSetId] = useState<string>('1');
   const [editingFlashcardSetId, setEditingFlashcardSetId] = useState<string | null>(null);
 
   const { user } = useAuth();

@@ -404,3 +404,184 @@ export interface UserStats {
 export const userApi = {
   getStats: () => apiFetch<UserStats>('/api/user/stats'),
 };
+
+// ── Flashcard types ──
+
+export interface BackendFlashcardTerm {
+  id: number;
+  term: string;
+  definition: string;
+}
+
+export interface BackendFlashcardDeck {
+  id: number;
+  name: string;
+  description: string | null;
+  authorName: string | null;
+  authorRole: string | null;
+  isPublic: boolean;
+  viewCount: number;
+  terms: BackendFlashcardTerm[];
+  createdAt: string;
+}
+
+export interface TermRequest {
+  term: string;
+  definition: string;
+}
+
+export interface CreateDeckRequest {
+  name: string;
+  description?: string;
+  authorName?: string;
+  authorRole?: string;
+  isPublic?: boolean;
+  terms?: TermRequest[];
+}
+
+export interface UpdateDeckRequest {
+  name?: string;
+  description?: string;
+  authorName?: string;
+  authorRole?: string;
+  isPublic?: boolean;
+  terms?: TermRequest[];
+}
+
+export interface AdminFlashcardStats {
+  totalDecks: number;
+  totalTerms: number;
+  publicDecks: number;
+  unpublicDecks: number;
+  adminDecks: number;
+  teacherDecks: number;
+  studentDecks: number;
+}
+
+export const flashcardApi = {
+  listDecks: () => apiFetch<BackendFlashcardDeck[]>('/api/flashcard/decks'),
+  getDeck: (id: number) => apiFetch<BackendFlashcardDeck>(`/api/flashcard/decks/${id}`),
+  getTerms: (deckId: number) => apiFetch<BackendFlashcardTerm[]>(`/api/flashcard/decks/${deckId}/terms`),
+  createDeck: (name: string, description?: string) =>
+    apiFetch<BackendFlashcardDeck>('/api/flashcard/decks', {
+      method: 'POST',
+      body: JSON.stringify({ name, description: description ?? null }),
+    }),
+  updateDeck: (id: number, name: string, description?: string) =>
+    apiFetch<BackendFlashcardDeck>(`/api/flashcard/decks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name, description: description ?? null }),
+    }),
+  deleteDeck: (id: number) =>
+    apiFetch<void>(`/api/flashcard/decks/${id}`, { method: 'DELETE' }),
+  addTerm: (deckId: number, term: string, definition: string) =>
+    apiFetch<BackendFlashcardTerm>(`/api/flashcard/decks/${deckId}/terms`, {
+      method: 'POST',
+      body: JSON.stringify({ term, definition }),
+    }),
+  updateTerm: (termId: number, term: string, definition: string) =>
+    apiFetch<BackendFlashcardTerm>(`/api/flashcard/decks/terms/${termId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ term, definition }),
+    }),
+  deleteTerm: (termId: number) =>
+    apiFetch<void>(`/api/flashcard/decks/terms/${termId}`, { method: 'DELETE' }),
+  // Admin endpoints
+  bulkCreate: (request: CreateDeckRequest) =>
+    apiFetch<BackendFlashcardDeck>('/api/flashcard/decks/admin/bulk-create', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }),
+  bulkUpdate: (id: number, request: UpdateDeckRequest) =>
+    apiFetch<BackendFlashcardDeck>(`/api/flashcard/decks/admin/${id}/bulk-update`, {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    }),
+  togglePublic: (id: number, isPublic: boolean) =>
+    apiFetch<BackendFlashcardDeck>(`/api/flashcard/decks/${id}/public`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isPublic }),
+    }),
+  incrementView: (id: number) =>
+    apiFetch<void>(`/api/flashcard/decks/${id}/view`, { method: 'POST' }),
+  getAdminStats: () => apiFetch<AdminFlashcardStats>('/api/flashcard/decks/admin/stats'),
+};
+
+// ── Quiz (Flashcard Match) types ──
+
+export interface GridCell {
+  cellId: string;
+  termId: number;
+  cellType: 'TERM' | 'DEFINITION';
+  displayText: string;
+}
+
+export interface RoundResponse {
+  sessionId: number;
+  roundNumber: number;
+  totalRounds: number;
+  timeLimit: number;
+  timeRemaining: number;
+  cells: GridCell[];
+  matchedPairs: number;
+  totalPairs: number;
+}
+
+export interface PairResult {
+  correct: boolean;
+  matchedPairs: number;
+  totalPairs: number;
+  timeRemaining: number;
+  roundCompleted: boolean;
+  quizCompleted: boolean;
+}
+
+export interface QuizRoundSummary {
+  roundNumber: number;
+  score: number;
+  totalPairs: number;
+  timeSpent: number;
+  timeLimit: number;
+  isTimeout: boolean;
+}
+
+export interface QuizResultResponse {
+  sessionId: number;
+  totalRounds: number;
+  totalScore: number;
+  totalPairs: number;
+  rounds: QuizRoundSummary[];
+  hasWrongTerms: boolean;
+}
+
+export type QuizType = 'BY_DECK' | 'RANDOM' | 'RETRY_WRONG';
+
+export const quizApi = {
+  startQuiz: (quizType: QuizType, deckId?: number, deckIds?: number[]) =>
+    apiFetch<RoundResponse>('/api/flashcard/quiz/start', {
+      method: 'POST',
+      body: JSON.stringify({ quizType, deckId, deckIds }),
+    }),
+  submitPair: (sessionId: number, cellId1: string, cellId2: string) =>
+    apiFetch<PairResult>('/api/flashcard/quiz/pair', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, cellId1, cellId2 }),
+    }),
+  getNextRound: (sessionId: number) =>
+    apiFetch<RoundResponse>(`/api/flashcard/quiz/next-round/${sessionId}`),
+  retryWrong: (sessionId: number) =>
+    apiFetch<RoundResponse>(`/api/flashcard/quiz/retry-wrong/${sessionId}`, { method: 'POST' }),
+  getQuizResult: (sessionId: number) =>
+    apiFetch<QuizResultResponse>(`/api/flashcard/quiz/result/${sessionId}`),
+  getQuizHistory: () =>
+    apiFetch<QuizSession[]>('/api/flashcard/quiz/history'),
+};
+
+export interface QuizSession {
+  id: number;
+  quizType: QuizType;
+  status: 'IN_PROGRESS' | 'COMPLETED';
+  currentRound: number;
+  totalRounds: number;
+  createdAt: string;
+}

@@ -1,5 +1,6 @@
 package com.testModule.TestModule.Model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
 @Entity
@@ -32,6 +33,7 @@ public class QuizWrongTerm {
         this.id = id;
     }
 
+    @JsonIgnore
     public QuizRoundResult getRoundResult() {
         return roundResult;
     }
@@ -40,6 +42,7 @@ public class QuizWrongTerm {
         this.roundResult = roundResult;
     }
 
+    @JsonIgnore
     public FlashcardTerm getTerm() {
         return term;
     }

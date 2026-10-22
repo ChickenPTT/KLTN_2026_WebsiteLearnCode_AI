@@ -18,12 +18,26 @@ import {
   Library,
 } from 'lucide-react';
 import {
-  MOCK_FLASHCARD_SETS,
-  MOCK_USER_FLASHCARD_SETS,
-  deleteFlashcardSet,
-  type FlashcardMockSet,
-  type CardIcon,
-} from '@/data/flashcardMockData';
+  flashcardApi,
+  type BackendFlashcardDeck,
+} from '@/lib/api';
+import type { CardIcon } from '@/data/flashcardMockData';
+
+/** Bridge type: backend deck + UI-only fields */
+interface FlashcardDisplaySet {
+  id: string;
+  backendId: number;
+  title: string;
+  subtitle: string;
+  wordCount: number;
+  viewCount: number;
+  authorName: string;
+  iconName: CardIcon;
+  iconBg: string;
+  iconColor: string;
+  isPublic?: boolean;
+  authorRole?: 'admin' | 'teacher' | 'student';
+}
 
 interface FlashcardsPageProps {
   onBack: () => void;
@@ -55,6 +69,34 @@ const ICON_MAP: Record<CardIcon, React.ElementType> = {
 
 export type Tab = 'explore' | 'my-sets' | 'learning';
 
+// Icon presets cho deck backend (vì backend không lưu icon)
+const ICON_PRESETS: { icon: CardIcon; bg: string; color: string }[] = [
+  { icon: 'Binary', bg: '#EEF2FF', color: '#4F46E5' },
+  { icon: 'Database', bg: '#ECFDF5', color: '#059669' },
+  { icon: 'Cpu', bg: '#FFF7ED', color: '#EA580C' },
+  { icon: 'Code2', bg: '#EFF6FF', color: '#2563EB' },
+  { icon: 'BrainCircuit', bg: '#FDF4FF', color: '#9333EA' },
+  { icon: 'Globe', bg: '#F0FDF4', color: '#16A34A' },
+];
+
+function backendDeckToDisplay(deck: BackendFlashcardDeck, index: number): FlashcardDisplaySet {
+  const preset = ICON_PRESETS[index % ICON_PRESETS.length];
+  return {
+    id: String(deck.id),
+    backendId: deck.id,
+    title: deck.name,
+    subtitle: deck.description ?? 'Bộ flashcard',
+    wordCount: deck.terms?.length ?? 0,
+    viewCount: 0,
+    authorName: 'Hệ thống',
+    iconName: preset.icon,
+    iconBg: preset.bg,
+    iconColor: preset.color,
+    isPublic: true,
+    authorRole: 'admin' as const,
+  };
+}
+
 export function FlashcardsPage({
   onAuth,
   onGoLanding,
@@ -74,26 +116,43 @@ export function FlashcardsPage({
 }: FlashcardsPageProps) {
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
-  const [userSets, setUserSets] = useState<FlashcardMockSet[]>([...MOCK_USER_FLASHCARD_SETS]);
+  const [allDecks, setAllDecks] = useState<FlashcardDisplaySet[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Luôn đồng bộ danh sách bộ thẻ tự tạo khi mở trang
+  // Tải danh sách decks từ backend
   useEffect(() => {
-    setUserSets([...MOCK_USER_FLASHCARD_SETS]);
+    let cancelled = false;
+    setLoading(true);
+    flashcardApi.listDecks()
+      .then(decks => {
+        if (!cancelled) {
+          const display = decks.map((d, i) => backendDeckToDisplay(d, i));
+          setAllDecks(display);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        // Backend chưa chạy — fallback về mảng rỗng
+        if (!cancelled) {
+          setAllDecks([]);
+          setLoading(false);
+        }
+      });
+    return () => { cancelled = true; };
   }, []);
 
-  const handleDeleteSet = (id: string, e: React.MouseEvent) => {
+  const handleDeleteSet = async (displaySet: FlashcardDisplaySet, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('Bạn có chắc muốn xóa bộ flashcard này?')) {
-      deleteFlashcardSet(id);
-      setUserSets([...MOCK_USER_FLASHCARD_SETS]);
+    if (!window.confirm('Bạn có chắc muốn xóa bộ flashcard này?')) return;
+    try {
+      await flashcardApi.deleteDeck(displaySet.backendId);
+      setAllDecks(prev => prev.filter(s => s.backendId !== displaySet.backendId));
+    } catch {
+      alert('Không thể xóa bộ flashcard.');
     }
   };
 
-  const currentSource = activeTab === 'my-sets' 
-    ? userSets 
-    : activeTab === 'learning'
-    ? MOCK_FLASHCARD_SETS.slice(0, 2)
-    : MOCK_FLASHCARD_SETS;
+  const currentSource = allDecks;
 
   const filteredSets = currentSource.filter(s =>
     s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -158,7 +217,7 @@ export function FlashcardsPage({
             className={`fc-tab${activeTab === 'my-sets' ? ' fc-tab--active' : ''}`}
             onClick={() => setActiveTab('my-sets')}
           >
-            Bộ thẻ của tôi ({userSets.length})
+            Bộ thẻ của tôi ({allDecks.length})
           </button>
           <button
             className={`fc-tab${activeTab === 'learning' ? ' fc-tab--active' : ''}`}
@@ -173,9 +232,9 @@ export function FlashcardsPage({
           <div>
             <h2 className="fc-section-title">
               {activeTab === 'my-sets' 
-                ? `Bộ thẻ đã tạo (${userSets.length})` 
-                : activeTab === 'learning' 
-                ? 'Đang học' 
+                ? `Bộ thẻ đã tạo (${allDecks.length})` 
+                : activeTab === 'learning'
+                ? 'Đang học'
                 : 'Bộ thẻ có sẵn'}
             </h2>
             <p className="fc-section-sub">
@@ -258,7 +317,7 @@ export function FlashcardsPage({
                       <button
                         className="fc-hcard-delete-btn"
                         title="Xóa bộ thẻ"
-                        onClick={(e) => handleDeleteSet(set.id, e)}
+                        onClick={(e) => handleDeleteSet(set, e)}
                       >
                         <Trash2 size={16} />
                       </button>

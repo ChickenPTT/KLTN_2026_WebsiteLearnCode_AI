@@ -2,18 +2,16 @@ import { useState, useRef, useEffect } from 'react';
 import { Header } from '@/layout/Header';
 import { Footer } from '@/layout/Footer';
 import { useAuth } from '@/hooks/useAuth';
-import type { AuthMode, FlashcardItem } from '@/types';
+import type { AuthMode } from '@/types';
 import {
   Trash2,
   Equal,
   CheckCircle,
 } from 'lucide-react';
 import {
-  addUserFlashcardSet,
-  updateUserFlashcardSet,
-  ALL_FLASHCARD_SETS,
-  type FlashcardMockSet,
-} from '@/data/flashcardMockData';
+  flashcardApi,
+  type BackendFlashcardDeck,
+} from '@/lib/api';
 
 const DRAFT_STORAGE_KEY = 'flashcard_create_draft_v1';
 
@@ -78,24 +76,30 @@ export function CreateFlashcardSetPage({
   // Load dữ liệu khi chỉnh sửa bộ thẻ HOẶC khôi phục bản nháp khi tạo mới
   useEffect(() => {
     if (isEditing && typeof editSetId === 'string') {
-      const existingSet = ALL_FLASHCARD_SETS.find((s) => s.id === editSetId);
-      if (existingSet) {
-        setTitle(existingSet.title);
-        setDescription(existingSet.subtitle);
-        if (existingSet.cards && existingSet.cards.length > 0) {
-          setCards(
-            existingSet.cards.map((c, i) => ({
-              id: c.id || String(i + 1),
-              term: c.term || '',
-              definition: c.definition || '',
-            }))
-          );
-        } else {
-          setCards([
-            { id: '1', term: '', definition: '' },
-            { id: '2', term: '', definition: '' },
-          ]);
-        }
+      const backendId = Number(editSetId);
+      if (backendId) {
+        flashcardApi.getDeck(backendId)
+          .then(deck => {
+            setTitle(deck.name);
+            setDescription(deck.description ?? '');
+            if (deck.terms && deck.terms.length > 0) {
+              setCards(
+                deck.terms.map((t, i) => ({
+                  id: String(t.id),
+                  term: t.term || '',
+                  definition: t.definition || '',
+                }))
+              );
+            } else {
+              setCards([
+                { id: '1', term: '', definition: '' },
+                { id: '2', term: '', definition: '' },
+              ]);
+            }
+          })
+          .catch(() => {
+            alert('Không thể tải bộ flashcard.');
+          });
       }
     } else {
       // Khôi phục bản nháp tự động từ localStorage
@@ -220,7 +224,7 @@ export function CreateFlashcardSetPage({
   };
 
   // Lưu và tạo / cập nhật bộ thẻ
-  const handleSubmit = (studyNow: boolean) => {
+  const handleSubmit = async (studyNow: boolean) => {
     let hasError = false;
     const newCardErrors: { [cardId: string]: CardErrors } = {};
 
@@ -257,53 +261,45 @@ export function CreateFlashcardSetPage({
       return;
     }
 
-    const validCards: FlashcardItem[] = cards.map((c, i) => ({
-      id: c.id || `card-${i + 1}-${Date.now()}`,
+    const validCards = cards.map((c, i) => ({
       term: c.term.trim(),
       definition: c.definition.trim(),
     }));
 
-    if (isEditing && editSetId) {
-      // CHẾ ĐỘ CHỈNH SỬA: Cập nhật bộ thẻ hiện tại
-      const currentSet = ALL_FLASHCARD_SETS.find((s) => s.id === editSetId);
-      const updatedSet: FlashcardMockSet = {
-        id: editSetId,
-        title: title.trim(),
-        subtitle: description.trim() || 'Tự biên soạn',
-        wordCount: validCards.length,
-        viewCount: currentSet ? currentSet.viewCount : 1,
-        authorName: currentSet ? currentSet.authorName : (user?.name || 'Sinh viên Demo'),
-        iconName: currentSet ? currentSet.iconName : 'Code2',
-        iconBg: currentSet ? currentSet.iconBg : '#EFF6FF',
-        iconColor: currentSet ? currentSet.iconColor : '#2563EB',
-        cards: validCards,
-      };
+    try {
+      if (isEditing && editSetId) {
+        // CHẾ ĐỘ CHỈNH SỬA: Cập nhật deck + terms
+        const backendId = Number(editSetId);
+        await flashcardApi.updateDeck(backendId, title.trim(), description.trim() || undefined);
 
-      updateUserFlashcardSet(updatedSet);
-      onCreated(editSetId, studyNow);
-    } else {
-      // CHẾ ĐỘ TẠO MỚI: Thêm mới và xóa bản nháp
-      const newSetId = `user-fc-${Date.now()}`;
-      const newSet: FlashcardMockSet = {
-        id: newSetId,
-        title: title.trim(),
-        subtitle: description.trim() || 'Tự biên soạn',
-        wordCount: validCards.length,
-        viewCount: 1,
-        authorName: user?.name || 'Sinh viên Demo',
-        iconName: 'Code2',
-        iconBg: '#EFF6FF',
-        iconColor: '#2563EB',
-        cards: validCards,
-      };
+        // Xóa terms cũ rồi thêm lại
+        const deck = await flashcardApi.getDeck(backendId);
+        for (const t of deck.terms) {
+          await flashcardApi.deleteTerm(t.id);
+        }
+        for (const card of validCards) {
+          await flashcardApi.addTerm(backendId, card.term, card.definition);
+        }
 
-      addUserFlashcardSet(newSet);
-      try {
-        localStorage.removeItem(DRAFT_STORAGE_KEY);
-      } catch (e) {
-        console.error(e);
+        onCreated(String(backendId), studyNow);
+      } else {
+        // CHẾ ĐỘ TẠO MỚI: Tạo deck mới + thêm terms
+        const deck = await flashcardApi.createDeck(title.trim(), description.trim() || undefined);
+        for (const card of validCards) {
+          await flashcardApi.addTerm(deck.id, card.term, card.definition);
+        }
+
+        // Xóa bản nháp
+        try {
+          localStorage.removeItem(DRAFT_STORAGE_KEY);
+        } catch (e) {
+          console.error(e);
+        }
+        onCreated(String(deck.id), studyNow);
       }
-      onCreated(newSetId, studyNow);
+    } catch (err) {
+      alert('Không thể lưu bộ flashcard. Vui lòng thử lại.');
+      console.error(err);
     }
   };
 
