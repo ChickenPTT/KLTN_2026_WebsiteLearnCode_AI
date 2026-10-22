@@ -5,7 +5,8 @@ import java.time.LocalDateTime;
 public record AuditLogDto(
     Long id,
     String action,
-    String username,
+    // Đặt tên "user" cho khớp với frontend (AuditLog.user trong lib/api.ts) và AdminDashboardStats.AuditLog
+    String user,
     String target,
     String time
 ) {

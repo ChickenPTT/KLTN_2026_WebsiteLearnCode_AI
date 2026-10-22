@@ -18,8 +18,8 @@ export function AdminAuditLogsTab({ activityLogs, onBackToDashboard }: AdminAudi
     return activityLogs.filter((log) => {
       const matchesAction = filterAction === 'ALL' || log.action === filterAction;
       const matchesSearch =
-        log.user.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        log.target.toLowerCase().includes(searchQuery.toLowerCase());
+        (log.user ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (log.target ?? '').toLowerCase().includes(searchQuery.toLowerCase());
       return matchesAction && matchesSearch;
     });
   }, [activityLogs, filterAction, searchQuery]);

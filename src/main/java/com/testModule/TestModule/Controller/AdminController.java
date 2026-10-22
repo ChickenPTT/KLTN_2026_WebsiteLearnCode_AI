@@ -82,20 +82,20 @@ public class AdminController {
         userManagementService.deleteUser(currentUser.getUser().getId(), id);
     }
 
-//    @GetMapping("/audit-logs")
-//    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-//    public List<AuditLogDto> getAuditLogs(
-//            @RequestParam(required = false) String action
-//    ) {
-//        if (action != null && !action.isEmpty()) {
-//            return auditLogService.getLogsByAction(action).stream()
-//                .map(AuditLogDto::from)
-//                .toList();
-//        }
-//        return auditLogService.getAllLogs().stream()
-//            .map(AuditLogDto::from)
-//            .toList();
-//    }
+    @GetMapping("/audit-logs")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    public List<AuditLogDto> getAuditLogs(
+            @RequestParam(required = false) String action
+    ) {
+        if (action != null && !action.isEmpty()) {
+            return auditLogService.getLogsByAction(action).stream()
+                .map(AuditLogDto::from)
+                .toList();
+        }
+        return auditLogService.getAllLogs().stream()
+            .map(AuditLogDto::from)
+            .toList();
+    }
 
     public record CreateUserRequest(String fullName, String email, String password, Role role) {}
     public record UpdateUserRequest(String fullName, String email, Role role) {}

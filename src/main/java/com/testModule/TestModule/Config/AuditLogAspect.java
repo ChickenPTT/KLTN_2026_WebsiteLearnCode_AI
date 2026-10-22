@@ -5,12 +5,16 @@ import com.testModule.TestModule.Service.AuditLogService;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 @Aspect
 @Component
+// pom.xml không có starter AOP/aspectj nên không chắc Spring Boot tự bật AOP -> bật tường minh để aspect này chạy.
+// proxyTargetClass = true: proxy theo class (CGLIB) để controller inject class cụ thể vẫn hoạt động.
+@EnableAspectJAutoProxy(proxyTargetClass = true)
 public class AuditLogAspect {
 
     private final AuditLogService auditLogService;
@@ -33,7 +37,7 @@ public class AuditLogAspect {
     public Object logCreateUser(ProceedingJoinPoint joinPoint) throws Throwable {
         Object result = joinPoint.proceed();
         String user = getCurrentUser();
-        auditLogService.saveLog(user, "Create", "Thêm tài khoản người dùng mới");
+        auditLogService.saveLog(user, "CREATE", "Thêm tài khoản người dùng mới");
         return result;
     }
     @Around("execution(* com.testModule.TestModule.Service.UserManagementService.updateUser(..))")
@@ -60,9 +64,9 @@ public class AuditLogAspect {
         return result;
     }
 
-    // ── Template operations ──
+    // ── Template operations ── (tên method thật trong TemplateCommandService: create / update / delete)
 
-    @Around("execution(* com.testModule.TestModule.Service.TemplateCommandService.createTemplate(..))")
+    @Around("execution(* com.testModule.TestModule.Service.TemplateCommandService.create(..))")
     public Object logCreateTemplate(ProceedingJoinPoint joinPoint) throws Throwable {
         Object result = joinPoint.proceed();
         String user = getCurrentUser();
@@ -70,19 +74,19 @@ public class AuditLogAspect {
         return result;
     }
 
-    @Around("execution(* com.testModule.TestModule.Service.TemplateCommandService.updateTemplate(..))")
+    @Around("execution(* com.testModule.TestModule.Service.TemplateCommandService.update(..))")
     public Object logUpdateTemplate(ProceedingJoinPoint joinPoint) throws Throwable {
         Object result = joinPoint.proceed();
         String user = getCurrentUser();
-        auditLogService.saveLog(user, "UPDATE", "Cập nhật thông tin Template");
+        auditLogService.saveLog(user, "UPDATE", "Cập nhật thông tin Template #" + joinPoint.getArgs()[0]);
         return result;
     }
 
-    @Around("execution(* com.testModule.TestModule.Service.TemplateCommandService.deleteTemplate(..))")
+    @Around("execution(* com.testModule.TestModule.Service.TemplateCommandService.delete(..))")
     public Object logDeleteTemplate(ProceedingJoinPoint joinPoint) throws Throwable {
         Object result = joinPoint.proceed();
         String user = getCurrentUser();
-        auditLogService.saveLog(user, "DELETE", "Xóa Template bài mẫu");
+        auditLogService.saveLog(user, "DELETE", "Xóa Template bài mẫu #" + joinPoint.getArgs()[0]);
         return result;
     }
 
@@ -92,7 +96,32 @@ public class AuditLogAspect {
     public Object logGenerateProblem(ProceedingJoinPoint joinPoint) throws Throwable {
         Object result = joinPoint.proceed();
         String user = getCurrentUser();
-        auditLogService.saveLog(user, "CREATE", "Xuất bản bài tập AI sinh tự động");
+        // generateVariant lưu bài ở trạng thái DRAFT, chưa xuất bản
+        auditLogService.saveLog(user, "CREATE", "Sinh bài tập AI mới (bản nháp) từ Template #" + joinPoint.getArgs()[0]);
+        return result;
+    }
+
+    @Around("execution(* com.testModule.TestModule.Service.ProblemService.publishProblem(..))")
+    public Object logPublishProblem(ProceedingJoinPoint joinPoint) throws Throwable {
+        Object result = joinPoint.proceed();
+        String user = getCurrentUser();
+        auditLogService.saveLog(user, "TOGGLE", "Công khai bài tập #" + joinPoint.getArgs()[0]);
+        return result;
+    }
+
+    @Around("execution(* com.testModule.TestModule.Service.ProblemService.unpublishProblem(..))")
+    public Object logUnpublishProblem(ProceedingJoinPoint joinPoint) throws Throwable {
+        Object result = joinPoint.proceed();
+        String user = getCurrentUser();
+        auditLogService.saveLog(user, "TOGGLE", "Ẩn bài tập #" + joinPoint.getArgs()[0] + " (chuyển về bản nháp)");
+        return result;
+    }
+
+    @Around("execution(* com.testModule.TestModule.Service.ProblemService.deleteProblem(..))")
+    public Object logDeleteProblem(ProceedingJoinPoint joinPoint) throws Throwable {
+        Object result = joinPoint.proceed();
+        String user = getCurrentUser();
+        auditLogService.saveLog(user, "DELETE", "Xóa bài tập #" + joinPoint.getArgs()[0]);
         return result;
     }
 }
