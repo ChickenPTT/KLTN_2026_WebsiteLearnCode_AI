@@ -138,7 +138,7 @@ export function FlashcardDetailPage({
   const [deck, setDeck] = useState<BackendFlashcardDeck | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Tải chi tiết deck từ backend
+  // Tải chi tiết deck từ backend và tăng viewCount
   useEffect(() => {
     const backendId = Number(setId);
     if (!backendId) {
@@ -150,6 +150,8 @@ export function FlashcardDetailPage({
     flashcardApi.getDeck(backendId)
       .then(d => {
         if (!cancelled) { setDeck(d); setLoading(false); }
+        // Tăng viewCount (fire-and-forget)
+        flashcardApi.incrementView(backendId).catch(() => {});
       })
       .catch(() => {
         if (!cancelled) { setDeck(null); setLoading(false); }
@@ -157,8 +159,12 @@ export function FlashcardDetailPage({
     return () => { cancelled = true; };
   }, [setId]);
 
-  const set: { id: string; title: string; subtitle: string; cards: FlashcardItem[] } | undefined =
-    deck ? { id: String(deck.id), title: deck.name, subtitle: deck.description ?? '', cards: deck.terms.map(backendTermToCard) } : undefined;
+  // useMemo theo deck: nếu tạo object mới mỗi render thì initialCards đổi liên tục -> effect bên dưới
+  // reset isFlipped/currentIndex sau mỗi click (lỗi không lật được thẻ, nút X / ✓ không chạy)
+  const set: { id: string; title: string; subtitle: string; cards: FlashcardItem[] } | undefined = useMemo(
+    () => (deck ? { id: String(deck.id), title: deck.name, subtitle: deck.description ?? '', cards: deck.terms.map(backendTermToCard) } : undefined),
+    [deck],
+  );
 
   const initialCards: FlashcardItem[] = useMemo(() => {
     if (set && set.cards && set.cards.length > 0) return set.cards;
@@ -189,14 +195,33 @@ export function FlashcardDetailPage({
     setIsCompleted(false);
   }, [initialCards]);
 
-  // Mark set as completed in library (local tracking only)
+  // Học xong -> lưu tiến độ lên backend để hiện ở "Thư viện của bạn" (chưa đăng nhập thì bỏ qua lỗi 401)
   useEffect(() => {
-    if (isCompleted && set) {
-      // Progress tracked locally; no backend call needed for flashcard study
+    if (isCompleted && deck) {
+      flashcardApi.saveStudyProgress(deck.id, knownCardIds.size, activeCards.length).catch(() => {});
     }
-  }, [isCompleted, set, knownCardIds.size, initialCards.length]);
+  }, [isCompleted, deck]);
 
   const currentCard = activeCards[currentIndex] || activeCards[0] || initialCards[0];
+
+  // Guard: if no card available, show empty state
+  if (!currentCard && !loading) {
+    return (
+      <div className="page-shell">
+        <Header activeView="flashcard-detail" />
+        <main style={{ padding: '40px', textAlign: 'center' }}>
+          <h2>Bộ flashcard này chưa có từ vựng</h2>
+          <p style={{ color: '#64748b', marginTop: '8px' }}>
+            Vui lòng quay lại và chọn bộ flashcard khác.
+          </p>
+          <button onClick={onBack} className="secondary-button" style={{ marginTop: '16px' }}>
+            Quay lại
+          </button>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   const flipCard = useCallback(() => {
     setIsFlipped((prev) => !prev);

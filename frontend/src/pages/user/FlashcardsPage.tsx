@@ -117,6 +117,8 @@ export function FlashcardsPage({
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [allDecks, setAllDecks] = useState<FlashcardDisplaySet[]>([]);
+  // Bộ thẻ do chính user tạo — tải riêng từ /mine, không lẫn với bộ thẻ khám phá
+  const [myDecks, setMyDecks] = useState<FlashcardDisplaySet[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Tải danh sách decks từ backend
@@ -126,7 +128,8 @@ export function FlashcardsPage({
     flashcardApi.listDecks()
       .then(decks => {
         if (!cancelled) {
-          const display = decks.map((d, i) => backendDeckToDisplay(d, i));
+          // Khám phá chỉ hiện bộ thẻ công khai
+          const display = decks.filter((d) => d.isPublic !== false).map((d, i) => backendDeckToDisplay(d, i));
           setAllDecks(display);
           setLoading(false);
         }
@@ -138,6 +141,14 @@ export function FlashcardsPage({
           setLoading(false);
         }
       });
+    // Chưa đăng nhập -> API trả 401 -> để rỗng
+    flashcardApi.listMyDecks()
+      .then(decks => {
+        if (!cancelled) setMyDecks(decks.map((d, i) => backendDeckToDisplay(d, i)));
+      })
+      .catch(() => {
+        if (!cancelled) setMyDecks([]);
+      });
     return () => { cancelled = true; };
   }, []);
 
@@ -147,12 +158,13 @@ export function FlashcardsPage({
     try {
       await flashcardApi.deleteDeck(displaySet.backendId);
       setAllDecks(prev => prev.filter(s => s.backendId !== displaySet.backendId));
+      setMyDecks(prev => prev.filter(s => s.backendId !== displaySet.backendId));
     } catch {
       alert('Không thể xóa bộ flashcard.');
     }
   };
 
-  const currentSource = allDecks;
+  const currentSource = activeTab === 'my-sets' ? myDecks : allDecks;
 
   const filteredSets = currentSource.filter(s =>
     s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -217,7 +229,7 @@ export function FlashcardsPage({
             className={`fc-tab${activeTab === 'my-sets' ? ' fc-tab--active' : ''}`}
             onClick={() => setActiveTab('my-sets')}
           >
-            Bộ thẻ của tôi ({allDecks.length})
+            Bộ thẻ của tôi ({myDecks.length})
           </button>
           <button
             className={`fc-tab${activeTab === 'learning' ? ' fc-tab--active' : ''}`}

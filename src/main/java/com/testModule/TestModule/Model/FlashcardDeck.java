@@ -26,6 +26,9 @@ public class FlashcardDeck {
     @Column(length = 50)
     private String authorRole;
 
+    // Id user tạo bộ thẻ (null với bộ thẻ admin tạo qua bulk-create) -> dùng cho "Bộ thẻ của tôi"
+    private Long ownerId;
+
     @Column(nullable = false)
     private Boolean isPublic = true;
 
@@ -40,6 +43,14 @@ public class FlashcardDeck {
 
     public Long getId() {
         return id;
+    }
+
+    public Long getOwnerId() {
+        return ownerId;
+    }
+
+    public void setOwnerId(Long ownerId) {
+        this.ownerId = ownerId;
     }
 
     public void setId(Long id) {

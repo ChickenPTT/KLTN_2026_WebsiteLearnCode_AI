@@ -10,4 +10,6 @@ public interface FlashcardTermRepository extends JpaRepository<FlashcardTerm, Lo
     List<FlashcardTerm> findByDeckId(Long deckId);
 
     List<FlashcardTerm> findByDeckIdIn(List<Long> deckIds);
+
+    long countByDeckId(Long deckId);
 }

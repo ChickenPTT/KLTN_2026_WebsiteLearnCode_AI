@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Header } from '@/layout/Header';
 import { Footer } from '@/layout/Footer';
 import type { AuthMode } from '@/types';
+import type { FlashcardItem } from '@/types';
 import {
   Library,
   BookOpen,
@@ -22,11 +23,7 @@ import {
   Check,
   X,
 } from 'lucide-react';
-import {
-  MOCK_COMPLETED_FLASHCARD_SETS,
-  type CompletedFlashcardSet,
-  type CardIcon,
-} from '@/data/flashcardMockData';
+import { quizApi, flashcardApi, type QuizSession, type FlashcardStudyProgress } from '@/lib/api';
 
 interface FlashcardLibraryPageProps {
   onBack: () => void;
@@ -47,6 +44,8 @@ interface FlashcardLibraryPageProps {
   onGoMatch?: (setId: string) => void;
 }
 
+type CardIcon = 'Binary' | 'Database' | 'Cpu' | 'Code2' | 'BrainCircuit' | 'Globe';
+
 const ICON_MAP: Record<CardIcon, React.ElementType> = {
   Binary,
   Database,
@@ -56,7 +55,51 @@ const ICON_MAP: Record<CardIcon, React.ElementType> = {
   Globe,
 };
 
+const ICON_PRESETS: { icon: CardIcon; bg: string; color: string }[] = [
+  { icon: 'Binary', bg: '#EEF2FF', color: '#4F46E5' },
+  { icon: 'Database', bg: '#ECFDF5', color: '#059669' },
+  { icon: 'Cpu', bg: '#FFF7ED', color: '#EA580C' },
+  { icon: 'Code2', bg: '#EFF6FF', color: '#2563EB' },
+  { icon: 'BrainCircuit', bg: '#FDF4FF', color: '#9333EA' },
+  { icon: 'Globe', bg: '#F0FDF4', color: '#16A34A' },
+];
+
 type RoleFilter = 'all' | 'system' | 'user';
+
+// Completed set type — matches the library display needs
+interface CompletedFlashcardSet {
+  id: string;
+  title: string;
+  subtitle: string;
+  wordCount: number;
+  viewCount: number;
+  authorName: string;
+  authorRole: 'admin' | 'teacher' | 'student';
+  iconName: CardIcon;
+  iconBg: string;
+  iconColor: string;
+  cards: FlashcardItem[];
+  completedAt: string;
+  masteryPercent: number;
+  knownCards: number;
+}
+
+// Format createdAt to relative time string
+function formatCompletedAt(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Vừa xong';
+  if (diffMins < 60) return `${diffMins} phút trước`;
+  if (diffHours < 24) return `${diffHours} giờ trước`;
+  if (diffDays === 1) return 'Hôm qua';
+  if (diffDays < 7) return `${diffDays} ngày trước`;
+  return date.toLocaleDateString('vi-VN');
+}
 
 // ── Circular donut chart ─────────────────────────────────────────────────────
 function ProgressDonut({ known, total }: { known: number; total: number }) {
@@ -340,16 +383,93 @@ export function FlashcardLibraryPage({
   onSelectSet,
   onGoMatch,
 }: FlashcardLibraryPageProps) {
-  const [completedSets, setCompletedSets] = useState<CompletedFlashcardSet[]>([
-    ...MOCK_COMPLETED_FLASHCARD_SETS,
-  ]);
+  const [completedSets, setCompletedSets] = useState<CompletedFlashcardSet[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [selectedSet, setSelectedSet] = useState<CompletedFlashcardSet | null>(null);
 
-  // Luôn đồng bộ danh sách bộ thẻ đã hoàn thành khi mở trang
+  // Load completed quiz history from backend, then enrich with deck details
   useEffect(() => {
-    setCompletedSets([...MOCK_COMPLETED_FLASHCARD_SETS]);
+    let cancelled = false;
+    setLoading(true);
+    // Gộp 2 nguồn: tiến độ học lật thẻ (study-progress) + phiên quiz đã hoàn thành
+    Promise.all([
+      flashcardApi.getMyStudyProgress().catch(() => [] as FlashcardStudyProgress[]),
+      quizApi.getQuizHistory().catch(() => [] as QuizSession[]),
+    ])
+      .then(async ([progressList, sessions]) => {
+        if (cancelled) return;
+        // Mỗi deck giữ lần hoàn thành gần nhất
+        const byDeck = new Map<number, { completedAt: string; known?: number; total?: number; wordCount?: number; deckName?: string | null }>();
+        const keepLatest = (deckId: number, entry: { completedAt: string; known?: number; total?: number; wordCount?: number; deckName?: string | null }) => {
+          const prev = byDeck.get(deckId);
+          if (!prev || new Date(entry.completedAt) > new Date(prev.completedAt)) {
+            // Giữ số thẻ đã thuộc từ lần học lật thẻ nếu lần mới nhất là quiz
+            byDeck.set(deckId, { ...prev, ...entry, known: entry.known ?? prev?.known, total: entry.total ?? prev?.total });
+          } else if (entry.known != null && prev.known == null) {
+            byDeck.set(deckId, { ...prev, known: entry.known, total: entry.total });
+          }
+        };
+        for (const p of progressList) {
+          keepLatest(p.deckId, { completedAt: p.completedAt, known: p.knownCards, total: p.totalCards });
+        }
+        for (const s of sessions) {
+          if (s.status === 'COMPLETED' && s.deckId != null) {
+            keepLatest(s.deckId, { completedAt: s.createdAt, wordCount: s.deckWordCount, deckName: s.deckName });
+          }
+        }
+        if (byDeck.size === 0) {
+          setCompletedSets([]);
+          return;
+        }
+        // Fetch deck details for each unique deck (deck đã bị xóa thì bỏ qua)
+        const deckPromises = Array.from(byDeck.entries()).map(async ([deckId, info]) => {
+          const deck = await flashcardApi.getDeck(deckId).catch(() => null);
+          if (!deck) return null;
+          const preset = ICON_PRESETS[deckId % ICON_PRESETS.length];
+          // Backend trả role viết hoa (ADMIN/TEACHER/STUDENT) -> chuẩn hóa cho bộ lọc
+          const role = ((deck.authorRole ?? 'admin').toLowerCase()) as 'admin' | 'teacher' | 'student';
+          const cards: FlashcardItem[] = (deck.terms ?? []).map(t => ({
+            id: String(t.id),
+            term: t.term,
+            definition: t.definition,
+          }));
+          const wordCount = cards.length || (info.wordCount ?? 0);
+          const knownCards = info.known != null ? Math.min(info.known, wordCount) : wordCount;
+          const total = info.total || wordCount;
+          return {
+            id: String(deckId),
+            title: deck.name || info.deckName || `Deck #${deckId}`,
+            subtitle: deck.description || 'Bộ flashcard',
+            wordCount,
+            viewCount: deck.viewCount ?? 0,
+            authorName: deck.authorName || 'Hệ thống',
+            authorRole: role,
+            iconName: preset.icon,
+            iconBg: preset.bg,
+            iconColor: preset.color,
+            cards,
+            completedAt: formatCompletedAt(info.completedAt),
+            masteryPercent: total > 0 ? Math.round((Math.min(info.known ?? total, total) / total) * 100) : 0,
+            knownCards,
+          } as CompletedFlashcardSet;
+        });
+        const sets = (await Promise.all(deckPromises)).filter((s): s is CompletedFlashcardSet => s !== null);
+        if (!cancelled) {
+          setCompletedSets(sets);
+        }
+      })
+      .catch(err => {
+        if (!cancelled) {
+          console.error('[FlashcardLibrary] Failed to load quiz history:', err);
+          setCompletedSets([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
   }, []);
 
   const filteredSets = completedSets.filter((s) => {
@@ -380,7 +500,11 @@ export function FlashcardLibraryPage({
       />
 
       <main className="progress-main">
-        {selectedSet ? (
+        {loading ? (
+          <div style={{ padding: '40px', textAlign: 'center' }}>
+            <h2>Đang tải thư viện...</h2>
+          </div>
+        ) : selectedSet ? (
           /* ── Chi tiết bộ đã học xong ── */
           <CompletedSetDetail
             set={selectedSet}

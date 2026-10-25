@@ -43,7 +43,7 @@ public class QuizController {
     }
 
     @GetMapping("/history")
-    public List<QuizSession> getQuizHistory() {
+    public List<QuizSessionDto> getQuizHistory() {
         return quizService.getQuizHistory();
     }
 }

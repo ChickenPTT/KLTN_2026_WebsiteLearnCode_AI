@@ -180,23 +180,6 @@ export function FlashcardMatchPage({
         if (round) {
           setRound(prev => prev ? { ...prev, matchedPairs: result.matchedPairs, timeRemaining: result.timeRemaining } : null);
         }
-
-        // Check if round completed
-        if (result.roundCompleted) {
-          if (result.quizCompleted) {
-            // Quiz finished — fetch result
-            setIsGameActive(false);
-            const qr = await quizApi.getQuizResult(sessionId);
-            setQuizResult(qr);
-          } else {
-            // Move to next round
-            const nextRound = await quizApi.getNextRound(sessionId);
-            setRound(nextRound);
-            setTiles(nextRound.cells.map(backendCellToTile));
-            setMatchedTermIds(new Set());
-            setSelectedTileId(null);
-          }
-        }
       } else {
         // Wrong match — show red flash
         setWrongTileIds([firstTile.tileId, tile.tileId]);
@@ -204,6 +187,26 @@ export function FlashcardMatchPage({
           setWrongTileIds([]);
           setSelectedTileId(null);
         }, 500);
+      }
+
+      // Kiểm tra hết round cho CẢ trường hợp sai: khi hết giờ backend trả correct=false + roundCompleted=true,
+      // nếu chỉ xét trong nhánh đúng thì người chơi bị kẹt ở round đã hết giờ.
+      if (result.roundCompleted) {
+        if (result.quizCompleted) {
+          // Quiz finished — fetch result
+          setIsGameActive(false);
+          const qr = await quizApi.getQuizResult(sessionId);
+          setQuizResult(qr);
+        } else {
+          // Move to next round
+          const nextRound = await quizApi.getNextRound(sessionId);
+          setRound(nextRound);
+          setTiles(nextRound.cells.map(backendCellToTile));
+          setMatchedTermIds(new Set());
+          setSelectedTileId(null);
+          setWrongTileIds([]);
+          setIsGameActive(true);
+        }
       }
     } catch (err) {
       console.error('Lỗi khi gửi cặp:', err);

@@ -419,10 +419,20 @@ export interface BackendFlashcardDeck {
   description: string | null;
   authorName: string | null;
   authorRole: string | null;
+  ownerId?: number | null;
   isPublic: boolean;
   viewCount: number;
   terms: BackendFlashcardTerm[];
   createdAt: string;
+}
+
+export interface FlashcardStudyProgress {
+  id: number;
+  userId: number;
+  deckId: number;
+  knownCards: number;
+  totalCards: number;
+  completedAt: string;
 }
 
 export interface TermRequest {
@@ -460,6 +470,13 @@ export interface AdminFlashcardStats {
 
 export const flashcardApi = {
   listDecks: () => apiFetch<BackendFlashcardDeck[]>('/api/flashcard/decks'),
+  listMyDecks: () => apiFetch<BackendFlashcardDeck[]>('/api/flashcard/decks/mine'),
+  getMyStudyProgress: () => apiFetch<FlashcardStudyProgress[]>('/api/flashcard/decks/study-progress/mine'),
+  saveStudyProgress: (deckId: number, knownCards: number, totalCards: number) =>
+    apiFetch<FlashcardStudyProgress>(`/api/flashcard/decks/${deckId}/study-progress`, {
+      method: 'POST',
+      body: JSON.stringify({ knownCards, totalCards }),
+    }),
   getDeck: (id: number) => apiFetch<BackendFlashcardDeck>(`/api/flashcard/decks/${id}`),
   getTerms: (deckId: number) => apiFetch<BackendFlashcardTerm[]>(`/api/flashcard/decks/${deckId}/terms`),
   createDeck: (name: string, description?: string) =>
@@ -542,7 +559,8 @@ export interface QuizRoundSummary {
   totalPairs: number;
   timeSpent: number;
   timeLimit: number;
-  isTimeout: boolean;
+  /** Backend getter isTimeout() -> Jackson serialize thành "timeout" */
+  timeout: boolean;
 }
 
 export interface QuizResultResponse {
@@ -584,4 +602,7 @@ export interface QuizSession {
   currentRound: number;
   totalRounds: number;
   createdAt: string;
+  deckId: number | null;
+  deckName: string | null;
+  deckWordCount: number;
 }

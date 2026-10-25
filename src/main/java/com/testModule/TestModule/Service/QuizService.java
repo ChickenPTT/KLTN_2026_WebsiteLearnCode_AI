@@ -391,11 +391,33 @@ public class QuizService {
     }
 
     /**
-     * Get quiz history for current user.
+     * Get quiz history for current user as DTOs — avoids circular reference with FlashcardDeck.
      */
-    public List<QuizSession> getQuizHistory() {
+    @Transactional
+    public List<QuizSessionDto> getQuizHistory() {
         User user = getCurrentUser();
-        return sessionRepository.findByUserOrderByCreatedAtDesc(user);
+        List<QuizSession> sessions = sessionRepository.findByUserOrderByCreatedAtDesc(user);
+        List<QuizSessionDto> dtos = new ArrayList<>();
+        for (QuizSession s : sessions) {
+            FlashcardDeck deck = s.getDeck();
+            int wordCount = 0;
+            if (deck != null && deck.getId() != null) {
+                wordCount = (int) termRepository.countByDeckId(deck.getId());
+            }
+            QuizSessionDto dto = new QuizSessionDto(
+                    s.getId(),
+                    s.getQuizType().name(),
+                    s.getStatus().name(),
+                    s.getCurrentRound(),
+                    s.getTotalRounds(),
+                    s.getCreatedAt().toString(),
+                    deck != null ? deck.getId() : null,
+                    deck != null ? deck.getName() : null,
+                    wordCount
+            );
+            dtos.add(dto);
+        }
+        return dtos;
     }
 
     // --- Helper methods ---

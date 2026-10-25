@@ -58,8 +58,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/admin/**").hasAnyRole("ADMIN", "TEACHER")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/run", "/api/submit", "/api/analyze", "/api/history/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/flashcard/decks/mine").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/flashcard/decks", "/api/flashcard/decks/**").permitAll()
-                        .requestMatchers("/api/flashcard/decks/**").hasAnyRole("ADMIN", "TEACHER")
+                        // Chức năng quản trị flashcard: chỉ ADMIN/TEACHER
+                        .requestMatchers("/api/flashcard/decks/admin/**", "/api/flashcard/decks/*/public").hasAnyRole("ADMIN", "TEACHER")
+                        // User đã đăng nhập được tạo/sửa/xóa bộ thẻ của mình (kiểm tra chủ sở hữu trong controller)
+                        .requestMatchers("/api/flashcard/decks", "/api/flashcard/decks/**").authenticated()
                         .requestMatchers("/api/flashcard/quiz/**").authenticated()
                         .anyRequest().authenticated()
                 )

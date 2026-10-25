@@ -1,8 +1,10 @@
 package com.testModule.TestModule.Service;
 
 import com.testModule.TestModule.Model.FlashcardDeck;
+import com.testModule.TestModule.Model.FlashcardStudyProgress;
 import com.testModule.TestModule.Model.FlashcardTerm;
 import com.testModule.TestModule.Repository.FlashcardDeckRepository;
+import com.testModule.TestModule.Repository.FlashcardStudyProgressRepository;
 import com.testModule.TestModule.Repository.FlashcardTermRepository;
 import com.testModule.TestModule.dto.AdminFlashcardStats;
 import com.testModule.TestModule.dto.CreateDeckRequest;
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,10 +24,33 @@ public class FlashcardService {
 
     private final FlashcardDeckRepository deckRepository;
     private final FlashcardTermRepository termRepository;
+    private final FlashcardStudyProgressRepository studyProgressRepository;
 
-    public FlashcardService(FlashcardDeckRepository deckRepository, FlashcardTermRepository termRepository) {
+    public FlashcardService(FlashcardDeckRepository deckRepository, FlashcardTermRepository termRepository,
+                            FlashcardStudyProgressRepository studyProgressRepository) {
         this.deckRepository = deckRepository;
         this.termRepository = termRepository;
+        this.studyProgressRepository = studyProgressRepository;
+    }
+
+    /** Lưu kết quả học xong 1 bộ thẻ (ghi đè lần học trước của cùng user + deck) */
+    @Transactional
+    public FlashcardStudyProgress saveStudyProgress(Long userId, Long deckId, int knownCards, int totalCards) {
+        if (!deckRepository.existsById(deckId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bộ flashcard.");
+        }
+        FlashcardStudyProgress progress = studyProgressRepository.findByUserIdAndDeckId(userId, deckId)
+                .orElseGet(FlashcardStudyProgress::new);
+        progress.setUserId(userId);
+        progress.setDeckId(deckId);
+        progress.setKnownCards(Math.max(0, knownCards));
+        progress.setTotalCards(Math.max(0, totalCards));
+        progress.setCompletedAt(LocalDateTime.now());
+        return studyProgressRepository.save(progress);
+    }
+
+    public List<FlashcardStudyProgress> listMyStudyProgress(Long userId) {
+        return studyProgressRepository.findByUserIdOrderByCompletedAtDesc(userId);
     }
 
     public List<FlashcardDeck> listDecks() {
@@ -37,6 +63,37 @@ public class FlashcardService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bộ flashcard.");
         }
         return deck;
+    }
+
+    public List<FlashcardDeck> listMyDecks(Long ownerId) {
+        return deckRepository.findByOwnerIdWithTerms(ownerId);
+    }
+
+    /** Chỉ chủ bộ thẻ hoặc ADMIN/TEACHER mới được sửa/xóa */
+    public void checkCanModify(Long deckId, Long userId, boolean staff) {
+        if (staff) return;
+        FlashcardDeck deck = deckRepository.findById(deckId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bộ flashcard."));
+        if (deck.getOwnerId() == null || !deck.getOwnerId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bạn không có quyền chỉnh sửa bộ flashcard này.");
+        }
+    }
+
+    public void checkCanModifyTerm(Long termId, Long userId, boolean staff) {
+        if (staff) return;
+        FlashcardTerm term = termRepository.findById(termId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thuật ngữ."));
+        checkCanModify(term.getDeck().getId(), userId, false);
+    }
+
+    @Transactional
+    public FlashcardDeck createDeck(String name, String description, Long ownerId, String authorName, String authorRole) {
+        FlashcardDeck deck = createDeck(name, description);
+        deck.setOwnerId(ownerId);
+        deck.setAuthorName(authorName);
+        deck.setAuthorRole(authorRole);
+        deck.setIsPublic(false);
+        return deckRepository.save(deck);
     }
 
     @Transactional
@@ -123,7 +180,6 @@ public class FlashcardService {
         return termRepository.findByDeckId(deckId);
     }
 
-    // ── Admin: Bulk create deck with terms ──
 
     @Transactional
     public FlashcardDeck createDeckWithTerms(CreateDeckRequest request) {
@@ -163,8 +219,6 @@ public class FlashcardService {
         return deck;
     }
 
-    // ── Admin: Bulk update deck with terms ──
-
     @Transactional
     public FlashcardDeck updateDeckWithTerms(Long id, UpdateDeckRequest request) {
         // Load deck với terms để có managed entity
@@ -191,11 +245,7 @@ public class FlashcardService {
         if (request.isPublic() != null) {
             deck.setIsPublic(request.isPublic());
         }
-
-        // Bulk update terms: quản lý trực tiếp qua managed collection
-        // Hibernate orphanRemoval sẽ tự động xóa terms bị remove và cascade ALL sẽ persist terms mới
         if (request.terms() != null) {
-            // Xóa tất cả terms cũ khỏi collection — orphanRemoval = true sẽ tự xóa khỏi DB
             deck.getTerms().clear();
 
             // Thêm terms mới vào collection — cascade = ALL sẽ tự persist
@@ -223,8 +273,6 @@ public class FlashcardService {
         return deckRepository.save(deck);
     }
 
-    // ── Admin: Increment view count ──
-
     @Transactional
     public void incrementViewCount(Long id) {
         deckRepository.findById(id).ifPresent(deck -> {
@@ -232,8 +280,6 @@ public class FlashcardService {
             deckRepository.save(deck);
         });
     }
-
-    // ── Admin: Get stats ──
 
     public AdminFlashcardStats getAdminStats() {
         List<FlashcardDeck> allDecks = deckRepository.findAll();
@@ -246,7 +292,6 @@ public class FlashcardService {
         int studentDecks = 0;
 
         for (FlashcardDeck deck : allDecks) {
-            // Count terms via repository
             totalTerms += termRepository.findByDeckId(deck.getId()).size();
 
             if (Boolean.TRUE.equals(deck.getIsPublic())) {
@@ -254,7 +299,6 @@ public class FlashcardService {
             } else {
                 unpublicDecks++;
             }
-
             String role = deck.getAuthorRole();
             if ("admin".equals(role)) {
                 adminDecks++;
@@ -264,7 +308,6 @@ public class FlashcardService {
                 studentDecks++;
             }
         }
-
         return new AdminFlashcardStats(totalDecks, totalTerms, publicDecks, unpublicDecks, adminDecks, teacherDecks, studentDecks);
     }
 }
