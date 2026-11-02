@@ -173,4 +173,47 @@ public class UserManagementService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Họ tên không hợp lệ.");
         }
     }
+
+    @Transactional(readOnly = true)
+    public List<com.testModule.TestModule.Controller.HistoryController.HistoryItem> getUserHistory(Long userId) {
+        findUser(userId);
+        return historySubmitRepository.findByStudentIdOrderBySubmittedAtDesc(userId).stream()
+                .map(UserManagementService::toHistoryItem)
+                .collect(Collectors.toList());
+    }
+
+    private static com.testModule.TestModule.Controller.HistoryController.HistoryItem toHistoryItem(HistorySubmit h) {
+        com.testModule.TestModule.Model.Problem p = h.getProblem();
+        String title = problemTitle(p);
+        return new com.testModule.TestModule.Controller.HistoryController.HistoryItem(
+                h.getId(),
+                p.getId(),
+                title,
+                p.getTopic(),
+                p.getLevel(),
+                h.isPassed(),
+                h.getSubmittedAt(),
+                h.getLanguageId() != null ? h.getLanguageId() : p.getLanguageId(),
+                h.getPassedCount(),
+                h.getTotalCount(),
+                h.getMaxTime(),
+                h.getMaxMemory(),
+                h.getAiSeverity()
+        );
+    }
+
+    private static String problemTitle(com.testModule.TestModule.Model.Problem p) {
+        if (p.getTemplate() != null && p.getTemplate().getName() != null && !p.getTemplate().getName().isBlank()) {
+            return p.getTemplate().getName();
+        }
+        String statement = p.getStatement() == null ? "" : p.getStatement();
+        String[] lines = statement.split("\n");
+        for (String line : lines) {
+            String trimmed = line.replaceAll("^[#*\\->\\s]+|[*`]+", "").trim();
+            if (!trimmed.isEmpty()) {
+                return trimmed.length() > 80 ? trimmed.substring(0, 77) + "..." : trimmed;
+            }
+        }
+        return "Bài tập #" + p.getId();
+    }
 }

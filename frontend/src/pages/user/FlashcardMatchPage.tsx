@@ -8,6 +8,8 @@ import {
   CheckCircle2,
   Trophy,
 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { LoginModal } from '@/components/LoginModal';
 import {
   quizApi,
   type GridCell as BackendGridCell,
@@ -63,6 +65,9 @@ export function FlashcardMatchPage({
   onGoSettings,
   onLoggedOut,
 }: FlashcardMatchPageProps) {
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
+
   const backendDeckId = Number(setId);
   const deckTitle = setId ? `Deck #${setId}` : 'Bộ từ vựng';
 
@@ -91,6 +96,11 @@ export function FlashcardMatchPage({
   useEffect(() => {
     if (!backendDeckId) {
       setError('Không tìm thấy bộ flashcard.');
+      setLoading(false);
+      return;
+    }
+    if (!isLoggedIn) {
+      setError('Vui lòng đăng nhập để chơi trò chơi ghép thẻ.');
       setLoading(false);
       return;
     }
@@ -147,6 +157,10 @@ export function FlashcardMatchPage({
 
   // Handle tile click
   const handleTileClick = async (tile: MatchTile) => {
+    if (!isLoggedIn) {
+      onAuth?.('signup');
+      return;
+    }
     if (matchedTermIds.has(tile.termId) || wrongTileIds.length > 0 || !sessionId) return;
 
     // Deselect if clicking same tile
@@ -407,6 +421,14 @@ export function FlashcardMatchPage({
       </main>
 
       <Footer />
+
+      {/* ── Modal yêu cầu đăng nhập ── */}
+      <LoginModal
+        isOpen={!isLoggedIn && !loading && !error}
+        actionLabel="Chơi trò chơi ghép thẻ"
+        onLogin={(mode) => onAuth?.(mode)}
+        onClose={() => onBack()}
+      />
     </div>
   );
 }

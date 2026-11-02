@@ -9,9 +9,7 @@ import {
   type SampleTemplate,
   type GeneratedQuestion,
   type ActivityLog,
-  MOCK_USERS_LIST,
   MOCK_SAMPLE_TEMPLATES,
-  DEFAULT_TOPIC_STATS,
 } from './admin.types';
 import { AdminSidebarNav } from './AdminSidebarNav';
 import { AdminDashboardTab } from './AdminDashboardTab';
@@ -141,7 +139,6 @@ export function AdminPage({
     solvedCount: u.solvedCount,
     status: u.active ? 'active' : 'suspended',
     joinDate: u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : new Date().toLocaleDateString('vi-VN'),
-    topicStats: DEFAULT_TOPIC_STATS,
   });
 
   // Mapping backend Problem level to frontend difficulty
@@ -403,7 +400,6 @@ export function AdminPage({
         solvedCount: 0,
         status: 'active',
         joinDate: new Date().toLocaleDateString('vi-VN'),
-        topicStats: DEFAULT_TOPIC_STATS,
       };
       setUsers((prev) => [newUser, ...prev]);
     }

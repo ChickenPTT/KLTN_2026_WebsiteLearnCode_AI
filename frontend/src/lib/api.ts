@@ -261,6 +261,31 @@ export const adminApi = {
     const query = action ? `?action=${action}` : '';
     return apiFetch<AuditLog[]>(`/api/admin/audit-logs${query}`);
   },
+  getUserHistory: (userId: number) =>
+    apiFetch<BackendHistoryItem[]>(`/api/admin/users/${userId}/history`),
+};
+
+// ── Public stats (no auth required) ──
+
+export interface PublicStats {
+  totalUsers: number;
+  totalTemplates: number;
+  totalProblems: number;
+  publishedProblems: number;
+  submissionsToday: number;
+  totalSubmissions7d: number;
+  passedSubmissions7d: number;
+  passRate: number;
+}
+
+export const publicApi = {
+  getStats: () =>
+    fetch('/api/public/stats')
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch stats');
+        return res.json();
+      })
+      .then(data => data as PublicStats),
 };
 
 export interface Topic {

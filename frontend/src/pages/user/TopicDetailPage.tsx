@@ -24,10 +24,12 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { TopicInfo, AuthMode } from '@/types';
+import { useAuth } from '@/hooks/useAuth';
 import { usePublishedProblems } from '@/hooks/usePublishedProblems';
 import { useSubmissionStatus } from '@/hooks/useSubmissionStatus';
 import { sameTopic } from '@/lib/problemsApi';
 import { Pagination } from '@/components/Pagination';
+import { LoginModal } from '@/components/LoginModal';
 import { Header } from '@/layout/Header';
 import { Footer } from '@/layout/Footer';
 
@@ -85,11 +87,15 @@ export function TopicDetailPage({
   onGoFlashcards,
   onGoFlashcardLibrary,
 }: TopicDetailPageProps) {
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
+
   const [search, setSearch] = useState('');
   const [diffFilter, setDiffFilter] = useState<'All' | 'Easy' | 'Medium' | 'Hard'>('All');
   const [sortOrder, setSortOrder] = useState<'default' | 'name' | 'diff-asc' | 'diff-desc'>('default');
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const TopicIcon = ICON_MAP[topic.icon] ?? Code2;
 
@@ -313,7 +319,13 @@ export function TopicDetailPage({
                         className={`assessment-primary problem-action-btn ${
                           subStatus === 'passed' ? 'btn-passed' : ''
                         }`}
-                        onClick={() => onGoPractice(p.id)}
+                        onClick={() => {
+                          if (!isLoggedIn) {
+                            setShowLoginModal(true);
+                            return;
+                          }
+                          onGoPractice(p.id);
+                        }}
                       >
                         {subStatus === 'passed' ? (
                           <>
@@ -357,6 +369,17 @@ export function TopicDetailPage({
       </main>
 
       <Footer />
+
+      {/* ── Modal yêu cầu đăng nhập ── */}
+      <LoginModal
+        isOpen={showLoginModal}
+        actionLabel="Luyện bài"
+        onLogin={(mode) => {
+          setShowLoginModal(false);
+          onGoAuth(mode);
+        }}
+        onClose={() => setShowLoginModal(false)}
+      />
     </div>
   );
 }

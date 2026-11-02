@@ -1,8 +1,10 @@
-import { useState } from 'react';
-import { X, ShieldAlert, CheckCircle2, Flame, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, ShieldAlert, CheckCircle2, Flame, Trash2, Loader2 } from 'lucide-react';
 import { LEVEL_COLORS, LEVEL_LABELS } from '@/types';
-import { DEFAULT_TOPIC_STATS, type UserRecord } from './admin.types';
+import { type UserRecord, type UserTopicStat } from './admin.types';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { adminApi, type BackendHistoryItem } from '@/lib/api';
+import { topicSkills, type TopicSkill } from '@/lib/progress';
 
 interface AdminUserDetailModalProps {
   userRecord: UserRecord;
@@ -27,6 +29,47 @@ export function AdminUserDetailModal({
   const [editUserError, setEditUserError] = useState<string | null>(null);
   const [editUserSaved, setEditUserSaved] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Load real topic stats from backend
+  const [topicStats, setTopicStats] = useState<UserTopicStat[] | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const backendId = Number(userRecord.id);
+    if (isNaN(backendId)) {
+      setStatsLoading(false);
+      setTopicStats(null);
+      return;
+    }
+    setStatsLoading(true);
+    adminApi.getUserHistory(backendId)
+      .then((history: BackendHistoryItem[]) => {
+        if (cancelled) return;
+        // Tính topic skills giống như ProgressPage
+        const skills: TopicSkill[] = topicSkills(history);
+        // Map sang UserTopicStat
+        const mapped: UserTopicStat[] = skills.map((s) => {
+          // Map skill level label sang SkillLevel
+          let level: UserTopicStat['level'] = 'beginner';
+          if (s.score >= 80) level = 'expert';
+          else if (s.score >= 60) level = 'advanced';
+          else if (s.score >= 40) level = 'intermediate';
+          else if (s.score >= 20) level = 'basic';
+          else level = 'beginner';
+          return { topic: s.name, solvedCount: s.solvedCount, level };
+        });
+        setTopicStats(mapped.length > 0 ? mapped : null);
+        setStatsLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTopicStats(null);
+          setStatsLoading(false);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [userRecord.id]);
 
   const validateEmail = (email: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -144,28 +187,39 @@ export function AdminUserDetailModal({
             <Flame size={16} className="text-yellow" /> Thống kê trình độ theo từng chủ đề của người dùng
           </h4>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {(userRecord.topicStats ?? DEFAULT_TOPIC_STATS).map((t) => (
-              <div key={t.topic} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 110px 90px', alignItems: 'center', gap: '12px', fontSize: '13px' }}>
-                <span style={{ color: '#9ba5bf', fontWeight: 500 }}>{t.topic}</span>
-                <div className="topic-progress-track">
-                  <div
-                    className="topic-progress-fill"
-                    style={{
-                      width: t.level === 'expert' ? '100%' : t.level === 'advanced' ? '80%' : t.level === 'intermediate' ? '60%' : t.level === 'basic' ? '40%' : '20%',
-                      background: LEVEL_COLORS[t.level],
-                    }}
-                  />
+          {statsLoading ? (
+            <div style={{ textAlign: 'center', padding: '24px', color: '#7d8599', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <Loader2 size={16} className="spin" />
+              <span style={{ fontSize: '13px' }}>Đang tải thống kê...</span>
+            </div>
+          ) : topicStats && topicStats.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {topicStats.map((t) => (
+                <div key={t.topic} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 110px 90px', alignItems: 'center', gap: '12px', fontSize: '13px' }}>
+                  <span style={{ color: '#9ba5bf', fontWeight: 500 }}>{t.topic}</span>
+                  <div className="topic-progress-track">
+                    <div
+                      className="topic-progress-fill"
+                      style={{
+                        width: t.level === 'expert' ? '100%' : t.level === 'advanced' ? '80%' : t.level === 'intermediate' ? '60%' : t.level === 'basic' ? '40%' : '20%',
+                        background: LEVEL_COLORS[t.level],
+                      }}
+                    />
+                  </div>
+                  <span style={{ color: LEVEL_COLORS[t.level], fontWeight: 600, fontSize: '12px' }}>
+                    {LEVEL_LABELS[t.level]}
+                  </span>
+                  <span style={{ color: '#888f9c', fontSize: '12px', textAlign: 'right' }}>
+                    {t.solvedCount} bài giải
+                  </span>
                 </div>
-                <span style={{ color: LEVEL_COLORS[t.level], fontWeight: 600, fontSize: '12px' }}>
-                  {LEVEL_LABELS[t.level]}
-                </span>
-                <span style={{ color: '#888f9c', fontSize: '12px', textAlign: 'right' }}>
-                  {t.solvedCount} bài giải
-                </span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '24px', color: '#7d8599', fontSize: '13px' }}>
+              Người dùng chưa có lần nộp bài nào.
+            </div>
+          )}
         </div>
 
         {/* Modal Actions */}

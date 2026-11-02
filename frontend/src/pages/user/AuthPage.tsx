@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+
 import {
   ArrowLeft,
   ChevronRight,
@@ -13,7 +14,8 @@ import { Brand } from '@/components/Brand';
 import { useAuth } from '@/hooks/useAuth';
 import type { AuthMode } from '@/types';
 import type { UserRole } from '@/data/mockAuth';
-
+import { publicApi } from '@/lib/api';
+import type { PublicStats } from '@/lib/api';
 interface AuthPageProps {
   onBack: () => void;
   initialMode: AuthMode;
@@ -24,6 +26,23 @@ export function AuthPage({ onBack, initialMode, onLoginSuccess }: AuthPageProps)
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+
+  const DEFAULT_STATS: PublicStats = {
+    totalUsers: 0,
+    totalTemplates: 0,
+    totalProblems: 0,
+    publishedProblems: 0,
+    submissionsToday: 0,
+    totalSubmissions7d: 0,
+    passedSubmissions7d: 0,
+    passRate: 0,
+  };
+  const [stats, setStats] = useState<PublicStats>(DEFAULT_STATS);
+
+  useEffect(() => {
+    publicApi.getStats().then(setStats).catch(() => {});
+  }, []);
 
   // Form fields
   const [name, setName] = useState('');
@@ -84,21 +103,21 @@ export function AuthPage({ onBack, initialMode, onLoginSuccess }: AuthPageProps)
             tất cả trong một nền tảng.
           </p>
           <div className="auth-visual-stats">
-            <div><strong>1,200+</strong><span>Bài tập</span></div>
-            <div><strong>50+</strong><span>Chủ đề</span></div>
-            <div><strong>30+</strong><span>Trường ĐH</span></div>
+            <div><strong>{stats.publishedProblems.toLocaleString('vi-VN')}</strong><span>Bài tập</span></div>
+            <div><strong>12</strong><span>Chủ đề</span></div>
+            {/*<div><strong>30+</strong><span>Trường ĐH</span></div>*/}
           </div>
 
           {/* Gợi ý tài khoản mock */}
           <div className="auth-visual-hint">
-            <p style={{ marginTop: '1.5rem', fontSize: '0.78rem', opacity: 0.6 }}>
-              🧪 Mock test accounts:
-            </p>
-            <p style={{ fontSize: '0.75rem', opacity: 0.55, lineHeight: 1.8 }}>
-              student@demo.com / demo1234 (Sinh viên)<br />
-              teacher@demo.com / demo1234 (Giảng viên/Admin)<br />
-              admin@demo.com &nbsp;/ demo1234 (Quản trị viên)
-            </p>
+            {/*<p style={{ marginTop: '1.5rem', fontSize: '0.78rem', opacity: 0.6 }}>*/}
+            {/*  🧪 Mock test accounts:*/}
+            {/*</p>*/}
+            {/*<p style={{ fontSize: '0.75rem', opacity: 0.55, lineHeight: 1.8 }}>*/}
+            {/*  student@demo.com / demo1234 (Sinh viên)<br />*/}
+            {/*  teacher@demo.com / demo1234 (Giảng viên/Admin)<br />*/}
+            {/*  admin@demo.com &nbsp;/ demo1234 (Quản trị viên)*/}
+            {/*</p>*/}
           </div>
         </div>
       </div>

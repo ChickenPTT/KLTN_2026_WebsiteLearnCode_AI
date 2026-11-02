@@ -12,6 +12,8 @@ public interface ProblemRepository extends JpaRepository<Problem, Long> {
 
     List<Problem> findByStatus(Problem.Status status);
 
+    long countByStatus(Problem.Status status);
+
     List<Problem> findByTemplate_Id(Long templateId);
 
     long countBySourceType(Problem.SourceType sourceType);

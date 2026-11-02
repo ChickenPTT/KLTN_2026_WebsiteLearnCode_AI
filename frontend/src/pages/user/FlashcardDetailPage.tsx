@@ -11,6 +11,8 @@ import {
   Maximize,
   RotateCcw,
 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { LoginModal } from '@/components/LoginModal';
 import { flashcardApi, type BackendFlashcardDeck, type BackendFlashcardTerm } from '@/lib/api';
 
 interface FlashcardDetailPageProps {
@@ -135,8 +137,12 @@ export function FlashcardDetailPage({
   onLoggedOut,
   onGoMatch,
 }: FlashcardDetailPageProps) {
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
+
   const [deck, setDeck] = useState<BackendFlashcardDeck | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   // Tải chi tiết deck từ backend và tăng viewCount
   useEffect(() => {
@@ -224,11 +230,19 @@ export function FlashcardDetailPage({
   }
 
   const flipCard = useCallback(() => {
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
     setIsFlipped((prev) => !prev);
-  }, []);
+  }, [isLoggedIn]);
 
   // Đánh dấu X: Chưa thuộc (Cần học lại)
   const handleMarkLearning = useCallback(() => {
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
     if (!currentCard) return;
     setLearningCardIds((prev) => new Set(prev).add(currentCard.id));
     setKnownCardIds((prev) => {
@@ -247,6 +261,10 @@ export function FlashcardDetailPage({
 
   // Đánh dấu ✓: Đã thuộc (Đã biết)
   const handleMarkKnown = useCallback(() => {
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
     if (!currentCard) return;
     setKnownCardIds((prev) => new Set(prev).add(currentCard.id));
     setLearningCardIds((prev) => {
@@ -728,6 +746,17 @@ export function FlashcardDetailPage({
       </main>
 
       <Footer />
+
+      {/* ── Modal yêu cầu đăng nhập ── */}
+      <LoginModal
+        isOpen={showLoginModal}
+        actionLabel="Học flashcard"
+        onLogin={(mode) => {
+          setShowLoginModal(false);
+          onAuth?.(mode);
+        }}
+        onClose={() => setShowLoginModal(false)}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Header } from '@/layout/Header';
 import { Footer } from '@/layout/Footer';
 import { useAuth } from '@/hooks/useAuth';
+import { LoginModal } from '@/components/LoginModal';
 import type { AuthMode } from '@/types';
 import {
   Trash2,
@@ -59,7 +60,9 @@ export function CreateFlashcardSetPage({
   onCreated,
 }: CreateFlashcardSetPageProps) {
   const { user } = useAuth();
+  const isLoggedIn = !!user;
   const isEditing = Boolean(editSetId && typeof editSetId === 'string' && editSetId.trim().length > 0);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -225,6 +228,10 @@ export function CreateFlashcardSetPage({
 
   // Lưu và tạo / cập nhật bộ thẻ
   const handleSubmit = async (studyNow: boolean) => {
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
     let hasError = false;
     const newCardErrors: { [cardId: string]: CardErrors } = {};
 
@@ -460,6 +467,17 @@ export function CreateFlashcardSetPage({
       </main>
 
       <Footer />
+
+      {/* ── Modal yêu cầu đăng nhập ── */}
+      <LoginModal
+        isOpen={showLoginModal}
+        actionLabel="Tạo bộ flashcard"
+        onLogin={(mode) => {
+          setShowLoginModal(false);
+          onAuth?.(mode);
+        }}
+        onClose={() => setShowLoginModal(false)}
+      />
     </div>
   );
 }

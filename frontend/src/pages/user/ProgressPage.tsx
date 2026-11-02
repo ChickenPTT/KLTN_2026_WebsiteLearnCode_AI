@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { Header } from '@/layout/Header';
 import type { AuthMode } from '@/types';
+import { useAuth } from '@/hooks/useAuth';
+import { LoginModal } from '@/components/LoginModal';
 import { userApi, BackendUnavailableError, type UserStats } from '@/lib/api';
 import { useMyHistory } from '@/hooks/useMyHistory';
 import { usePublishedProblems } from '@/hooks/usePublishedProblems';
@@ -53,6 +55,9 @@ export function ProgressPage({
   onGoFlashcards,
   onGoFlashcardLibrary,
 }: ProgressPageProps) {
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
+
   // Modal state for 7-day activity log
   const [showActivityModal, setShowActivityModal] = useState(false);
   // Hover state for Pie Chart
@@ -432,6 +437,14 @@ export function ProgressPage({
           </div>
         </div>
       )}
+
+      {/* ── Modal yêu cầu đăng nhập ── */}
+      <LoginModal
+        isOpen={!isLoggedIn}
+        actionLabel="Xem tiến độ học tập"
+        onLogin={(mode) => onGoAuth?.(mode)}
+        onClose={() => {}}
+      />
     </div>
   );
 }

@@ -22,6 +22,8 @@ import {
 import type { PracticeProblem, AuthMode } from '@/types';
 import { Header } from '@/layout/Header';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { LoginModal } from '@/components/LoginModal';
+import { useAuth } from '@/hooks/useAuth';
 import { usePublishedProblems } from '@/hooks/usePublishedProblems';
 import {
   judgeApi,
@@ -114,6 +116,9 @@ function PracticePage({
   onGoFlashcards,
   onGoFlashcardLibrary,
 }: PracticePageProps) {
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
+
   // Danh sach bai public (cache dung chung) — cho nut "Bài ngẫu nhiên" / "Bài tiếp theo"
   const { problems: publishedProblems } = usePublishedProblems();
 
@@ -140,6 +145,10 @@ function PracticePage({
   // Popup states
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
+
+  // Login modal state
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginAction, setLoginAction] = useState<string>('');
 
   // Dynamic Monaco Editor theme for Light/Dark mode
   const [editorTheme, setEditorTheme] = useState<'vs' | 'vs-dark'>(() =>
@@ -233,6 +242,11 @@ function PracticePage({
 
   const handleRun = async (): Promise<void> => {
     if (!problem) return;
+    if (!isLoggedIn) {
+      setLoginAction('Chạy thử code');
+      setShowLoginModal(true);
+      return;
+    }
     resetResults();
     setRunState('running');
     try {
@@ -247,6 +261,12 @@ function PracticePage({
 
   const handleSubmitConfirmed = async (): Promise<void> => {
     if (!problem) return;
+    if (!isLoggedIn) {
+      setShowSubmitConfirm(false);
+      setLoginAction('Nộp bài');
+      setShowLoginModal(true);
+      return;
+    }
     setShowSubmitConfirm(false);
     resetResults();
     setRunState('running');
@@ -624,6 +644,17 @@ function PracticePage({
         variant="primary"
         onConfirm={handleSubmitConfirmed}
         onCancel={() => setShowSubmitConfirm(false)}
+      />
+
+      {/* ── Modal yêu cầu đăng nhập ── */}
+      <LoginModal
+        isOpen={showLoginModal}
+        actionLabel={loginAction}
+        onLogin={(mode) => {
+          setShowLoginModal(false);
+          onGoAuth(mode);
+        }}
+        onClose={() => setShowLoginModal(false)}
       />
 
       {/* ── Modal kết quả nộp bài ── */}

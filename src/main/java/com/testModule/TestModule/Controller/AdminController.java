@@ -53,6 +53,12 @@ public class AdminController {
         return userManagementService.getUserById(id);
     }
 
+    @GetMapping("/users/{id}/history")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    public List<com.testModule.TestModule.Controller.HistoryController.HistoryItem> getUserHistory(@PathVariable Long id) {
+        return userManagementService.getUserHistory(id);
+    }
+
     @PostMapping("/users")
     @PreAuthorize("hasRole('ADMIN')")
     public UserManagementDTO createUser(@RequestBody CreateUserRequest request) {

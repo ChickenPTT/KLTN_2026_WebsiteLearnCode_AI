@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   BrainCircuit,
   ChevronRight,
@@ -18,6 +18,8 @@ import {
 import { Header } from '@/layout/Header';
 import { Footer } from '@/layout/Footer';
 import type { AuthMode } from '@/types';
+import { publicApi } from '@/lib/api';
+import type { PublicStats } from '@/lib/api';
 
 interface LandingPageProps {
   onGoAuth: (mode: AuthMode) => void;
@@ -62,6 +64,17 @@ const features = [
   },
 ];
 
+const DEFAULT_STATS: PublicStats = {
+  totalUsers: 0,
+  totalTemplates: 0,
+  totalProblems: 0,
+  publishedProblems: 0,
+  submissionsToday: 0,
+  totalSubmissions7d: 0,
+  passedSubmissions7d: 0,
+  passRate: 0,
+};
+
 export function LandingPage({
   onGoAuth,
   onGoTopics,
@@ -73,6 +86,12 @@ export function LandingPage({
   onGoStartPractice,
   onLoggedOut,
 }: LandingPageProps) {
+  const [stats, setStats] = useState<PublicStats>(DEFAULT_STATS);
+
+  useEffect(() => {
+    publicApi.getStats().then(setStats).catch(() => {});
+  }, []);
+
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -159,7 +178,7 @@ export function LandingPage({
                 <Code2 size={18} />
               </div>
               <div className="stat-text">
-                <span className="stat-number">1,500+</span>
+                <span className="stat-number">{stats.publishedProblems.toLocaleString('vi-VN')}</span>
                 <span className="stat-label">Thử thách Sandbox</span>
               </div>
             </div>
@@ -246,7 +265,7 @@ export function LandingPage({
               <h3>Mảng & Chuỗi (Arrays & Strings)</h3>
               <p>Kỹ năng thao tác dữ liệu cơ bản, con trỏ đôi, cửa sổ trượt (Sliding Window) và biến đổi chuỗi.</p>
               <div className="topic-card-footer">
-                <span className="topic-count">8 bài tập Sandbox</span>
+                {/*<span className="topic-count">8 bài tập Sandbox</span>*/}
                 <span className="topic-link">Luyện tập <ArrowRight size={14} /></span>
               </div>
             </div>
@@ -261,7 +280,7 @@ export function LandingPage({
               <h3>Cấu trúc Dữ liệu (Data Structures)</h3>
               <p>Danh sách liên kết (LinkedList), Ngăn xếp Stack, Hàng đợi Queue và Cây nhị phân Binary Tree.</p>
               <div className="topic-card-footer">
-                <span className="topic-count">12 bài tập Sandbox</span>
+                {/*<span className="topic-count">12 bài tập Sandbox</span>*/}
                 <span className="topic-link">Luyện tập <ArrowRight size={14} /></span>
               </div>
             </div>
@@ -276,7 +295,7 @@ export function LandingPage({
               <h3>Giải thuật Nâng cao (Algorithms)</h3>
               <p>Tìm kiếm Nhị phân, Đồ thị BFS/DFS, Đệ quy Quay chỏ và Quy hoạch động (Dynamic Programming).</p>
               <div className="topic-card-footer">
-                <span className="topic-count">10 bài tập Sandbox</span>
+                {/*<span className="topic-count">10 bài tập Sandbox</span>*/}
                 <span className="topic-link">Luyện tập <ArrowRight size={14} /></span>
               </div>
             </div>

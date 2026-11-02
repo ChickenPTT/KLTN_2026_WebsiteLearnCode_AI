@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Header } from '@/layout/Header';
 import { Footer } from '@/layout/Footer';
+import { useAuth } from '@/hooks/useAuth';
+import { LoginModal } from '@/components/LoginModal';
 import type { AuthMode } from '@/types';
 import {
   BookOpen,
@@ -114,6 +116,9 @@ export function FlashcardsPage({
   onSelectSet,
   initialTab = 'explore',
 }: FlashcardsPageProps) {
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
+
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [allDecks, setAllDecks] = useState<FlashcardDisplaySet[]>([]);
@@ -152,8 +157,14 @@ export function FlashcardsPage({
     return () => { cancelled = true; };
   }, []);
 
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
   const handleDeleteSet = async (displaySet: FlashcardDisplaySet, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!isLoggedIn) {
+      setShowLoginModal(true);
+      return;
+    }
     if (!window.confirm('Bạn có chắc muốn xóa bộ flashcard này?')) return;
     try {
       await flashcardApi.deleteDeck(displaySet.backendId);
@@ -257,7 +268,10 @@ export function FlashcardsPage({
                 : 'Các bộ từ vựng được biên soạn bởi hệ thống'}
             </p>
           </div>
-          <button className="fc-create-btn" onClick={() => onGoCreateSet?.()}>
+          <button className="fc-create-btn" onClick={() => {
+            if (!isLoggedIn) { setShowLoginModal(true); return; }
+            onGoCreateSet?.();
+          }}>
             <Plus size={16} /> Tạo bộ thẻ
           </button>
         </div>
@@ -353,7 +367,10 @@ export function FlashcardsPage({
                 <button
                   className="fc-create-btn"
                   style={{ padding: '12px 28px', fontSize: '15px' }}
-                  onClick={() => onGoCreateSet?.()}
+                  onClick={() => {
+                    if (!isLoggedIn) { setShowLoginModal(true); return; }
+                    onGoCreateSet?.();
+                  }}
                 >
                   <Plus size={16} /> Tạo bộ thẻ mới
                 </button>
@@ -407,6 +424,17 @@ export function FlashcardsPage({
       </main>
 
       <Footer />
+
+      {/* ── Modal yêu cầu đăng nhập ── */}
+      <LoginModal
+        isOpen={showLoginModal}
+        actionLabel="Quản lý flashcard"
+        onLogin={(mode) => {
+          setShowLoginModal(false);
+          onAuth?.(mode);
+        }}
+        onClose={() => setShowLoginModal(false)}
+      />
     </div>
   );
 }

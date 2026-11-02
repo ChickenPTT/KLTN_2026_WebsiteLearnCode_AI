@@ -19,6 +19,8 @@ import {
 import { Header } from '@/layout/Header';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { Pagination } from '@/components/Pagination';
+import { LoginModal } from '@/components/LoginModal';
+import { useAuth } from '@/hooks/useAuth';
 import type { AuthMode } from '@/types';
 import { historyApi, type BackendHistoryDetail, type BackendHistoryItem } from '@/lib/api';
 import { sameTopic, toDifficulty } from '@/lib/problemsApi';
@@ -98,6 +100,9 @@ export function HistoryPage({
   onGoFlashcards,
   onGoFlashcardLibrary,
 }: HistoryPageProps) {
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'passed' | 'failed'>('all');
   const [topicFilter, setTopicFilter] = useState<string>('all');
@@ -567,6 +572,14 @@ export function HistoryPage({
           </div>
         </div>
       )}
+
+      {/* ── Modal yêu cầu đăng nhập ── */}
+      <LoginModal
+        isOpen={!isLoggedIn}
+        actionLabel="Xem lịch sử nộp bài"
+        onLogin={(mode) => onGoAuth?.(mode)}
+        onClose={() => {}}
+      />
     </div>
   );
 }
