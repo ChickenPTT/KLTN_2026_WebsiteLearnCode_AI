@@ -85,17 +85,17 @@ export function ScoringGuidePage({
           </div>
 
           <p className="scoring-section-desc">
-            Mỗi khi bạn luyện tập và nộp bài, hệ thống sẽ kiểm tra kết quả, xem xét độ khó của bài tập và quá trình bạn hoàn thành bài. Từ đó, hệ thống tính điểm cho lần nộp đó. Điểm của nhiều lần nộp gần nhất sẽ được tổng hợp để xác định mức năng lực của bạn trong từng chủ đề.
+            Mỗi bài tập trong hệ thống có một mức độ khó cố định (từ Mức 1 đến Mức 5). Khi bạn nộp bài, hệ thống tính điểm trong thang điểm của mức độ khó đó, sau đó quy đổi về thang 0–100 chung. Điểm năng lực của bạn là trung bình các điểm quy đổi từ các bài khác nhau, mỗi bài chỉ ghi nhận kết quả tốt nhất.
           </p>
 
           <div className="scoring-steps-grid">
             <div className="scoring-step-card">
               <div className="step-card-head">
                 <span className="step-badge">Bước 1</span>
-                <FileText size={20} className="step-icon" />
+                <Layers size={20} className="step-icon" />
               </div>
-              <h3>Nộp bài lập trình</h3>
-              <p>Hệ thống kiểm tra chương trình của bạn có vượt qua các trường hợp kiểm thử hay không.</p>
+              <h3>5 mức độ khó bài tập</h3>
+              <p>Mỗi bài có độ khó cố định: Mức 1 (Dễ) → Mức 5 (Khó). Độ khó quyết định thang điểm của bài đó.</p>
             </div>
 
             <div className="scoring-step-card">
@@ -104,7 +104,7 @@ export function ScoringGuidePage({
                 <Zap size={20} className="step-icon" />
               </div>
               <h3>Tính điểm bài làm</h3>
-              <p>Điểm phụ thuộc vào độ chính xác, độ khó, số lần thử và mức hỗ trợ AI trong trường hợp nghiêm trọng.</p>
+              <p>Điểm = độ chính xác × điểm trần mức − phạt thử lại (3 điểm/lần, tối đa 15). Không trừ điểm khi dùng AI hỗ trợ.</p>
             </div>
 
             <div className="scoring-step-card">
@@ -112,8 +112,8 @@ export function ScoringGuidePage({
                 <span className="step-badge">Bước 3</span>
                 <Award size={20} className="step-icon" />
               </div>
-              <h3>Cập nhật mức năng lực</h3>
-              <p>Hệ thống tổng hợp tối đa 5 lần nộp gần nhất để xác định điểm năng lực của từng chủ đề.</p>
+              <h3>Tổng hợp điểm năng lực</h3>
+              <p>Trung bình các điểm quy đổi từ bài khác nhau. Vùng đệm ±2 điểm chống dao động band. Cần ít nhất 2 bài để có band.</p>
             </div>
           </div>
         </section>
@@ -126,8 +126,47 @@ export function ScoringGuidePage({
           </div>
 
           <p className="scoring-section-desc">
-            Điểm năng lực được tính trên thang điểm 100. Điểm càng cao, mức độ thành thạo của bạn trong chủ đề đó càng tốt.
+            Mỗi mức độ khó có một "điểm trần" tương ứng. Ví dụ, bài Mức 1 có điểm trần 19, bài Mức 5 có điểm trần 100. Sau khi tính điểm trong thang của bài, hệ thống quy đổi về thang 0–100 chung để so sánh giữa các bài khác nhau.
           </p>
+
+          <div style={{ marginBottom: '16px', padding: '16px', background: 'rgba(94,143,250,0.06)', borderRadius: '12px', border: '1px solid rgba(94,143,250,0.15)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid rgba(94,143,250,0.2)' }}>
+                  <th style={{ textAlign: 'left', padding: '8px 12px', color: '#94a3b8', fontSize: '13px' }}>Mức độ khó</th>
+                  <th style={{ textAlign: 'left', padding: '8px 12px', color: '#94a3b8', fontSize: '13px' }}>Điểm trần</th>
+                  <th style={{ textAlign: 'left', padding: '8px 12px', color: '#94a3b8', fontSize: '13px' }}>Band tương ứng</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style={{ borderBottom: '1px solid rgba(94,143,250,0.1)' }}>
+                  <td style={{ padding: '8px 12px' }}>Mức 1 — Dễ</td>
+                  <td style={{ padding: '8px 12px' }}>19</td>
+                  <td style={{ padding: '8px 12px' }}>Mới bắt đầu (0–19)</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid rgba(94,143,250,0.1)' }}>
+                  <td style={{ padding: '8px 12px' }}>Mức 2 — Dễ-trung bình</td>
+                  <td style={{ padding: '8px 12px' }}>39</td>
+                  <td style={{ padding: '8px 12px' }}>Cơ bản (20–39)</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid rgba(94,143,250,0.1)' }}>
+                  <td style={{ padding: '8px 12px' }}>Mức 3 — Trung bình</td>
+                  <td style={{ padding: '8px 12px' }}>59</td>
+                  <td style={{ padding: '8px 12px' }}>Trung bình (40–59)</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid rgba(94,143,250,0.1)' }}>
+                  <td style={{ padding: '8px 12px' }}>Mức 4 — Khó-trung bình</td>
+                  <td style={{ padding: '8px 12px' }}>79</td>
+                  <td style={{ padding: '8px 12px' }}>Khá (60–79)</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '8px 12px' }}>Mức 5 — Khó</td>
+                  <td style={{ padding: '8px 12px' }}>100</td>
+                  <td style={{ padding: '8px 12px' }}>Nâng cao (80–100)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
           <div className="scoring-levels-grid">
             <div className="scoring-level-card level-beginner">
@@ -191,19 +230,19 @@ export function ScoringGuidePage({
               <div>
                 <h3>Độ chính xác của bài làm</h3>
                 <p>
-                  Chương trình vượt qua càng nhiều trường hợp kiểm thử thì điểm càng cao. Những trường hợp đặc biệt như dữ liệu rỗng, chỉ có một phần tử hoặc có phần tử trùng lặp được chú trọng hơn.
+                  Tỷ lệ test case vượt qua quyết định điểm cơ bản. Ví dụ, 3/3 test case pass = 100% accuracy.
                 </p>
               </div>
             </div>
 
             <div className="scoring-factor-card">
               <div className="factor-icon-wrap" style={{ color: '#60a5fa', background: 'rgba(96, 165, 250, 0.1)' }}>
-                <Zap size={22} />
+                <Layers size={22} />
               </div>
               <div>
-                <h3>Độ khó của bài tập</h3>
+                <h3>Điểm trần theo mức độ khó</h3>
                 <p>
-                  Hoàn thành bài khó hơn mức hiện tại có thể giúp bạn đạt điểm cao hơn. Ngược lại, bài dễ hơn mức hiện tại sẽ có hệ số thấp hơn.
+                  Bài Mức 1 có điểm trần 19, bài Mức 5 có điểm trần 100. Làm hoàn hảo bài Mức 1 vẫn chỉ đạt 19/19 điểm, sau đó quy đổi về 100%.
                 </p>
               </div>
             </div>
@@ -215,71 +254,114 @@ export function ScoringGuidePage({
               <div>
                 <h3>Số lần thử trước khi làm đúng</h3>
                 <p>
-                  Nếu bạn phải nộp sai nhiều lần rồi mới vượt qua bài kiểm tra, điểm sẽ bị trừ theo số lần thử, tối đa 15 điểm.
+                  Mỗi lần nộp sai trước khi pass bị trừ 3 điểm, tối đa 15 điểm. Kết quả tốt nhất của mỗi bài được ghi nhận.
                 </p>
               </div>
             </div>
 
             <div className="scoring-factor-card">
               <div className="factor-icon-wrap" style={{ color: '#c084fc', background: 'rgba(192, 132, 252, 0.1)' }}>
-                <Bot size={22} />
+                <ShieldCheck size={22} />
               </div>
               <div>
-                <h3>Mức độ cần AI hỗ trợ</h3>
+                <h3>AI hỗ trợ không trừ điểm</h3>
                 <p>
-                  Nếu bạn cần AI chỉ ra lỗi nghiêm trọng như sai thuật toán hoặc điều kiện dừng, hệ thống sẽ trừ 2 điểm. Những lỗi biên nhẹ không bị áp dụng khoản trừ này.
+                  Sử dụng AI để học tập không bị trừ điểm năng lực. Lịch sử dùng AI vẫn được lưu để thống kê, nhưng không ảnh hưởng điểm.
+                </p>
+              </div>
+            </div>
+
+            <div className="scoring-factor-card">
+              <div className="factor-icon-wrap" style={{ color: '#f43f5e', background: 'rgba(244, 63, 94, 0.1)' }}>
+                <TrendingUp size={22} />
+              </div>
+              <div>
+                <h3>Vùng đệm chống dao động</h3>
+                <p>
+                  Band chỉ thay đổi khi điểm vượt quá ngưỡng ±2 điểm. Ví dụ, từ Cơ bản lên Trung bình cần ≥ 42 điểm, không phải 40.
+                </p>
+              </div>
+            </div>
+
+            <div className="scoring-factor-card">
+              <div className="factor-icon-wrap" style={{ color: '#14b8a6', background: 'rgba(20, 184, 166, 0.1)' }}>
+                <Lightbulb size={22} />
+              </div>
+              <div>
+                <h3>Miễn trừ thất bại bài khó</h3>
+                <p>
+                  Nếu bạn thử bài khó hơn 1+ mức và đạt dưới 30% accuracy, kết quả đó không làm giảm band hiện tại.
                 </p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Section 4: Tại sao điểm năng lực không giống điểm của một lần nộp? */}
+        {/* Section 4: Cách tính điểm chi tiết */}
         <section className="scoring-section">
           <div className="scoring-section-header">
             <span className="scoring-step-num">4</span>
-            <h2>Tại sao điểm năng lực không giống điểm của một lần nộp?</h2>
+            <h2>Cách tính điểm chi tiết</h2>
           </div>
 
           <p className="scoring-section-desc">
-            Điểm của một lần nộp chỉ phản ánh kết quả bài làm tại thời điểm đó. Trong khi đó, điểm năng lực được tính từ tối đa 5 lần nộp gần nhất. các lần nộp mới có ảnh hưởng lớn hơn, vì vậy điểm năng lực có thể tăng hoặc giảm theo quá trình luyện tập của bạn.
+            Điểm năng lực là trung bình các điểm quy đổi từ các bài khác nhau. Mỗi bài chỉ ghi nhận kết quả tốt nhất, không tính nhiều lần nộp cùng bài.
           </p>
 
           <div className="scoring-example-card">
             <div className="example-header">
-              <Sparkles size={18} style={{ color: '#f59e0b' }} /> Ví dụ minh họa thực tế
+              <Sparkles size={18} style={{ color: '#f59e0b' }} /> Ví dụ minh họa
             </div>
-            
-            <div className="example-content-row">
-              <div className="example-block">
-                <span className="example-label">Điểm của 5 lần nộp gần nhất</span>
-                <div className="example-numbers">
-                  <span>55</span>
-                  <span className="dot">•</span>
-                  <span>62</span>
-                  <span className="dot">•</span>
-                  <span>58</span>
-                  <span className="dot">•</span>
-                  <span>71</span>
-                  <span className="dot">•</span>
-                  <strong className="recent-high">87</strong>
+
+            <div style={{ padding: '12px 0' }}>
+              <p style={{ margin: '0 0 8px', fontSize: '14px', fontWeight: 600 }}>Tình huống: Bạn làm 3 bài chủ đề Array</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.08)', borderRadius: '8px', fontSize: '13px' }}>
+                  <strong>Bài 1 (Mức 1):</strong> 100% accuracy, 0 lần sai → 19/19 điểm → quy đổi <strong>100%</strong>
+                </div>
+                <div style={{ padding: '10px 14px', background: 'rgba(94,143,250,0.08)', borderRadius: '8px', fontSize: '13px' }}>
+                  <strong>Bài 2 (Mức 3):</strong> 67% accuracy, 1 lần sai → (0.67×59−3)=36.6 → 36.6/59 → quy đổi <strong>62%</strong>
+                </div>
+                <div style={{ padding: '10px 14px', background: 'rgba(169,149,255,0.08)', borderRadius: '8px', fontSize: '13px' }}>
+                  <strong>Bài 3 (Mức 5):</strong> 0% accuracy → &lt;30% ở bài khó hơn → <strong>bỏ qua</strong> (miễn trừ)
                 </div>
               </div>
-
-              <div className="example-arrow">➔</div>
-
-              <div className="example-result">
-                <span className="example-label">Điểm năng lực tổng hợp</span>
-                <div className="result-score">
-                  <strong>69</strong><span className="total-scale">/100</span>
-                  <span className="result-badge-good">Khá</span>
-                </div>
+              <div style={{ marginTop: '12px', padding: '10px 14px', background: 'rgba(245,158,11,0.08)', borderRadius: '8px', fontSize: '14px', fontWeight: 600 }}>
+                Điểm năng lực = (100 + 62) / 2 = <span style={{ color: '#f59e0b' }}>81 → Khá</span>
               </div>
             </div>
 
             <div className="example-note">
               <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
-              <span>Đây là ví dụ về cách hệ thống ưu tiên kết quả gần đây, không phải lấy trung bình cộng đơn giản của 5 điểm.</span>
+              <span>Bài Mức 1 dù làm hoàn hảo cũng không giúp bạn đạt band cao. Bạn cần làm bài ở mức cao hơn để lên band.</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Section 4b: Cold start & Deadband */}
+        <section className="scoring-section">
+          <div className="scoring-section-header">
+            <span className="scoring-step-num">4b</span>
+            <h2>Cold start &amp; Vùng đệm</h2>
+          </div>
+
+          <div className="scoring-factors-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            <div style={{ padding: '20px', background: 'rgba(94,143,250,0.06)', borderRadius: '12px', border: '1px solid rgba(94,143,250,0.15)' }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: '15px' }}>🚀 Cold start</h3>
+              <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', lineHeight: 1.8, color: '#cbd5e1' }}>
+                <li><strong>&lt; 2 bài:</strong> "Chưa đủ dữ liệu" — không hiển thị band.</li>
+                <li><strong>2–4 bài:</strong> "Đang đánh giá" — band tạm thời, độ tin cậy thấp.</li>
+                <li><strong>≥ 5 bài:</strong> Band ổn định, độ tin cậy cao.</li>
+              </ul>
+            </div>
+            <div style={{ padding: '20px', background: 'rgba(244,63,94,0.06)', borderRadius: '12px', border: '1px solid rgba(244,63,94,0.15)' }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: '15px' }}>🛡️ Vùng đệm ±2</h3>
+              <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', lineHeight: 1.8, color: '#cbd5e1' }}>
+                <li>Điểm 38–41: Vẫn giữ band Cơ bản.</li>
+                <li>Điểm ≥ 42: Mới lên band Trung bình.</li>
+                <li>Điểm ≤ 38: Mới xuống band Cơ bản.</li>
+                <li>Tránh dao động khi điểm gần ngưỡng.</li>
+              </ul>
             </div>
           </div>
         </section>
@@ -292,7 +374,7 @@ export function ScoringGuidePage({
           </div>
 
           <p className="scoring-section-desc">
-            Độ tin cậy cho biết bạn đã có bao nhiêu lần nộp bài để hệ thống đánh giá năng lực trong một chủ đề.
+            Độ tin cậy dựa trên số bài khác nhau đã được ghi nhận chính thức (không phải số lần nộp). Mỗi bài chỉ tính một lần với kết quả tốt nhất.
           </p>
 
           <div className="confidence-grid">
@@ -300,7 +382,7 @@ export function ScoringGuidePage({
               <div className="confidence-head">
                 <span className="confidence-dot low" />
                 <span className="confidence-title">Thấp</span>
-                <span className="confidence-count">Dưới 3 lần nộp</span>
+                <span className="confidence-count">Dưới 3 bài khác nhau</span>
               </div>
               <p>Dữ liệu còn ít, kết quả chỉ mang tính tham khảo.</p>
             </div>
@@ -309,7 +391,7 @@ export function ScoringGuidePage({
               <div className="confidence-head">
                 <span className="confidence-dot medium" />
                 <span className="confidence-title">Trung bình</span>
-                <span className="confidence-count">Từ 3 đến 7 lần nộp</span>
+                <span className="confidence-count">Từ 3 đến 7 bài khác nhau</span>
               </div>
               <p>Đã có dữ liệu bước đầu để đánh giá năng lực.</p>
             </div>
@@ -318,9 +400,9 @@ export function ScoringGuidePage({
               <div className="confidence-head">
                 <span className="confidence-dot high" />
                 <span className="confidence-title">Cao</span>
-                <span className="confidence-count">Trên 7 lần nộp</span>
+                <span className="confidence-count">Trên 7 bài khác nhau</span>
               </div>
-              <p>Có nhiều dữ liệu hơn để theo dõi quá trình luyện tập.</p>
+              <p>Có nhiều dữ liệu để đánh giá năng lực chính xác.</p>
             </div>
           </div>
         </section>

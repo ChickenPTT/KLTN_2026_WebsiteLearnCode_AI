@@ -152,8 +152,26 @@ main()
 
 // ─── Chuyen doi sang kieu UI ────────────────────────────────────────────────
 
-/** level trong DB la chuoi tu do (Easy/EASY/de/beginner...) -> 3 muc UI */
-export function toDifficulty(level: string | null | undefined): PracticeProblem['difficulty'] {
+/**
+ * Map level trong DB sang 5 muc do kho (DifficultyLevel).
+ * DB luu: Easy | MediumEasy | Medium | MediumHard | Hard
+ * Legacy backward-compatible: Easy->Level1, Medium->Level3, Hard->Level5
+ * Alias VN: de->Level1, trung binh->Level3, kho->Level5
+ */
+export function toDifficultyLevel(level: string | null | undefined): PracticeProblem['difficulty'] {
+  const l = (level ?? '').trim().toLowerCase().replace(/[\s_]/g, '');
+  // 5 muc moi
+  if (['easy', 'de', 'dễ', 'beginner', 'basic', 'co ban', 'cơ bản', 'level1'].includes(l)) return 'Level1';
+  if (['mediumeasy', 'mediumde', 'mediumdễ', 'levle2', 'level2'].includes(l)) return 'Level2';
+  if (['medium', 'trungbinh', 'trung bình', 'level3'].includes(l)) return 'Level3';
+  if (['mediumhard', 'mediumkho', 'mediumkhó', 'level4'].includes(l)) return 'Level4';
+  if (['hard', 'kho', 'khó', 'advanced', 'expert', 'nangcao', 'nâng cao', 'level5'].includes(l)) return 'Level5';
+  // Default: Medium
+  return 'Level3';
+}
+
+/** @deprecated Dùng toDifficultyLevel thay thế */
+export function toDifficulty(level: string | null | undefined): 'Easy' | 'Medium' | 'Hard' {
   const l = (level ?? '').trim().toLowerCase();
   if (['easy', 'de', 'dễ', 'beginner', 'basic', 'co ban', 'cơ bản'].includes(l)) return 'Easy';
   if (['hard', 'kho', 'khó', 'advanced', 'expert', 'nang cao', 'nâng cao'].includes(l)) return 'Hard';
@@ -186,7 +204,7 @@ export function toPracticeProblem(p: ProblemView | AdminProblem): PracticeProble
     id: String(p.id),
     title: title,
     topic: p.topic ?? 'Khác',
-    difficulty: toDifficulty(p.level),
+    difficulty: toDifficultyLevel(p.level),
     description: p.statement ?? '',
     examples: samples.map((s) => ({ input: s.input, output: s.expectedOutput })),
     starterCode: STARTER_CODE[lang],

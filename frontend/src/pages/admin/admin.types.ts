@@ -1,4 +1,4 @@
-import type { SkillLevel } from '@/types';
+import type { DifficultyLevel, SkillLevel } from '@/types';
 
 export type AdminTab = 'dashboard' | 'users' | 'problems' | 'templates' | 'generator' | 'flashcards' | 'logs' | 'profile';
 
@@ -50,7 +50,7 @@ export interface GeneratedQuestion {
   id: string;
   title: string;
   topic: string;
-  difficulty: 'Easy' | 'Medium' | 'Hard';
+  difficulty: DifficultyLevel;
   starterCode: string;
   description?: string;
   sampleInput?: string;

@@ -64,9 +64,11 @@ const TOPIC_OPTIONS: SelectOption[] = [
 
 const DIFF_OPTIONS: SelectOption[] = [
   { value: 'all', label: 'Mọi cấp độ' },
-  { value: 'Easy', label: 'Dễ (Easy)' },
-  { value: 'Medium', label: 'Trung bình (Medium)' },
-  { value: 'Hard', label: 'Khó (Hard)' },
+  { value: 'Level1', label: 'Dễ (Mức 1)' },
+  { value: 'Level2', label: 'Dễ-trung bình (Mức 2)' },
+  { value: 'Level3', label: 'Trung bình (Mức 3)' },
+  { value: 'Level4', label: 'Khó-trung bình (Mức 4)' },
+  { value: 'Level5', label: 'Khó (Mức 5)' },
 ];
 
 const VERIFY_OPTIONS: SelectOption[] = [
@@ -82,9 +84,15 @@ const STATUS_OPTIONS: SelectOption[] = [
 ];
 
 const DIFFICULTY_COLORS: Record<string, { bg: string; color: string; border: string; label: string }> = {
-  Easy: { bg: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: 'rgba(16, 185, 129, 0.3)', label: 'Dễ (Easy)' },
-  Medium: { bg: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', border: 'rgba(245, 158, 11, 0.3)', label: 'Trung bình' },
-  Hard: { bg: 'rgba(244, 63, 94, 0.12)', color: '#f43f5e', border: 'rgba(244, 63, 94, 0.3)', label: 'Khó (Hard)' },
+  Level1: { bg: 'rgba(100,116,139,0.12)', color: '#64748b', border: 'rgba(100,116,139,0.3)', label: 'Dễ (Mức 1)' },
+  Level2: { bg: 'rgba(16,185,129,0.12)', color: '#10b981', border: 'rgba(16,185,129,0.3)', label: 'Dễ-TB (Mức 2)' },
+  Level3: { bg: 'rgba(94,143,250,0.12)', color: '#5e8dfa', border: 'rgba(94,143,250,0.3)', label: 'Trung bình (Mức 3)' },
+  Level4: { bg: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: 'rgba(245,158,11,0.3)', label: 'Khó-TB (Mức 4)' },
+  Level5: { bg: 'rgba(169,149,255,0.12)', color: '#a995ff', border: 'rgba(169,149,255,0.3)', label: 'Khó (Mức 5)' },
+  // Legacy fallback
+  Easy: { bg: 'rgba(100,116,139,0.12)', color: '#64748b', border: 'rgba(100,116,139,0.3)', label: 'Dễ' },
+  Medium: { bg: 'rgba(94,143,250,0.12)', color: '#5e8dfa', border: 'rgba(94,143,250,0.3)', label: 'Trung bình' },
+  Hard: { bg: 'rgba(169,149,255,0.12)', color: '#a995ff', border: 'rgba(169,149,255,0.3)', label: 'Khó' },
 };
 
 interface AdminProblemsTabProps {
@@ -135,7 +143,7 @@ export function AdminProblemsTab({
   const [addFormData, setAddFormData] = useState<Partial<PracticeProblem>>({
     title: '',
     topic: TOPICS[0],
-    difficulty: 'Easy',
+    difficulty: 'Level1',
     description: '',
     inputExample: 'nums = [2, 7, 11, 15], target = 9',
     outputExample: '[0, 1]',
@@ -603,11 +611,13 @@ export function AdminProblemsTab({
                   <span className="auth-label" style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Độ khó</span>
                   <SearchableSelect
                     options={[
-                      { label: 'Dễ (Easy)', value: 'Easy' },
-                      { label: 'Trung bình (Medium)', value: 'Medium' },
-                      { label: 'Khó (Hard)', value: 'Hard' },
+                      { label: 'Dễ (Mức 1)', value: 'Level1' },
+                      { label: 'Dễ-TB (Mức 2)', value: 'Level2' },
+                      { label: 'Trung bình (Mức 3)', value: 'Level3' },
+                      { label: 'Khó-TB (Mức 4)', value: 'Level4' },
+                      { label: 'Khó (Mức 5)', value: 'Level5' },
                     ]}
-                    value={editFormData.difficulty || 'Easy'}
+                    value={editFormData.difficulty || 'Level1'}
                     onChange={(val) => setEditFormData({ ...editFormData, difficulty: val as any })}
                     showSearch={false}
                   />
@@ -701,11 +711,13 @@ export function AdminProblemsTab({
                   <span className="auth-label" style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Độ khó</span>
                   <SearchableSelect
                     options={[
-                      { label: 'Dễ (Easy)', value: 'Easy' },
-                      { label: 'Trung bình (Medium)', value: 'Medium' },
-                      { label: 'Khó (Hard)', value: 'Hard' },
+                      { label: 'Dễ (Mức 1)', value: 'Level1' },
+                      { label: 'Dễ-TB (Mức 2)', value: 'Level2' },
+                      { label: 'Trung bình (Mức 3)', value: 'Level3' },
+                      { label: 'Khó-TB (Mức 4)', value: 'Level4' },
+                      { label: 'Khó (Mức 5)', value: 'Level5' },
                     ]}
-                    value={addFormData.difficulty || 'Easy'}
+                    value={addFormData.difficulty || 'Level1'}
                     onChange={(val) => setAddFormData({ ...addFormData, difficulty: val as any })}
                     showSearch={false}
                   />

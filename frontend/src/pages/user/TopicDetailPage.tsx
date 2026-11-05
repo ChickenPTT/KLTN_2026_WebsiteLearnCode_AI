@@ -49,6 +49,12 @@ const ICON_MAP: Record<string, LucideIcon> = {
 };
 
 const DIFFICULTY_COLORS: Record<string, string> = {
+  Level1: '#64748b',
+  Level2: '#10b981',
+  Level3: '#5e8dfa',
+  Level4: '#f59e0b',
+  Level5: '#a995ff',
+  // Legacy fallback
   Easy: '#10b981',
   Medium: '#f59e0b',
   Hard: '#f43f5e',
@@ -91,7 +97,7 @@ export function TopicDetailPage({
   const isLoggedIn = !!user;
 
   const [search, setSearch] = useState('');
-  const [diffFilter, setDiffFilter] = useState<'All' | 'Easy' | 'Medium' | 'Hard'>('All');
+  const [diffFilter, setDiffFilter] = useState<'All' | 'Level1' | 'Level2' | 'Level3' | 'Level4' | 'Level5'>('All');
   const [sortOrder, setSortOrder] = useState<'default' | 'name' | 'diff-asc' | 'diff-desc'>('default');
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -105,9 +111,11 @@ export function TopicDetailPage({
   // Dem tu du lieu that (topic co the duoc khoi phuc tu URL voi so lieu mau)
   const difficultyCounts = useMemo(
     () => ({
-      easy: allProblems.filter((p) => p.difficulty === 'Easy').length,
-      medium: allProblems.filter((p) => p.difficulty === 'Medium').length,
-      hard: allProblems.filter((p) => p.difficulty === 'Hard').length,
+      level1: allProblems.filter((p) => p.difficulty === 'Level1').length,
+      level2: allProblems.filter((p) => p.difficulty === 'Level2').length,
+      level3: allProblems.filter((p) => p.difficulty === 'Level3').length,
+      level4: allProblems.filter((p) => p.difficulty === 'Level4').length,
+      level5: allProblems.filter((p) => p.difficulty === 'Level5').length,
     }),
     [allProblems],
   );
@@ -120,13 +128,16 @@ export function TopicDetailPage({
           p.title.toLowerCase().includes(search.toLowerCase()) ||
           p.description.toLowerCase().includes(search.toLowerCase());
         const matchesDiff = diffFilter === 'All' || p.difficulty === diffFilter;
+        // Legacy support: if problem has old difficulty, map it
+        const pDiff = p.difficulty || 'Level3';
+        const matchesDiffLegacy = diffFilter === 'All' || pDiff === diffFilter;
         return matchesSearch && matchesDiff;
       })
       .sort((a, b) => {
         if (sortOrder === 'name') return a.title.localeCompare(b.title);
-        const weight = { Easy: 1, Medium: 2, Hard: 3 };
-        if (sortOrder === 'diff-asc') return weight[a.difficulty] - weight[b.difficulty];
-        if (sortOrder === 'diff-desc') return weight[b.difficulty] - weight[a.difficulty];
+        const weight: Record<string, number> = { Level1: 1, Level2: 2, Level3: 3, Level4: 4, Level5: 5, Easy: 1, Medium: 2, Hard: 3 };
+        if (sortOrder === 'diff-asc') return (weight[a.difficulty] ?? 3) - (weight[b.difficulty] ?? 3);
+        if (sortOrder === 'diff-desc') return (weight[b.difficulty] ?? 3) - (weight[a.difficulty] ?? 3);
         return 0;
       });
   }, [allProblems, search, diffFilter, sortOrder]);
@@ -177,13 +188,19 @@ export function TopicDetailPage({
                 <Code2 size={14} /> {allProblems.length} bài tập
               </span>
               <span className="stat-pill easy">
-                Cơ bản: {difficultyCounts.easy}
+                Cơ bản: {difficultyCounts.level1}
+              </span>
+              <span className="stat-pill easy">
+                Mới bất đầu: {difficultyCounts.level2}
               </span>
               <span className="stat-pill medium">
-                Trung bình: {difficultyCounts.medium}
+                Trung bình: {difficultyCounts.level3}
+              </span>
+              <span className="stat-pill medium">
+                Khá: {difficultyCounts.level4}
               </span>
               <span className="stat-pill hard">
-                Nâng cao: {difficultyCounts.hard}
+                Nâng cao: {difficultyCounts.level5}
               </span>
             </div>
           </div>
@@ -208,7 +225,7 @@ export function TopicDetailPage({
           {/* Difficulty Filter Tabs */}
           <div className="topic-filter-tabs">
             <Filter size={14} className="filter-icon" />
-            {(['All', 'Easy', 'Medium', 'Hard'] as const).map((lvl) => (
+            {(['All', 'Level1', 'Level2', 'Level3', 'Level4', 'Level5'] as const).map((lvl) => (
               <button
                 key={lvl}
                 className={`filter-tab ${diffFilter === lvl ? 'is-active' : ''}`}
@@ -219,10 +236,14 @@ export function TopicDetailPage({
               >
                 {lvl === 'All'
                   ? 'Tất cả'
-                  : lvl === 'Easy'
+                  : lvl === 'Level1'
                   ? 'Cơ bản'
-                  : lvl === 'Medium'
+                  : lvl === 'Level2'
+                  ? 'Mới bất đầu'
+                  : lvl === 'Level3'
                   ? 'Trung bình'
+                  : lvl === 'Level4'
+                  ? 'Khá'
                   : 'Nâng cao'}
               </button>
             ))}
@@ -303,9 +324,9 @@ export function TopicDetailPage({
                           borderColor: `${DIFFICULTY_COLORS[p.difficulty]}40`,
                         }}
                       >
-                        {p.difficulty === 'Easy'
+                        {p.difficulty === 'Level1'
                           ? 'Cơ bản'
-                          : p.difficulty === 'Medium'
+                          : p.difficulty === 'Level3'
                           ? 'Trung bình'
                           : 'Nâng cao'}
                       </span>

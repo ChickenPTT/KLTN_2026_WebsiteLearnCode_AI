@@ -23,7 +23,7 @@ import { LoginModal } from '@/components/LoginModal';
 import { useAuth } from '@/hooks/useAuth';
 import type { AuthMode } from '@/types';
 import { historyApi, type BackendHistoryDetail, type BackendHistoryItem } from '@/lib/api';
-import { sameTopic, toDifficulty } from '@/lib/problemsApi';
+import { sameTopic, toDifficultyLevel } from '@/lib/problemsApi';
 import { useMyHistory } from '@/hooks/useMyHistory';
 import { formatDateTime, formatMemory, formatRuntime, languageLabel, topicOf } from '@/lib/progress';
 
@@ -43,6 +43,12 @@ interface HistoryPageProps {
 }
 
 const DIFF_COLORS: Record<string, string> = {
+  Level1: '#7d8599',
+  Level2: '#78d39e',
+  Level3: '#5e8dfa',
+  Level4: '#f5c95d',
+  Level5: '#a995ff',
+  // Legacy fallback
   Easy: '#78d39e',
   Medium: '#f5c95d',
   Hard: '#f08a8a',
@@ -62,7 +68,7 @@ interface ProblemRecord {
   problemId: number;
   title: string;
   topic: string;
-  difficulty: 'Easy' | 'Medium' | 'Hard';
+  difficulty: string;
   /** Moi nhat truoc */
   attempts: BackendHistoryItem[];
 }
@@ -77,7 +83,7 @@ function groupByProblem(history: BackendHistoryItem[]): ProblemRecord[] {
         problemId: h.problemId,
         title: h.problemTitle,
         topic: topicOf(h),
-        difficulty: toDifficulty(h.level),
+        difficulty: toDifficultyLevel(h.level),
         attempts: [],
       };
       map.set(h.problemId, rec);

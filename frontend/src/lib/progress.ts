@@ -1,21 +1,38 @@
 /**
  * Tinh tien do hoc tap tu lich su nop bai that (/api/history/me).
- * Cach tinh diem theo trang ScoringGuidePage:
- * - Diem 1 lan nop = do chinh xac (% test dat) x he so do kho, tru diem so lan nop sai truoc do (5d/lan, toi da 15)
- *   va tru 2d neu AI phai chi ra loi nghiem trong (severity = major).
- * - Diem nang luc chu de = trung binh co trong so cua toi da 5 lan nop gan nhat (lan moi nang ky hon).
+ * PHUONG AN 1: Diem theo Muc Do Kho Tuyet doi.
+ *
+ * - Moi bai co do kho co dinh (Level1..Level5), anh xa sang 5 band nang luc.
+ * - Diem 1 bai = accuracy x diem_tran_muc - phat_thu_lai (3d/lan, toi da 15).
+ * - Diem quy doi = (diem_bai / diem_tran) x 100 -> thang 0-100 chung.
+ * - Diem band = trung binh cac diem quy doi tu bai khac nhau, moi bai lay ket qua tot nhat.
+ * - Bo phat AI khoi diem nang luc (van luu de thong ke).
+ * - Deadband ±2: chi len band khi >= nguong + 2, chi xuong khi <= nguong - 2.
+ * - Cold start: <2 bai -> "Chua du du lieu", 2-4 bai -> "Dang danh gia", >=5 -> binh thuong.
+ * - Myen tru: accuracy < 30% o bai kho hon 1+ muc -> bo qua, khong lam giam band.
+ * - Band hien tai du luu trong localStorage theo userId+topic de co hysteresis.
  */
 import type { BackendHistoryItem } from '@/lib/api';
-import { LANGUAGE_LABELS, sameTopic, toDifficulty } from '@/lib/problemsApi';
+import { LANGUAGE_LABELS, sameTopic, toDifficultyLevel } from '@/lib/problemsApi';
+import type { DifficultyLevel } from '@/types';
+import { DIFFICULTY_CEILING } from '@/types';
 
-const DIFFICULTY_FACTOR: Record<'Easy' | 'Medium' | 'Hard', number> = { Easy: 0.8, Medium: 1, Hard: 1.2 };
-const RETRY_PENALTY = 5;
-const MAX_RETRY_PENALTY = 15;
-const AI_MAJOR_PENALTY = 2;
-const RECENT_LIMIT = 5;
 export const XP_PER_SOLVED = 100;
 
 export type SkillLabel = 'Mới bắt đầu' | 'Cơ bản' | 'Trung bình' | 'Khá' | 'Nâng cao';
+
+const RETRY_PENALTY = 3;
+const MAX_RETRY_PENALTY = 15;
+const DEADBAND = 2;
+const HARD_FAIL_THRESHOLD = 30;
+const COLD_START_MIN = 2;
+const EVALUATING_MIN = 2;
+const EVALUATING_MAX = 4;
+
+/** Nguong band tren thang 0-100 */
+const BAND_THRESHOLDS = [0, 20, 40, 60, 80];
+const BAND_LABELS: SkillLabel[] = ['Mới bắt đầu', 'Cơ bản', 'Trung bình', 'Khá', 'Nâng cao'];
+const BAND_COLORS = ['#64748b', '#22c55e', '#3b82f6', '#f59e0b', '#a855f7'];
 
 export interface TopicSkill {
   name: string;
@@ -25,6 +42,123 @@ export interface TopicSkill {
   submissions: number;
   solvedCount: number;
   confidence: 'Thấp' | 'Trung bình' | 'Cao';
+  /** 'nodata' | 'evaluating' | 'stable' */
+  bandStatus: 'nodata' | 'evaluating' | 'stable';
+  /** So bai khac nhau duoc ghi nhap chinh thuc */
+  officialProblemCount: number;
+}
+
+// ─── LocalStorage band persistence ───
+
+function getStoredBandKey(userId: string | undefined, topic: string): string | undefined {
+  if (!userId) return undefined;
+  return `mnemonic_band_${userId}_${topic}`;
+}
+
+function getStoredBandIndex(userId: string | undefined, topic: string): number | undefined {
+  const key = getStoredBandKey(userId, topic);
+  if (!key) return undefined;
+  try {
+    const val = localStorage.getItem(key);
+    if (val !== null) {
+      const idx = parseInt(val, 10);
+      if (!isNaN(idx) && idx >= 0 && idx < 5) return idx;
+    }
+  } catch { /* ignore */ }
+  return undefined;
+}
+
+function setStoredBandIndex(userId: string | undefined, topic: string, bandIndex: number) {
+  const key = getStoredBandKey(userId, topic);
+  if (!key) return;
+  try {
+    localStorage.setItem(key, String(bandIndex));
+  } catch { /* ignore */ }
+}
+
+// ─── Core scoring functions ───
+
+/**
+ * Tinh diem 1 bai tap theo muc do kho tuyet doi.
+ * diem_bai = accuracy% x diem_tran_muc - min(retries x 3, 15)
+ * Clamp vao [0, diem_tran_muc]
+ */
+function calculateProblemScore(accuracy: number, difficultyLevel: DifficultyLevel, failedAttempts: number): number {
+  const ceiling = DIFFICULTY_CEILING[difficultyLevel];
+  const rawScore = (accuracy / 100) * ceiling - Math.min(failedAttempts * RETRY_PENALTY, MAX_RETRY_PENALTY);
+  return Math.max(0, Math.min(ceiling, rawScore));
+}
+
+/**
+ * Quy doi diem bai ve thang 0-100.
+ * diem_quy_doi = (diem_bai / diem_tran) x 100
+ */
+function normalizeScore(problemScore: number, difficultyLevel: DifficultyLevel): number {
+  const ceiling = DIFFICULTY_CEILING[difficultyLevel];
+  if (ceiling <= 0) return 0;
+  return (problemScore / ceiling) * 100;
+}
+
+/**
+ * Lay band index tu score tren thang 0-100.
+ */
+function scoreToBandIndex(score: number): number {
+  if (score >= 80) return 4;
+  if (score >= 60) return 3;
+  if (score >= 40) return 2;
+  if (score >= 20) return 1;
+  return 0;
+}
+
+/**
+ * Kiem tra neu la lan nop bai kho hon va that bai hoan toan.
+ * Neu accuracy < 30% va bai kho hon band hien tai 1+ muc -> bo qua.
+ */
+function isHardFailExempt(accuracy: number, problemLevel: DifficultyLevel, currentBandIndex: number): boolean {
+  if (accuracy >= HARD_FAIL_THRESHOLD) return false;
+  const levelNum = parseInt(problemLevel.replace('Level', ''), 10);
+  return levelNum > currentBandIndex + 1;
+}
+
+/**
+ * Kiem tra neu bai de hon band hien tai 2+ muc -> bo qua.
+ */
+function isTooEasyToCount(problemLevel: DifficultyLevel, currentBandIndex: number): boolean {
+  const levelNum = parseInt(problemLevel.replace('Level', ''), 10);
+  return levelNum < currentBandIndex;
+}
+
+/**
+ * Ap dung deadband ±2 de chong dao dong band.
+ * Len band: rawScore >= threshold_band_ke + deadband
+ * Xuong band: rawScore <= threshold_band_hien_tai - deadband
+ */
+function applyDeadband(rawScore: number, currentBandIndex: number): number {
+  const rawBandIndex = scoreToBandIndex(rawScore);
+
+  // Neu khong co band hien tai, lay raw
+  if (currentBandIndex === undefined) return rawBandIndex;
+
+  // Co gang len band
+  if (rawBandIndex > currentBandIndex) {
+    const nextThreshold = BAND_THRESHOLDS[rawBandIndex];
+    if (rawScore >= nextThreshold + DEADBAND) {
+      return rawBandIndex;
+    }
+    return currentBandIndex; // Chua du dieu de len
+  }
+
+  // Co gang xuong band
+  if (rawBandIndex < currentBandIndex) {
+    const currentThreshold = BAND_THRESHOLDS[currentBandIndex];
+    if (rawScore <= currentThreshold - DEADBAND) {
+      return rawBandIndex;
+    }
+    return currentBandIndex; // Van trong deadband, giu band
+  }
+
+  // Cung band
+  return currentBandIndex;
 }
 
 export interface DayActivity {
@@ -44,35 +178,99 @@ export function topicOf(h: BackendHistoryItem): string {
   return h.topic?.trim() || 'Khác';
 }
 
-export function skillLevel(score: number): { label: SkillLabel; color: string } {
-  if (score >= 80) return { label: 'Nâng cao', color: '#a855f7' };
-  if (score >= 60) return { label: 'Khá', color: '#f59e0b' };
-  if (score >= 40) return { label: 'Trung bình', color: '#3b82f6' };
-  if (score >= 20) return { label: 'Cơ bản', color: '#22c55e' };
-  return { label: 'Mới bắt đầu', color: '#64748b' };
+/**
+ * Tra ve label + color tu band index.
+ * Co the tra ve them cold start info.
+ */
+export function skillLevel(
+  score: number,
+  officialCount: number = 0,
+): { label: SkillLabel; color: string; bandStatus: 'nodata' | 'evaluating' | 'stable' } {
+  const bandIdx = scoreToBandIndex(score);
+  let bandStatus: 'nodata' | 'evaluating' | 'stable';
+  if (officialCount < COLD_START_MIN) {
+    bandStatus = 'nodata';
+  } else if (officialCount <= EVALUATING_MAX) {
+    bandStatus = 'evaluating';
+  } else {
+    bandStatus = 'stable';
+  }
+  return {
+    label: BAND_LABELS[bandIdx],
+    color: BAND_COLORS[bandIdx],
+    bandStatus,
+  };
 }
 
-/** Diem (0-100) cua tung lan nop, key = history id */
-export function submissionScores(history: BackendHistoryItem[]): Map<number, number> {
+/**
+ * Tinh diem cho tung bai tap (khong con theo tung lan nop).
+ * Moi bai tap co 1 diem quy doi (0-100) la ket qua tot nhat.
+ * Tra ve Map<problemId, { normalizedScore, difficultyLevel }>
+ */
+export function submissionScores(
+  history: BackendHistoryItem[],
+  userId?: string,
+): Map<number, { normalizedScore: number; difficultyLevel: DifficultyLevel }> {
   const chronological = [...history].sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
+
+  // Dem so lan sai truoc khi pass cho moi bai
   const failedBefore = new Map<number, number>();
-  const scores = new Map<number, number>();
   chronological.forEach((h) => {
-    const accuracy =
-      h.passedCount != null && h.totalCount ? (h.passedCount / h.totalCount) * 100 : h.passed ? 100 : 0;
-    let score = accuracy * DIFFICULTY_FACTOR[toDifficulty(h.level)];
-    const retries = failedBefore.get(h.problemId) ?? 0;
-    if (h.passed) score -= Math.min(retries * RETRY_PENALTY, MAX_RETRY_PENALTY);
-    else failedBefore.set(h.problemId, retries + 1);
-    if (h.aiSeverity === 'major') score -= AI_MAJOR_PENALTY;
-    scores.set(h.id, Math.round(Math.max(0, Math.min(100, score))));
+    if (!h.passed) {
+      failedBefore.set(h.problemId, (failedBefore.get(h.problemId) ?? 0) + 1);
+    }
   });
-  return scores;
+
+  // Moi bai: lay lan nop tot nhat (accuracy cao nhat, neu co nhieu lan pass)
+  const bestByProblem = new Map<number, BackendHistoryItem>();
+  chronological.forEach((h) => {
+    const existing = bestByProblem.get(h.problemId);
+    const acc = h.passedCount != null && h.totalCount ? (h.passedCount / h.totalCount) * 100 : h.passed ? 100 : 0;
+    const existingAcc = existing
+      ? (existing.passedCount != null && existing.totalCount ? (existing.passedCount / existing.totalCount) * 100 : existing.passed ? 100 : 0)
+      : -1;
+    // Luu neu accuracy cao hon, hoac chua co
+    if (acc > existingAcc) {
+      bestByProblem.set(h.problemId, h);
+    }
+  });
+
+  // Tinh diem cho moi bai
+  const result = new Map<number, { normalizedScore: number; difficultyLevel: DifficultyLevel }>();
+  bestByProblem.forEach((h, problemId) => {
+    const difficultyLevel = toDifficultyLevel(h.level);
+    const acc = h.passedCount != null && h.totalCount ? (h.passedCount / h.totalCount) * 100 : h.passed ? 100 : 0;
+    const retries = failedBefore.get(problemId) ?? 0;
+
+    // Bo qua neu la hard fail
+    const problemLevelNum = parseInt(difficultyLevel.replace('Level', ''), 10);
+    // Default band index = 0 (Moi bat dau) neu chua co
+    if (isHardFailExempt(acc, difficultyLevel, 0)) {
+      return; // Bo qua bai nay
+    }
+
+    const problemScore = calculateProblemScore(acc, difficultyLevel, retries);
+    const normalized = normalizeScore(problemScore, difficultyLevel);
+    result.set(problemId, { normalizedScore: Math.round(normalized), difficultyLevel });
+  });
+
+  return result;
 }
 
-/** Nang luc theo chu de; topicNames = cac chu de can hien ke ca chua nop bai */
-export function topicSkills(history: BackendHistoryItem[], topicNames: string[] = []): TopicSkill[] {
-  const scores = submissionScores(history);
+/**
+ * Nang luc theo chu de - PHUONG AN 1.
+ * - Moi bai tap co 1 diem quy doi (0-100) la ket qua tot nhat.
+ * - Diem band = trung binh cac diem quy doi tu bai khac nhau.
+ * - Chi tinh bai co do kho >= band hien tai - 1 (bai de hon 2 muc bo qua).
+ * - Deadband ±2 de chong dao dong.
+ * - Cold start: <2 bai -> "Chua du du lieu", 2-4 bai -> "Dang danh gia".
+ * - Band hien tai du luu trong localStorage de co hysteresis.
+ */
+export function topicSkills(
+  history: BackendHistoryItem[],
+  topicNames: string[] = [],
+  userId?: string,
+): TopicSkill[] {
   const names: string[] = [];
   [...topicNames, ...history.map(topicOf)].forEach((n) => {
     if (!names.some((x) => sameTopic(x, n))) names.push(n);
@@ -80,21 +278,102 @@ export function topicSkills(history: BackendHistoryItem[], topicNames: string[] 
 
   return names
     .map((name) => {
-      // history tu backend da sap xep moi nhat truoc
       const items = history.filter((h) => sameTopic(topicOf(h), name));
-      const recent = items.slice(0, RECENT_LIMIT);
-      let weighted = 0;
-      let weights = 0;
-      recent.forEach((h, i) => {
-        const w = RECENT_LIMIT - i;
-        weighted += (scores.get(h.id) ?? 0) * w;
-        weights += w;
+
+      // Lay band hien tai tu localStorage (de co hysteresis)
+      const storedBandIndex = getStoredBandIndex(userId, name);
+      const currentBandIndex = storedBandIndex ?? 0;
+
+      // Gom ket qua theo bai tap - moi bai lay diem tot nhat
+      const problemMap = new Map<number, {
+        bestNormalizedScore: number;
+        difficultyLevel: DifficultyLevel;
+        bestAccuracy: number;
+      }>();
+
+      // Sap xep theo thoi gian de dem retries
+      const chronological = [...items].sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
+      const failedBefore = new Map<number, number>();
+      chronological.forEach((h) => {
+        if (!h.passed) {
+          failedBefore.set(h.problemId, (failedBefore.get(h.problemId) ?? 0) + 1);
+        }
       });
-      const score = weights ? Math.round(weighted / weights) : 0;
-      const level = skillLevel(score);
+
+      // Voi moi bai, tim lan nop tot nhat
+      chronological.forEach((h) => {
+        const difficultyLevel = toDifficultyLevel(h.level);
+        const acc = h.passedCount != null && h.totalCount ? (h.passedCount / h.totalCount) * 100 : h.passed ? 100 : 0;
+        const retries = failedBefore.get(h.problemId) ?? 0;
+
+        // Kiem tra hard fail exemption
+        if (isHardFailExempt(acc, difficultyLevel, currentBandIndex)) {
+          return;
+        }
+
+        // Kiem tra too easy
+        if (isTooEasyToCount(difficultyLevel, currentBandIndex)) {
+          return;
+        }
+
+        const problemScore = calculateProblemScore(acc, difficultyLevel, retries);
+        const normalized = normalizeScore(problemScore, difficultyLevel);
+
+        const existing = problemMap.get(h.problemId);
+        if (!existing || normalized > existing.bestNormalizedScore) {
+          problemMap.set(h.problemId, {
+            bestNormalizedScore: normalized,
+            difficultyLevel,
+            bestAccuracy: acc,
+          });
+        }
+      });
+
+      // Tinh diem band = trung binh cac diem quy doi
+      const scores = Array.from(problemMap.values()).map(p => p.bestNormalizedScore);
+      const officialProblemCount = scores.length;
+
+      let bandScore = 0;
+      let bandStatus: 'nodata' | 'evaluating' | 'stable';
+      let bandIndex = currentBandIndex;
+
+      if (officialProblemCount < COLD_START_MIN) {
+        bandStatus = 'nodata';
+        bandScore = 0;
+        bandIndex = 0;
+      } else {
+        bandScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+        // Ap dung deadband
+        bandIndex = applyDeadband(bandScore, currentBandIndex);
+        // Luu band moi
+        setStoredBandIndex(userId, name, bandIndex);
+
+        if (officialProblemCount <= EVALUATING_MAX) {
+          bandStatus = 'evaluating';
+        } else {
+          bandStatus = 'stable';
+        }
+      }
+
       const solvedCount = new Set(items.filter((h) => h.passed).map((h) => h.problemId)).size;
-      const confidence: TopicSkill['confidence'] = items.length < 3 ? 'Thấp' : items.length <= 7 ? 'Trung bình' : 'Cao';
-      return { name, score, label: level.label, color: level.color, submissions: items.length, solvedCount, confidence };
+
+      // Do tin cay: dua tren so bai khac nhau
+      let confidence: TopicSkill['confidence'];
+      if (officialProblemCount < 3) confidence = 'Thấp';
+      else if (officialProblemCount <= 7) confidence = 'Trung bình';
+      else confidence = 'Cao';
+
+      return {
+        name,
+        score: bandScore,
+        label: BAND_LABELS[bandIndex],
+        color: BAND_COLORS[bandIndex],
+        submissions: items.length,
+        solvedCount,
+        confidence,
+        bandStatus,
+        officialProblemCount,
+      };
     })
     .sort((a, b) => b.submissions - a.submissions || b.score - a.score);
 }

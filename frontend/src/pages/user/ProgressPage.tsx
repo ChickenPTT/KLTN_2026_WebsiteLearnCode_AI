@@ -108,8 +108,8 @@ export function ProgressPage({
   }, [pieData, totalPieSolved]);
 
   const skills = useMemo(
-    () => topicSkills(history, buildTopics(problems).filter((t) => t.problemCount > 0).map((t) => t.name)),
-    [history, problems],
+    () => topicSkills(history, buildTopics(problems).filter((t) => t.problemCount > 0).map((t) => t.name), user?.id),
+    [history, problems, user?.id],
   );
 
   const streak = stats?.streak ?? 0;
@@ -327,24 +327,44 @@ export function ProgressPage({
             {skills.length === 0 && (
               <span style={{ fontSize: 13, color: '#7d8599' }}>Chưa có dữ liệu luyện tập.</span>
             )}
-            {skills.map((topic) => (
-              <div
-                className="topic-skill-row three-cols"
-                key={topic.name}
-                title={`${topic.score}/100 điểm • ${topic.submissions} lần nộp • Độ tin cậy: ${topic.confidence}`}
-              >
-                <span className="topic-skill-name">{topic.name}</span>
-                <div className="topic-skill-track">
-                  <div
-                    className="topic-skill-fill"
-                    style={{ width: `${Math.max(topic.score, 2)}%`, backgroundColor: topic.color }}
-                  />
+            {skills.map((topic) => {
+              let labelDisplay: string = topic.label;
+              let scoreDisplay = topic.score;
+              if (topic.bandStatus === 'nodata') {
+                labelDisplay = 'Chưa đủ dữ liệu';
+                scoreDisplay = 0;
+              } else if (topic.bandStatus === 'evaluating') {
+                labelDisplay = `${topic.label} (Đang đánh giá)`;
+              }
+              return (
+                <div
+                  className="topic-skill-row three-cols"
+                  key={topic.name}
+                  title={`${scoreDisplay}/100 điểm • ${topic.submissions} lần nộp • ${topic.officialProblemCount} bài chính thức • Độ tin cậy: ${topic.confidence}`}
+                >
+                  <span className="topic-skill-name">{topic.name}</span>
+                  <div className="topic-skill-track">
+                    <div
+                      className="topic-skill-fill"
+                      style={{
+                        width: `${Math.max(scoreDisplay, topic.bandStatus === 'nodata' ? 0 : 2)}%`,
+                        backgroundColor: topic.bandStatus === 'nodata' ? '#7d8599' : topic.color,
+                        opacity: topic.bandStatus === 'evaluating' ? 0.6 : 1,
+                      }}
+                    />
+                  </div>
+                  <span
+                    className="topic-skill-label"
+                    style={{
+                      color: topic.bandStatus === 'nodata' ? '#7d8599' : topic.color,
+                      opacity: topic.bandStatus === 'evaluating' ? 0.7 : 1,
+                    }}
+                  >
+                    {labelDisplay} ({scoreDisplay})
+                  </span>
                 </div>
-                <span className="topic-skill-label" style={{ color: topic.color }}>
-                  {topic.label} ({topic.score})
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
