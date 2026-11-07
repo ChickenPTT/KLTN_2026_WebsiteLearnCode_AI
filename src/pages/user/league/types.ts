@@ -69,3 +69,47 @@ export interface ChallengeFilter {
   topic: string | 'all';
   status: ChallengeStatus | 'all';
 }
+
+export interface SeasonProblemAttempt {
+  attemptId: string;
+  attemptNumber: number;
+  timestamp: string;
+  status: 'passed' | 'failed';
+  runtime: string;
+  memory: string;
+  language: string;
+  testPassedCount: number;
+  testTotalCount: number;
+  code: string;
+  feedback?: {
+    overall?: string;
+    complexity?: string;
+    codeStyle?: string;
+    suggestions?: string[];
+  };
+}
+
+export interface SeasonProblemRecord {
+  id: string;
+  problemId?: string;
+  title: string;
+  topic: string;
+  difficulty: Difficulty;
+  status: 'passed' | 'failed';
+  timeSpentMinutes: number;
+  attemptCount: number;
+  lastAttemptAt: string;
+  submissionId?: string;
+  attempts?: SeasonProblemAttempt[];
+  description?: string;
+  examples?: Array<{ input: string; output: string; explanation?: string }>;
+  constraints?: string[];
+}
+
+export interface SeasonSummaryStats {
+  completedCount: number;
+  totalTimeMinutes: number;
+  totalAttempts: number;
+  userRank: number;
+  participants: number;
+}

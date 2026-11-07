@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect  } from 'react';
 import { Header } from '@/layout/Header';
 import { useAuth } from '@/hooks/useAuth';
 import { type PracticeProblem, type AuthMode, type SkillLevel } from '@/types';
@@ -43,6 +43,11 @@ import { AdminProfileContent } from './AdminProfileContent';
 interface AdminPageProps {
   activeTab?: AdminTab;
   onTabChange?: (tab: AdminTab) => void;
+  leagueSubTab?: LeagueSubTab;
+  onLeagueSubTabChange?: (subTab: LeagueSubTab) => void;
+  seasonConfigMode?: 'none' | 'edit' | 'view';
+  seasonId?: string;
+  onSeasonNavigate?: (mode: 'none' | 'edit' | 'view', seasonId?: string) => void;
   onBack: () => void;
   onGoLanding?: () => void;
   onGoAuth?: (mode: AuthMode) => void;
@@ -57,6 +62,11 @@ interface AdminPageProps {
 export function AdminPage({
   activeTab: controlledActiveTab,
   onTabChange,
+  leagueSubTab: controlledLeagueSubTab,
+  onLeagueSubTabChange,
+  seasonConfigMode,
+  seasonId,
+  onSeasonNavigate,
   onGoLanding,
   onGoAuth,
   onGoTopics,
@@ -66,14 +76,32 @@ export function AdminPage({
   onLoggedOut,
 }: AdminPageProps) {
   const { user } = useAuth();
-  const [internalActiveTab, setInternalActiveTab] = useState<AdminTab>('dashboard');
-  const [leagueSubTab, setLeagueSubTab] = useState<LeagueSubTab>('overview');
+  const [internalActiveTab, setInternalActiveTab] = useState<AdminTab>(controlledActiveTab ?? 'dashboard');
+  const [internalLeagueSubTab, setInternalLeagueSubTab] = useState<LeagueSubTab>(controlledLeagueSubTab ?? 'overview');
 
   const activeTab = controlledActiveTab ?? internalActiveTab;
   const setActiveTab = (tab: AdminTab) => {
     setInternalActiveTab(tab);
     onTabChange?.(tab);
   };
+
+  const activeLeagueSubTab = controlledLeagueSubTab ?? internalLeagueSubTab;
+  const setLeagueSubTab = (sub: LeagueSubTab) => {
+    setInternalLeagueSubTab(sub);
+    onLeagueSubTabChange?.(sub);
+  };
+
+  useEffect(() => {
+    if (controlledActiveTab) {
+      setInternalActiveTab(controlledActiveTab);
+    }
+  }, [controlledActiveTab]);
+
+  useEffect(() => {
+    if (controlledLeagueSubTab) {
+      setInternalLeagueSubTab(controlledLeagueSubTab);
+    }
+  }, [controlledLeagueSubTab]);
 
   // Shared state
   const [users, setUsers] = useState<UserRecord[]>(MOCK_USERS_LIST);
@@ -358,10 +386,10 @@ export function AdminPage({
           userRole={user?.role}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          activeLeagueSubTab={leagueSubTab}
+          activeLeagueSubTab={activeLeagueSubTab}
           setActiveLeagueSubTab={(sub) => {
+            setInternalActiveTab('league');
             setLeagueSubTab(sub);
-            setActiveTab('league');
           }}
         />
 
@@ -454,8 +482,11 @@ export function AdminPage({
 
           {activeTab === 'league' && (
             <AdminLeagueTab
-              activeSubTab={leagueSubTab}
+              activeSubTab={activeLeagueSubTab}
               onSubTabChange={setLeagueSubTab}
+              seasonConfigMode={seasonConfigMode}
+              seasonId={seasonId}
+              onSeasonNavigate={onSeasonNavigate}
               onLogActivity={(action, target) => {
                 setActivityLogs((prev) => [
                   {

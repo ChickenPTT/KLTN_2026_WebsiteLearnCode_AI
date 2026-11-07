@@ -14576,3 +14576,13 @@ html[data-theme="light"] .league-diff-badge.league-diff-expert {
   color: #6d28d9 !important;
   border-color: #e9d5ff !important;
 }
+/* Fix heading trong trang quản lý đấu hạng */
+.admin-league-tab h1 {
+  max-width: none;
+  width: auto;
+  margin: 0;
+  text-align: left;
+  font-size: 24px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}

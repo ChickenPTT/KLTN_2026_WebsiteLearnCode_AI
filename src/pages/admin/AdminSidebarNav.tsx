@@ -59,8 +59,7 @@ export function AdminSidebarNav({
   const handleSubTabClick = (sub: LeagueSubTab) => {
     if (setActiveLeagueSubTab) {
       setActiveLeagueSubTab(sub);
-    }
-    if (activeTab !== 'league') {
+    } else if (activeTab !== 'league') {
       setActiveTab('league');
     }
   };

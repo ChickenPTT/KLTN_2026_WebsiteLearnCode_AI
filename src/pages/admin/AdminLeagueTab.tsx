@@ -28,7 +28,6 @@ import {
   X,
   Play,
   Check,
-  BarChart3,
   BarChart2,
   PieChart,
   HelpCircle,
@@ -52,25 +51,80 @@ import {
 } from '@/lib/leagueService';
 import { Pagination } from '@/components/Pagination';
 import { formatNumber } from '@/pages/user/league/utils';
+import { AdminSeasonConfigPage } from './AdminSeasonConfigPage';
 
 export interface AdminLeagueTabProps {
   activeSubTab?: LeagueSubTab;
   onSubTabChange?: (subTab: LeagueSubTab) => void;
+  seasonConfigMode?: 'none' | 'edit' | 'view';
+  seasonId?: string;
+  onSeasonNavigate?: (mode: 'none' | 'edit' | 'view', seasonId?: string) => void;
   onLogActivity?: (action: 'CREATE' | 'UPDATE' | 'DELETE' | 'TOGGLE', target: string) => void;
 }
 
 export function AdminLeagueTab({
   activeSubTab: controlledSubTab,
   onSubTabChange,
+  seasonConfigMode: controlledSeasonConfigMode,
+  seasonId: controlledSeasonId,
+  onSeasonNavigate,
   onLogActivity,
 }: AdminLeagueTabProps) {
-  // Sub-tab selection (controlled with fallback)
-  const [internalSubTab, setInternalSubTab] = useState<LeagueSubTab>('overview');
-  const activeSubTab = controlledSubTab ?? internalSubTab;
+  // Determine if this component is "controlled" for sub-tab & season navigation
+  const isSubTabControlled = controlledSubTab !== undefined;
+  const isSeasonControlled = controlledSeasonConfigMode !== undefined;
 
+  // Internal states – always maintained so component works standalone too
+  const [internalSubTab, setInternalSubTab] = useState<LeagueSubTab>(controlledSubTab ?? 'overview');
+  const [internalSeasonConfigMode, setInternalSeasonConfigMode] = useState<'none' | 'edit' | 'view'>(controlledSeasonConfigMode ?? 'none');
+  const [internalSeasonId, setInternalSeasonId] = useState<string | undefined>(controlledSeasonId);
+
+  // Sync internal state whenever controlled props change (e.g. browser Back/Forward)
+  useEffect(() => {
+    if (controlledSubTab !== undefined) {
+      setInternalSubTab(controlledSubTab);
+    }
+  }, [controlledSubTab]);
+
+  useEffect(() => {
+    if (controlledSeasonConfigMode !== undefined) {
+      setInternalSeasonConfigMode(controlledSeasonConfigMode);
+    }
+  }, [controlledSeasonConfigMode]);
+
+  useEffect(() => {
+    setInternalSeasonId(controlledSeasonId);
+  }, [controlledSeasonId]);
+
+  // Effective values used for rendering
+  const activeSubTab: LeagueSubTab = isSubTabControlled ? controlledSubTab! : internalSubTab;
+  const seasonConfigMode: 'none' | 'edit' | 'view' = isSeasonControlled
+    ? controlledSeasonConfigMode!
+    : internalSeasonConfigMode;
+  const activeSeasonId: string | undefined = isSeasonControlled
+    ? controlledSeasonId
+    : internalSeasonId;
+
+  // Central navigation for season config/view
+  const navigateSeason = (mode: 'none' | 'edit' | 'view', targetSeasonId?: string) => {
+    // Always update internal as local fallback
+    setInternalSeasonConfigMode(mode);
+    setInternalSeasonId(mode === 'none' ? undefined : targetSeasonId);
+    // Propagate to parent (App) if controlled
+    if (onSeasonNavigate) {
+      onSeasonNavigate(mode, mode === 'none' ? undefined : targetSeasonId);
+    }
+  };
+
+  // Central navigation for sub-tabs
   const handleSubTabSwitch = (tab: LeagueSubTab) => {
     setInternalSubTab(tab);
+    setInternalSeasonConfigMode('none');
+    setInternalSeasonId(undefined);
     onSubTabChange?.(tab);
+    if (onSeasonNavigate) {
+      onSeasonNavigate('none');
+    }
   };
 
   // Core Data States
@@ -235,8 +289,13 @@ export function AdminLeagueTab({
   };
 
   // ─────────────────────────────────────────────────────────────
-  // SEASON MANAGEMENT MODAL (Screen 2)
+  // SEASON CONFIGURATION & VIEW STATES (Screen 2)
   // ─────────────────────────────────────────────────────────────
+  const currentConfigSeason = useMemo(() => {
+    if (!activeSeasonId || activeSeasonId === 'new') return null;
+    return seasons.find((s) => s.id === activeSeasonId) || null;
+  }, [activeSeasonId, seasons]);
+
   const [showSeasonModal, setShowSeasonModal] = useState(false);
   const [editingSeason, setEditingSeason] = useState<Season | null>(null);
   const [seasonNameInput, setSeasonNameInput] = useState('');
@@ -246,25 +305,20 @@ export function AdminLeagueTab({
   const [seasonParticipantsInput, setSeasonParticipantsInput] = useState<number>(0);
 
   const openCreateSeasonModal = () => {
-    setEditingSeason(null);
-    setSeasonNameInput(`Code Warriors - Mùa 0${seasons.length + 1}`);
-    setSeasonStatusInput('upcoming');
-    const now = new Date();
-    const end = new Date(now.getTime() + 40 * 86400000);
-    setSeasonStartInput(now.toISOString().split('T')[0]);
-    setSeasonEndInput(end.toISOString().split('T')[0]);
-    setSeasonParticipantsInput(0);
-    setShowSeasonModal(true);
-  };
+  setEditingSeason(null);
+  setSeasonNameInput('');
+  setSeasonStatusInput('upcoming');
+  setSeasonStartInput('');
+  setSeasonEndInput('');
+  setShowSeasonModal(true);
+};
 
   const openEditSeasonModal = (s: Season) => {
-    setEditingSeason(s);
-    setSeasonNameInput(s.name);
-    setSeasonStatusInput(s.status);
-    setSeasonStartInput(s.startDate ? new Date(s.startDate).toISOString().split('T')[0] : '');
-    setSeasonEndInput(s.endDate ? new Date(s.endDate).toISOString().split('T')[0] : '');
-    setSeasonParticipantsInput(s.participants || 0);
-    setShowSeasonModal(true);
+    navigateSeason('edit', s.id);
+  };
+
+  const openViewSeasonPage = (s: Season) => {
+    navigateSeason('view', s.id);
   };
 
   const handleSaveSeason = (e: React.FormEvent) => {
@@ -273,10 +327,27 @@ export function AdminLeagueTab({
       showToast('Vui lòng nhập tên mùa giải', 'error');
       return;
     }
+    if (!editingSeason) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const startDate = new Date(`${seasonStartInput}T00:00:00`);
+      const endDate = new Date(`${seasonEndInput}T00:00:00`);
+
+      if (startDate <= today) {
+        showToast('Ngày bắt đầu phải lớn hơn ngày hiện tại', 'error');
+        return;
+      }
+
+      if (endDate < startDate) {
+        showToast('Ngày kết thúc phải sau hoặc bằng ngày bắt đầu', 'error');
+        return;
+      }
+    }
     if (editingSeason) {
       const updated = updateSeason(editingSeason.id, {
         name: seasonNameInput.trim(),
-        status: seasonStatusInput,
+        status: 'upcoming',
         startDate: seasonStartInput ? new Date(seasonStartInput).toISOString() : editingSeason.startDate,
         endDate: seasonEndInput ? new Date(seasonEndInput).toISOString() : editingSeason.endDate,
         participants: seasonParticipantsInput,
@@ -371,58 +442,7 @@ export function AdminLeagueTab({
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white">Tổng quan</h1>
-              <p className="text-sm text-slate-400">Theo dõi tình hình hoạt động của hệ thống Code Warriors</p>
-            </div>
-          </div>
-
-          {/* 3 Stat Cards in a row */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            {/* Card 1: Thí sinh tham gia */}
-            <div className="rounded-2xl border border-[#232b3e] bg-[#121622] p-5 shadow-lg relative overflow-hidden flex flex-col justify-between">
-              <div className="flex items-start justify-between">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-500/15 text-purple-400">
-                  <Users size={22} />
-                </div>
-                <span className="flex items-center gap-1 text-xs font-semibold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                  ↑ +12%
-                </span>
-              </div>
-              <div className="mt-4">
-                <div className="text-2xl font-bold text-white tracking-tight">12.480</div>
-                <div className="text-xs text-slate-400 mt-1 font-medium">Thí sinh tham gia</div>
-              </div>
-            </div>
-
-            {/* Card 2: Mùa giải */}
-            <div className="rounded-2xl border border-[#232b3e] bg-[#121622] p-5 shadow-lg relative overflow-hidden flex flex-col justify-between">
-              <div className="flex items-start justify-between">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/15 text-blue-400">
-                  <Trophy size={22} />
-                </div>
-                <span className="flex items-center gap-1 text-xs font-semibold text-cyan-400 bg-cyan-500/15 border border-cyan-500/30 px-2 py-0.5 rounded-full">
-                  +0%
-                </span>
-              </div>
-              <div className="mt-4">
-                <div className="text-2xl font-bold text-white tracking-tight">04</div>
-                <div className="text-xs text-slate-400 mt-1 font-medium">Mùa giải</div>
-              </div>
-            </div>
-
-            {/* Card 3: Bảng xếp hạng */}
-            <div className="rounded-2xl border border-[#232b3e] bg-[#121622] p-5 shadow-lg relative overflow-hidden flex flex-col justify-between">
-              <div className="flex items-start justify-between">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400">
-                  <BarChart3 size={22} />
-                </div>
-                <span className="flex items-center gap-1 text-xs font-semibold text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full">
-                  ↑ +5%
-                </span>
-              </div>
-              <div className="mt-4">
-                <div className="text-2xl font-bold text-white tracking-tight">40</div>
-                <div className="text-xs text-slate-400 mt-1 font-medium">Bảng xếp hạng</div>
-              </div>
+              <p className="text-sm text-slate-400">Theo dõi tình hình hoạt động của mùa giải đang diễn ra</p>
             </div>
           </div>
 
@@ -580,86 +600,9 @@ export function AdminLeagueTab({
             </div>
           </div>
 
-          {/* Bottom Row: 3 Columns matching Screen 1 */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {/* Column 1: Hoạt động gần đây */}
-            <div className="rounded-2xl border border-[#232b3e] bg-[#121622] p-5 shadow-lg flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between pb-3 border-b border-[#1f283b] mb-3">
-                  <h4 className="font-bold text-white text-sm">Hoạt động gần đây</h4>
-                  <button
-                    onClick={() => handleSubTabSwitch('seasons')}
-                    className="text-xs text-violet-400 hover:text-violet-300 font-semibold"
-                  >
-                    Xem tất cả →
-                  </button>
-                </div>
-
-                <div className="space-y-3.5">
-                  <div className="flex items-start gap-3">
-                    <div className="w-7 h-7 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center flex-shrink-0 text-xs font-bold">
-                      👤
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs text-slate-200 font-medium truncate">
-                        Nguyễn Văn A đã đăng ký tham gia mùa giải
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">2 phút trước</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="w-7 h-7 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center flex-shrink-0 text-xs font-bold">
-                      📊
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs text-slate-200 font-medium truncate">
-                        Cập nhật bảng xếp hạng tuần
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">15 phút trước</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="w-7 h-7 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center flex-shrink-0 text-xs font-bold">
-                      🏆
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs text-slate-200 font-medium truncate">
-                        Mùa giải Code Warriors - Mùa 04 bắt đầu
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">1 giờ trước</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="w-7 h-7 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0 text-xs font-bold">
-                      ⚙️
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs text-slate-200 font-medium truncate">
-                        Admin cập nhật thông tin mùa giải
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">1 giờ trước</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-3">
-                    <div className="w-7 h-7 rounded-full bg-pink-500/20 text-pink-400 flex items-center justify-center flex-shrink-0 text-xs font-bold">
-                      👤
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs text-slate-200 font-medium truncate">
-                        Trần Thị B đã đăng ký tham gia mùa giải
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">2 giờ trước</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Column 2: Top 5 thí sinh hiện tại */}
+          {/* Bottom Row: 2 Columns */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Column 1: Top 5 thí sinh hiện tại */}
             <div className="rounded-2xl border border-[#232b3e] bg-[#121622] p-5 shadow-lg flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between pb-3 border-b border-[#1f283b] mb-3">
@@ -682,7 +625,6 @@ export function AdminLeagueTab({
                       <span className="text-xs font-semibold text-white truncate">Nguyễn Minh Anh</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-200">9.876 pts</span>
                       <span className="text-[10px] font-semibold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded">
                         Vô địch
                       </span>
@@ -698,7 +640,6 @@ export function AdminLeagueTab({
                       <span className="text-xs font-semibold text-white truncate">Trần Quốc Bảo</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-200">9.742 pts</span>
                       <span className="text-[10px] font-semibold text-cyan-300 bg-cyan-500/15 border border-cyan-500/30 px-1.5 py-0.5 rounded">
                         Á quân
                       </span>
@@ -714,7 +655,6 @@ export function AdminLeagueTab({
                       <span className="text-xs font-semibold text-white truncate">Lê Thị Hương</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-200">9.650 pts</span>
                       <span className="text-[10px] font-semibold text-orange-300 bg-orange-500/15 border border-orange-500/30 px-1.5 py-0.5 rounded">
                         Hạng 3
                       </span>
@@ -730,7 +670,6 @@ export function AdminLeagueTab({
                       <span className="text-xs font-semibold text-white truncate">Phạm Văn Duy</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-200">9.534 pts</span>
                       <span className="text-[10px] font-semibold text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
                         Hạng 4
                       </span>
@@ -746,7 +685,6 @@ export function AdminLeagueTab({
                       <span className="text-xs font-semibold text-white truncate">Hoàng Minh Đức</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-200">9.420 pts</span>
                       <span className="text-[10px] font-semibold text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
                         Hạng 5
                       </span>
@@ -756,7 +694,7 @@ export function AdminLeagueTab({
               </div>
             </div>
 
-            {/* Column 3: Thao tác nhanh */}
+            {/* Column 2: Thao tác nhanh */}
             <div className="rounded-2xl border border-[#232b3e] bg-[#121622] p-5 shadow-lg relative overflow-hidden flex flex-col justify-between">
               {/* Bottom stylized mountain silhouette */}
               <div className="absolute -bottom-6 -right-6 w-36 h-36 bg-violet-600/10 rounded-full blur-2xl pointer-events-none" />
@@ -816,6 +754,45 @@ export function AdminLeagueTab({
           SCREEN 2: QUẢN LÝ MÙA GIẢI (SEASONS)
           ═════════════════════════════════════════════════════════════ */}
       {activeSubTab === 'seasons' && (
+        seasonConfigMode !== 'none' ? (
+          <AdminSeasonConfigPage
+            season={currentConfigSeason}
+            isReadOnly={seasonConfigMode === 'view'}
+            onBack={() => {
+              navigateSeason('none');
+            }}
+            onSaveSeason={(data) => {
+              if (currentConfigSeason) {
+                const updated = updateSeason(currentConfigSeason.id, {
+                  name: data.name,
+                  startDate: data.startDate,
+                  endDate: data.endDate,
+                  status: data.status,
+                });
+                if (updated) {
+                  setSeasons(getStoredSeasons());
+                  showToast(`Đã cập nhật cấu hình "${updated.name}" thành công`);
+                  onLogActivity?.('UPDATE', `Cấu hình mùa giải: ${updated.name}`);
+                }
+              } else {
+                const created = createSeason({
+                  name: data.name,
+                  startDate: data.startDate,
+                  endDate: data.endDate,
+                  status: data.status,
+                  participants: 0,
+                  userPoints: 0,
+                  userRank: 0,
+                });
+                setSeasons(getStoredSeasons());
+                showToast(`Đã tạo mùa giải mới "${created.name}" thành công`);
+                onLogActivity?.('CREATE', `Tạo mùa giải mới: ${created.name}`);
+              }
+              navigateSeason('none');
+            }}
+            onLogActivity={onLogActivity}
+          />
+        ) : (
         <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between flex-wrap gap-4">
@@ -825,7 +802,7 @@ export function AdminLeagueTab({
               </div>
               <div>
                 <h1 className="text-2xl font-bold tracking-tight text-white">Quản lý mùa giải</h1>
-                <p className="text-sm text-slate-400">Tạo, chỉnh sửa và quản lý các mùa giải Code Warriors</p>
+                <p className="text-sm text-slate-400">Tạo, chỉnh sửa và quản lý các mùa giải</p>
               </div>
             </div>
 
@@ -885,12 +862,10 @@ export function AdminLeagueTab({
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-violet-300 hover:bg-violet-600/20 border border-violet-500/30 transition-all"
                           >
                             <Edit3 size={13} />
-                            Sửa
+                            Cấu hình mùa giải
                           </button>
                           <button
-                            onClick={() => {
-                              showToast(`Xem chi tiết ${s.name}`);
-                            }}
+                            onClick={() => openViewSeasonPage(s)}
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-700/50 border border-slate-600/30 transition-all"
                           >
                             <Eye size={13} />
@@ -953,6 +928,7 @@ export function AdminLeagueTab({
             </div>
           </div>
         </div>
+        )
       )}
 
       {/* ═════════════════════════════════════════════════════════════
@@ -1359,16 +1335,32 @@ export function AdminLeagueTab({
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Ngày bắt đầu</label>
-                  <input
-                    type="date"
-                    required
-                    value={seasonStartInput}
-                    onChange={(e) => setSeasonStartInput(e.target.value)}
-                    className="w-full rounded-xl bg-[#181f2f] border border-[#2a354b] px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Ngày bắt đầu
+                </label>
+                <input
+                  type="date"
+                  required
+                  min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+                    .toISOString().slice(0, 10)}
+                  value={seasonStartInput}
+                  onChange={(e) => setSeasonStartInput(e.target.value)}
+                  className="w-full rounded-xl bg-[#181f2f] border border-[#2a354b] px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                />
+
+                {!editingSeason && seasonStartInput && (() => {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const startDate = new Date(`${seasonStartInput}T00:00:00`);
+
+                  return startDate <= today ? (
+                    <p className="mt-1 text-xs text-red-500">
+                      Ngày bắt đầu phải lớn hơn ngày hiện tại!
+                    </p>
+                  ) : null;
+                })()}
+              </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Ngày kết thúc</label>
                   <input
@@ -1381,31 +1373,22 @@ export function AdminLeagueTab({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Trạng thái</label>
-                  <select
-                    value={seasonStatusInput}
-                    onChange={(e) => setSeasonStatusInput(e.target.value as SeasonStatus)}
-                    className="w-full rounded-xl bg-[#181f2f] border border-[#2a354b] px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500 cursor-pointer"
-                  >
-                    <option value="upcoming">Sắp diễn ra</option>
-                    <option value="active">Đang diễn ra</option>
-                    <option value="completed">Đã kết thúc</option>
-                  </select>
+              {editingSeason && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Trạng thái</label>
+                    <select
+                      value={seasonStatusInput}
+                      onChange={(e) => setSeasonStatusInput(e.target.value as SeasonStatus)}
+                      className="w-full rounded-xl bg-[#181f2f] border border-[#2a354b] px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500 cursor-pointer"
+                    >
+                      <option value="upcoming">Sắp diễn ra</option>
+                      <option value="active">Đang diễn ra</option>
+                      <option value="completed">Đã kết thúc</option>
+                    </select>
+                  </div>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Số lượng thí sinh</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={seasonParticipantsInput}
-                    onChange={(e) => setSeasonParticipantsInput(Number(e.target.value))}
-                    className="w-full rounded-xl bg-[#181f2f] border border-[#2a354b] px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
-                  />
-                </div>
-              </div>
+              )}
 
               <div className="flex justify-end gap-3 pt-3 border-t border-[#232b3e]">
                 <button

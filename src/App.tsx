@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { AuthMode, TopicScore, View } from '@/types';
 import type { UserRole } from '@/data/mockAuth';
-import type { AdminTab } from '@/pages/admin/admin.types';
+import type { AdminTab, LeagueSubTab } from '@/pages/admin/admin.types';
 import { useAuth } from '@/hooks/useAuth.tsx';
 import { LandingPage } from '@/pages/user/LandingPage';
 import { AuthPage } from '@/pages/user/AuthPage';
@@ -81,6 +81,10 @@ function buildHash(
     topicSlug?: string;
     authMode?: AuthMode;
     adminTab?: AdminTab;
+    leagueSub?: LeagueSubTab;
+    seasonMode?: 'none' | 'edit' | 'view';
+    seasonId?: string;
+    flashcardSetId?: string;
   },
 ): string {
   if (v === 'forbidden') return '#forbidden';
@@ -95,6 +99,19 @@ function buildHash(
     if (params?.authMode) queryParts.push(`mode=${encodeURIComponent(params.authMode)}`);
   } else if (v === 'admin') {
     if (params?.adminTab) queryParts.push(`tab=${encodeURIComponent(params.adminTab)}`);
+    if (params?.adminTab === 'league') {
+      if (params?.leagueSub && params.leagueSub !== 'overview') {
+        queryParts.push(`sub=${encodeURIComponent(params.leagueSub)}`);
+      }
+      if (params?.seasonMode && params.seasonMode !== 'none') {
+        queryParts.push(`mode=${encodeURIComponent(params.seasonMode)}`);
+      }
+      if (params?.seasonId) {
+        queryParts.push(`season=${encodeURIComponent(params.seasonId)}`);
+      }
+    }
+  } else if (v === 'flashcard-detail' || v === 'flashcard-match') {
+    if (params?.flashcardSetId) queryParts.push(`set=${encodeURIComponent(params.flashcardSetId)}`);
   }
   if (queryParts.length > 0) hash += `?${queryParts.join('&')}`;
   return hash;
@@ -106,6 +123,10 @@ function parseHash(hashStr: string): {
   topicSlug?: string;
   authMode?: AuthMode;
   adminTab?: AdminTab;
+  leagueSub?: LeagueSubTab;
+  seasonMode?: 'edit' | 'view';
+  seasonId?: string;
+  flashcardSetId?: string;
 } {
   const clean = hashStr.startsWith('#') ? hashStr.slice(1) : hashStr;
   if (!clean) return { view: 'landing' };
@@ -125,8 +146,12 @@ function parseHash(hashStr: string): {
     view,
     problemId: params.problem,
     topicSlug: params.topic,
-    authMode: params.mode as AuthMode,
+    authMode: view === 'auth' ? (params.mode as AuthMode) : undefined,
     adminTab: params.tab as AdminTab,
+    leagueSub: (params.sub as LeagueSubTab) || (params.tab === 'league' ? 'overview' : undefined),
+    seasonMode: view === 'admin' && (params.mode === 'edit' || params.mode === 'view') ? params.mode : undefined,
+    seasonId: params.season,
+    flashcardSetId: params.set,
   };
 }
 
@@ -136,12 +161,20 @@ function getInitialNavigationState(): {
   selectedProblemId: string;
   selectedTopic: TopicInfo;
   adminTab: AdminTab;
+  leagueSubTab: LeagueSubTab;
+  seasonConfigMode: 'none' | 'edit' | 'view';
+  seasonId?: string;
+  selectedFlashcardSetId: string;
 } {
   let view: View = 'landing';
   let authMode: AuthMode = 'login';
   let selectedProblemId = 'two-sum';
   let selectedTopic = TOPIC_INFOS[0];
   let adminTab: AdminTab = 'dashboard';
+  let leagueSubTab: LeagueSubTab = 'overview';
+  let seasonConfigMode: 'none' | 'edit' | 'view' = 'none';
+  let seasonId: string | undefined = undefined;
+  let selectedFlashcardSetId = 'fc-1';
 
   try {
     let authUser: { role?: UserRole } | null = null;
@@ -171,6 +204,12 @@ function getInitialNavigationState(): {
       }
       if (hashData.authMode && !guardResult.authMode) authMode = hashData.authMode;
       if (hashData.adminTab) adminTab = hashData.adminTab;
+      if (hashData.leagueSub) leagueSubTab = hashData.leagueSub;
+      if (hashData.seasonMode) {
+        seasonConfigMode = hashData.seasonMode;
+        seasonId = hashData.seasonId;
+      }
+      if (hashData.flashcardSetId) selectedFlashcardSetId = hashData.flashcardSetId;
     } else {
       // 2. Fallback to Session Storage
       if (authUser && (authUser.role === 'admin' || authUser.role === 'teacher')) {
@@ -190,7 +229,17 @@ function getInitialNavigationState(): {
     // ignore
   }
 
-  return { view, authMode, selectedProblemId, selectedTopic, adminTab };
+  return {
+    view,
+    authMode,
+    selectedProblemId,
+    selectedTopic,
+    adminTab,
+    leagueSubTab,
+    seasonConfigMode,
+    seasonId,
+    selectedFlashcardSetId,
+  };
 }
 
 function App() {
@@ -218,7 +267,10 @@ function App() {
   const [selectedProblemId, setSelectedProblemId] = useState<string>(initialState.selectedProblemId);
   const [selectedTopic, setSelectedTopic] = useState<TopicInfo>(initialState.selectedTopic);
   const [adminTab, setAdminTab] = useState<AdminTab>(initialState.adminTab);
-  const [selectedFlashcardSetId, setSelectedFlashcardSetId] = useState<string>('fc-1');
+  const [leagueSubTab, setLeagueSubTab] = useState<LeagueSubTab>(initialState.leagueSubTab);
+  const [seasonConfigMode, setSeasonConfigMode] = useState<'none' | 'edit' | 'view'>(initialState.seasonConfigMode);
+  const [currentSeasonId, setCurrentSeasonId] = useState<string | undefined>(initialState.seasonId);
+  const [selectedFlashcardSetId, setSelectedFlashcardSetId] = useState<string>(initialState.selectedFlashcardSetId);
   const [editingFlashcardSetId, setEditingFlashcardSetId] = useState<string | null>(null);
   const [multiSetMatchCards, setMultiSetMatchCards] = useState<FlashcardItem[] | null>(null);
   const [multiSetMatchTitle, setMultiSetMatchTitle] = useState<string>('');
@@ -238,6 +290,9 @@ function App() {
       topic?: TopicInfo;
       authMode?: AuthMode;
       adminTab?: AdminTab;
+      leagueSub?: LeagueSubTab;
+      seasonMode?: 'none' | 'edit' | 'view';
+      seasonId?: string;
       flashcardSetId?: string;
     },
     options?: { replace?: boolean },
@@ -259,18 +314,39 @@ function App() {
     if (params?.problemId) setSelectedProblemId(params.problemId);
     if (params?.topic) setSelectedTopic(params.topic);
     setAuthMode(effectiveAuthMode);
-    if (params?.adminTab) setAdminTab(params.adminTab);
+
+    const activeAdminTab = params?.adminTab ?? (effectiveView === 'admin' ? adminTab : 'dashboard');
+    if (params?.adminTab !== undefined) setAdminTab(params.adminTab);
+
+    const activeLeagueSub = params?.leagueSub ?? (activeAdminTab === 'league' ? leagueSubTab : 'overview');
+    if (params?.leagueSub !== undefined) setLeagueSubTab(params.leagueSub);
+
+    const activeSeasonMode = params?.seasonMode !== undefined
+      ? params.seasonMode
+      : (activeAdminTab === 'league' && activeLeagueSub === 'seasons' ? seasonConfigMode : 'none');
+    if (params?.seasonMode !== undefined) setSeasonConfigMode(params.seasonMode);
+
+    const activeSeasonId = params?.seasonId !== undefined
+      ? params.seasonId
+      : (activeSeasonMode !== 'none' ? currentSeasonId : undefined);
+    if (params?.seasonId !== undefined || params?.seasonMode === 'none') {
+      setCurrentSeasonId(params?.seasonMode === 'none' ? undefined : params?.seasonId);
+    }
+
     if (params?.flashcardSetId) setSelectedFlashcardSetId(params.flashcardSetId);
 
     const activeProblemId = params?.problemId ?? selectedProblemId;
     const activeTopic = params?.topic ?? selectedTopic;
-    const activeAdminTab = params?.adminTab ?? (effectiveView === 'admin' ? adminTab : 'dashboard');
 
     const hashStr = buildHash(effectiveView, {
       problemId: activeProblemId,
       topicSlug: activeTopic?.slug,
       authMode: effectiveAuthMode,
       adminTab: effectiveView === 'admin' ? activeAdminTab : undefined,
+      leagueSub: effectiveView === 'admin' && activeAdminTab === 'league' ? activeLeagueSub : undefined,
+      seasonMode: effectiveView === 'admin' && activeAdminTab === 'league' && activeSeasonMode !== 'none' ? activeSeasonMode : undefined,
+      seasonId: effectiveView === 'admin' && activeAdminTab === 'league' && activeSeasonMode !== 'none' ? activeSeasonId : undefined,
+      flashcardSetId: params?.flashcardSetId ?? selectedFlashcardSetId,
     });
 
     const stateObj = {
@@ -279,6 +355,10 @@ function App() {
       topicSlug: activeTopic?.slug,
       authMode: effectiveAuthMode,
       adminTab: activeAdminTab,
+      leagueSub: activeLeagueSub,
+      seasonMode: activeSeasonMode,
+      seasonId: activeSeasonId,
+      flashcardSetId: params?.flashcardSetId ?? selectedFlashcardSetId,
     };
 
     try {
@@ -288,8 +368,10 @@ function App() {
       if (options?.replace || !guard.allowed) {
         window.history.replaceState(stateObj, '', hashStr);
       } else {
-        if (window.location.hash !== hashStr || window.history.state?.adminTab !== activeAdminTab) {
+        if (window.location.hash !== hashStr) {
           window.history.pushState(stateObj, '', hashStr);
+        } else {
+          window.history.replaceState(stateObj, '', hashStr);
         }
       }
     } catch {
@@ -306,6 +388,10 @@ function App() {
       topicSlug: selectedTopic?.slug,
       authMode,
       adminTab: view === 'admin' ? adminTab : undefined,
+      leagueSub: view === 'admin' && adminTab === 'league' ? leagueSubTab : undefined,
+      seasonMode: view === 'admin' && adminTab === 'league' && seasonConfigMode !== 'none' ? seasonConfigMode : undefined,
+      seasonId: view === 'admin' && adminTab === 'league' && seasonConfigMode !== 'none' ? currentSeasonId : undefined,
+      flashcardSetId: selectedFlashcardSetId,
     });
 
     const activeState = {
@@ -314,6 +400,10 @@ function App() {
       topicSlug: selectedTopic?.slug,
       authMode,
       adminTab,
+      leagueSub: leagueSubTab,
+      seasonMode: seasonConfigMode,
+      seasonId: currentSeasonId,
+      flashcardSetId: selectedFlashcardSetId,
     };
 
     // Ensure initial entry in browser history stack is populated
@@ -328,6 +418,10 @@ function App() {
       let targetTopic = selectedTopic;
       let targetAuthMode = authMode;
       let targetAdminTab: AdminTab = 'dashboard';
+      let targetLeagueSub: LeagueSubTab = 'overview';
+      let targetSeasonMode: 'none' | 'edit' | 'view' = 'none';
+      let targetSeasonId: string | undefined = undefined;
+      let targetFlashcardSetId = selectedFlashcardSetId;
 
       if (state && state.view) {
         targetView = state.view;
@@ -342,6 +436,10 @@ function App() {
         }
         if (state.authMode) targetAuthMode = state.authMode;
         if (state.adminTab) targetAdminTab = state.adminTab;
+        if (state.leagueSub) targetLeagueSub = state.leagueSub;
+        if (state.seasonMode) targetSeasonMode = state.seasonMode;
+        if (state.seasonId) targetSeasonId = state.seasonId;
+        if (state.flashcardSetId) targetFlashcardSetId = state.flashcardSetId;
       } else {
         // Fallback: parse window.location.hash if state is empty
         const parsed = parseHash(window.location.hash);
@@ -357,6 +455,10 @@ function App() {
         }
         if (parsed.authMode) targetAuthMode = parsed.authMode;
         if (parsed.adminTab) targetAdminTab = parsed.adminTab;
+        if (parsed.leagueSub) targetLeagueSub = parsed.leagueSub;
+        if (parsed.seasonMode) targetSeasonMode = parsed.seasonMode;
+        if (parsed.seasonId) targetSeasonId = parsed.seasonId;
+        if (parsed.flashcardSetId) targetFlashcardSetId = parsed.flashcardSetId;
       }
 
       // Check route guard on browser back/forward navigation
@@ -376,6 +478,10 @@ function App() {
       setSelectedTopic(targetTopic);
       setAuthMode(targetAuthMode);
       setAdminTab(targetAdminTab);
+      setLeagueSubTab(targetLeagueSub);
+      setSeasonConfigMode(targetSeasonMode);
+      setCurrentSeasonId(targetSeasonId);
+      setSelectedFlashcardSetId(targetFlashcardSetId);
 
       try {
         sessionStorage.setItem(VIEW_KEY, targetView);
@@ -386,7 +492,7 @@ function App() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [user, view, selectedProblemId, selectedTopic, authMode, adminTab]);
+  }, [user, view, selectedProblemId, selectedTopic, authMode, adminTab, leagueSubTab, seasonConfigMode, currentSeasonId, selectedFlashcardSetId]);
 
   // ── ADMIN / TEACHER AUTOMATIC REDIRECT GUARD ──
   useEffect(() => {
@@ -886,7 +992,31 @@ function App() {
     return (
       <AdminPage
         activeTab={adminTab}
-        onTabChange={(tab) => nav('admin', { adminTab: tab })}
+        onTabChange={(tab) =>
+          nav('admin', {
+            adminTab: tab,
+            leagueSub: tab === 'league' ? leagueSubTab : undefined,
+            seasonMode: 'none',
+          })
+        }
+        leagueSubTab={leagueSubTab}
+        onLeagueSubTabChange={(sub) =>
+          nav('admin', {
+            adminTab: 'league',
+            leagueSub: sub,
+            seasonMode: 'none',
+          })
+        }
+        seasonConfigMode={seasonConfigMode}
+        seasonId={currentSeasonId}
+        onSeasonNavigate={(mode, targetSeasonId) =>
+          nav('admin', {
+            adminTab: 'league',
+            leagueSub: 'seasons',
+            seasonMode: mode,
+            seasonId: targetSeasonId,
+          })
+        }
         onBack={goLanding}
         onGoLanding={() => goAdmin('dashboard')}
         onGoAuth={goAuth}
