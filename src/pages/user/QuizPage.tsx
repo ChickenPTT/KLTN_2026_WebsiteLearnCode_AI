@@ -50,12 +50,14 @@ export function QuizPage({
     const scores: TopicScore[] = TOPICS.map((topic) => {
       const total = topicTotal[topic] ?? 0;
       const correct = topicCorrect[topic] ?? 0;
-      let level: SkillLevel = 'none';
+      let level: SkillLevel = 'beginner';
       if (total > 0) {
         const ratio = correct / total;
-        if (ratio >= 0.75) level = 'advanced';
+        if (ratio >= 0.9) level = 'expert';
+        else if (ratio >= 0.75) level = 'advanced';
         else if (ratio >= 0.5) level = 'intermediate';
-        else if (ratio > 0) level = 'beginner';
+        else if (ratio >= 0.25) level = 'basic';
+        else level = 'beginner';
       }
       return { topic, level };
     });
@@ -79,7 +81,7 @@ export function QuizPage({
             maxWidth: '720px',
             margin: '0 auto 16px',
             display: 'flex',
-            justify: 'space-between',
+            justifyContent: 'space-between',
             alignItems: 'center',
           }}
         >

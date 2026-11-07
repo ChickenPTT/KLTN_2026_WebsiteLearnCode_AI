@@ -12,7 +12,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth.tsx';
 
-interface AdminProfileContentProps {}
+interface AdminProfileContentProps {
+  onBack?: () => void;
+}
 
 export function AdminProfileContent(_props: AdminProfileContentProps) {
   const { user, updateUser } = useAuth();

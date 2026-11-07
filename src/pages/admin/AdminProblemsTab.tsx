@@ -31,7 +31,8 @@ import {
   ChevronRight,
   type LucideIcon,
 } from 'lucide-react';
-import { TOPICS, type PracticeProblem } from '@/types';
+import { TOPICS, type PracticeProblem, type SkillLevel, LEVEL_COLORS, LEVEL_LABELS, LEVEL_OPTIONS } from '@/types';
+import { normalizeDifficulty } from '@/lib/difficulty';
 import { AdminGeneratorModal } from './AdminGeneratorModal';
 import { SearchableSelect, type SelectOption } from '@/components/SearchableSelect';
 import { Pagination } from '@/components/Pagination';
@@ -63,10 +64,8 @@ const TOPIC_OPTIONS: SelectOption[] = [
 ];
 
 const DIFF_OPTIONS: SelectOption[] = [
-  { value: 'all', label: 'Mọi cấp độ' },
-  { value: 'Easy', label: 'Dễ (Easy)' },
-  { value: 'Medium', label: 'Trung bình (Medium)' },
-  { value: 'Hard', label: 'Khó (Hard)' },
+  { value: 'all', label: 'Mọi cấp độ (5 levels)' },
+  ...LEVEL_OPTIONS,
 ];
 
 const VERIFY_OPTIONS: SelectOption[] = [
@@ -82,10 +81,54 @@ const STATUS_OPTIONS: SelectOption[] = [
 ];
 
 const DIFFICULTY_COLORS: Record<string, { bg: string; color: string; border: string; label: string }> = {
-  Easy: { bg: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: 'rgba(16, 185, 129, 0.3)', label: 'Dễ (Easy)' },
-  Medium: { bg: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', border: 'rgba(245, 158, 11, 0.3)', label: 'Trung bình' },
-  Hard: { bg: 'rgba(244, 63, 94, 0.12)', color: '#f43f5e', border: 'rgba(244, 63, 94, 0.3)', label: 'Khó (Hard)' },
+  // 5 Canonical Levels
+  beginner: { bg: `${LEVEL_COLORS.beginner}1f`, color: LEVEL_COLORS.beginner, border: `${LEVEL_COLORS.beginner}4d`, label: LEVEL_LABELS.beginner },
+  basic: { bg: `${LEVEL_COLORS.basic}1f`, color: LEVEL_COLORS.basic, border: `${LEVEL_COLORS.basic}4d`, label: LEVEL_LABELS.basic },
+  intermediate: { bg: `${LEVEL_COLORS.intermediate}1f`, color: LEVEL_COLORS.intermediate, border: `${LEVEL_COLORS.intermediate}4d`, label: LEVEL_LABELS.intermediate },
+  advanced: { bg: `${LEVEL_COLORS.advanced}1f`, color: LEVEL_COLORS.advanced, border: `${LEVEL_COLORS.advanced}4d`, label: LEVEL_LABELS.advanced },
+  expert: { bg: `${LEVEL_COLORS.expert}1f`, color: LEVEL_COLORS.expert, border: `${LEVEL_COLORS.expert}4d`, label: LEVEL_LABELS.expert },
+  // Level 1: Easy / Dễ -> beginner
+  Easy: { bg: `${LEVEL_COLORS.beginner}1f`, color: LEVEL_COLORS.beginner, border: `${LEVEL_COLORS.beginner}4d`, label: LEVEL_LABELS.beginner },
+  easy: { bg: `${LEVEL_COLORS.beginner}1f`, color: LEVEL_COLORS.beginner, border: `${LEVEL_COLORS.beginner}4d`, label: LEVEL_LABELS.beginner },
+  Dễ: { bg: `${LEVEL_COLORS.beginner}1f`, color: LEVEL_COLORS.beginner, border: `${LEVEL_COLORS.beginner}4d`, label: LEVEL_LABELS.beginner },
+  dễ: { bg: `${LEVEL_COLORS.beginner}1f`, color: LEVEL_COLORS.beginner, border: `${LEVEL_COLORS.beginner}4d`, label: LEVEL_LABELS.beginner },
+  // Level 2: Medium-dễ / Medium-easy -> basic
+  'Medium-dễ': { bg: `${LEVEL_COLORS.basic}1f`, color: LEVEL_COLORS.basic, border: `${LEVEL_COLORS.basic}4d`, label: LEVEL_LABELS.basic },
+  'medium-dễ': { bg: `${LEVEL_COLORS.basic}1f`, color: LEVEL_COLORS.basic, border: `${LEVEL_COLORS.basic}4d`, label: LEVEL_LABELS.basic },
+  'Medium-easy': { bg: `${LEVEL_COLORS.basic}1f`, color: LEVEL_COLORS.basic, border: `${LEVEL_COLORS.basic}4d`, label: LEVEL_LABELS.basic },
+  'medium-easy': { bg: `${LEVEL_COLORS.basic}1f`, color: LEVEL_COLORS.basic, border: `${LEVEL_COLORS.basic}4d`, label: LEVEL_LABELS.basic },
+  'Cơ bản': { bg: `${LEVEL_COLORS.basic}1f`, color: LEVEL_COLORS.basic, border: `${LEVEL_COLORS.basic}4d`, label: LEVEL_LABELS.basic },
+  'cơ bản': { bg: `${LEVEL_COLORS.basic}1f`, color: LEVEL_COLORS.basic, border: `${LEVEL_COLORS.basic}4d`, label: LEVEL_LABELS.basic },
+  // Level 3: Medium / Trung bình -> intermediate
+  Medium: { bg: `${LEVEL_COLORS.intermediate}1f`, color: LEVEL_COLORS.intermediate, border: `${LEVEL_COLORS.intermediate}4d`, label: LEVEL_LABELS.intermediate },
+  medium: { bg: `${LEVEL_COLORS.intermediate}1f`, color: LEVEL_COLORS.intermediate, border: `${LEVEL_COLORS.intermediate}4d`, label: LEVEL_LABELS.intermediate },
+  'Trung bình': { bg: `${LEVEL_COLORS.intermediate}1f`, color: LEVEL_COLORS.intermediate, border: `${LEVEL_COLORS.intermediate}4d`, label: LEVEL_LABELS.intermediate },
+  'trung bình': { bg: `${LEVEL_COLORS.intermediate}1f`, color: LEVEL_COLORS.intermediate, border: `${LEVEL_COLORS.intermediate}4d`, label: LEVEL_LABELS.intermediate },
+  // Level 4: Medium-khó / Medium-hard -> advanced
+  'Medium-khó': { bg: `${LEVEL_COLORS.advanced}1f`, color: LEVEL_COLORS.advanced, border: `${LEVEL_COLORS.advanced}4d`, label: LEVEL_LABELS.advanced },
+  'medium-khó': { bg: `${LEVEL_COLORS.advanced}1f`, color: LEVEL_COLORS.advanced, border: `${LEVEL_COLORS.advanced}4d`, label: LEVEL_LABELS.advanced },
+  'Medium-hard': { bg: `${LEVEL_COLORS.advanced}1f`, color: LEVEL_COLORS.advanced, border: `${LEVEL_COLORS.advanced}4d`, label: LEVEL_LABELS.advanced },
+  'medium-hard': { bg: `${LEVEL_COLORS.advanced}1f`, color: LEVEL_COLORS.advanced, border: `${LEVEL_COLORS.advanced}4d`, label: LEVEL_LABELS.advanced },
+  Khá: { bg: `${LEVEL_COLORS.advanced}1f`, color: LEVEL_COLORS.advanced, border: `${LEVEL_COLORS.advanced}4d`, label: LEVEL_LABELS.advanced },
+  khá: { bg: `${LEVEL_COLORS.advanced}1f`, color: LEVEL_COLORS.advanced, border: `${LEVEL_COLORS.advanced}4d`, label: LEVEL_LABELS.advanced },
+  // Level 5: Hard / Khó -> expert
+  Hard: { bg: `${LEVEL_COLORS.expert}1f`, color: LEVEL_COLORS.expert, border: `${LEVEL_COLORS.expert}4d`, label: LEVEL_LABELS.expert },
+  hard: { bg: `${LEVEL_COLORS.expert}1f`, color: LEVEL_COLORS.expert, border: `${LEVEL_COLORS.expert}4d`, label: LEVEL_LABELS.expert },
+  Khó: { bg: `${LEVEL_COLORS.expert}1f`, color: LEVEL_COLORS.expert, border: `${LEVEL_COLORS.expert}4d`, label: LEVEL_LABELS.expert },
+  khó: { bg: `${LEVEL_COLORS.expert}1f`, color: LEVEL_COLORS.expert, border: `${LEVEL_COLORS.expert}4d`, label: LEVEL_LABELS.expert },
+  'Nâng cao': { bg: `${LEVEL_COLORS.expert}1f`, color: LEVEL_COLORS.expert, border: `${LEVEL_COLORS.expert}4d`, label: LEVEL_LABELS.expert },
+  'nâng cao': { bg: `${LEVEL_COLORS.expert}1f`, color: LEVEL_COLORS.expert, border: `${LEVEL_COLORS.expert}4d`, label: LEVEL_LABELS.expert },
 };
+
+export interface ProblemFormValues {
+  title: string;
+  topic: string;
+  difficulty: SkillLevel;
+  description: string;
+  inputExample: string;
+  outputExample: string;
+  constraints: string;
+}
 
 interface AdminProblemsTabProps {
   problems: PracticeProblem[];
@@ -131,16 +174,24 @@ export function AdminProblemsTab({
   const [verifiedMap, setVerifiedMap] = useState<Record<string, boolean>>({});
 
   // Local state for editing form
-  const [editFormData, setEditFormData] = useState<Partial<PracticeProblem>>({});
-  const [addFormData, setAddFormData] = useState<Partial<PracticeProblem>>({
+  const [editFormData, setEditFormData] = useState<ProblemFormValues>({
     title: '',
     topic: TOPICS[0],
-    difficulty: 'Easy',
+    difficulty: 'basic',
+    description: '',
+    inputExample: '',
+    outputExample: '',
+    constraints: '1 ≤ N ≤ 10⁵',
+  });
+  const [addFormData, setAddFormData] = useState<ProblemFormValues>({
+    title: '',
+    topic: TOPICS[0],
+    difficulty: 'basic',
     description: '',
     inputExample: 'nums = [2, 7, 11, 15], target = 9',
     outputExample: '[0, 1]',
     constraints: '1 ≤ N ≤ 10⁵',
-  } as any);
+  });
 
   // Active language tab in detail modal
   const [detailLangTab, setDetailLangTab] = useState<'java' | 'python'>('java');
@@ -273,7 +324,7 @@ export function AdminProblemsTab({
       inputExample: prob.examples?.[0]?.input || '',
       outputExample: prob.examples?.[0]?.output || '',
       constraints: prob.constraints?.[0] || '1 ≤ N ≤ 10⁵',
-    } as any);
+    });
   };
 
   // Submit Edit Form
@@ -281,20 +332,25 @@ export function AdminProblemsTab({
     e.preventDefault();
     if (!editingProblem) return;
 
+    const inputEx = editFormData.inputExample.trim() || editingProblem.examples?.[0]?.input || 'nums = [1, 2, 3]';
+    const outputEx = editFormData.outputExample.trim() || editingProblem.examples?.[0]?.output || '0';
+
     const updatedProb: PracticeProblem = {
       ...editingProblem,
-      title: editFormData.title || editingProblem.title,
+      title: editFormData.title.trim() || editingProblem.title,
       topic: editFormData.topic || editingProblem.topic,
       difficulty: editFormData.difficulty || editingProblem.difficulty,
-      description: editFormData.description || editingProblem.description,
+      description: editFormData.description.trim() || editingProblem.description,
       examples: [
         {
-          input: (editFormData as any).inputExample || editingProblem.examples?.[0]?.input || '',
-          output: (editFormData as any).outputExample || editingProblem.examples?.[0]?.output || '',
+          input: inputEx,
+          output: outputEx,
           explanation: editingProblem.examples?.[0]?.explanation || 'Đã cập nhật',
         },
       ],
-      constraints: [(editFormData as any).constraints || '1 ≤ N ≤ 10⁵'],
+      constraints: [editFormData.constraints.trim() || '1 ≤ N ≤ 10⁵'],
+      testCases: [{ input: inputEx, output: outputEx }],
+      updatedAt: new Date().toISOString().split('T')[0],
     };
 
     onEditProblem(updatedProb);
@@ -304,35 +360,50 @@ export function AdminProblemsTab({
   // Submit Add Manual Problem Form
   const handleSaveAdd = (e: React.FormEvent) => {
     e.preventDefault();
+    const inputEx = addFormData.inputExample.trim() || 'nums = [1, 2, 3]';
+    const outputEx = addFormData.outputExample.trim() || '6';
+
     const newProb: PracticeProblem = {
       id: `manual-${Date.now()}`,
-      title: addFormData.title || 'Bài tập thực hành mới',
+      title: addFormData.title.trim() || 'Bài tập thực hành mới',
       topic: addFormData.topic || TOPICS[0],
-      difficulty: addFormData.difficulty || 'Easy',
-      description: addFormData.description || 'Mô tả bài tập thực hành',
+      difficulty: addFormData.difficulty || 'basic',
+      description: addFormData.description.trim() || 'Mô tả bài tập thực hành',
       examples: [
         {
-          input: (addFormData as any).inputExample || 'nums = [1, 2, 3]',
-          output: (addFormData as any).outputExample || '6',
+          input: inputEx,
+          output: outputEx,
           explanation: 'Ví dụ mẫu tạo bởi giảng viên',
         },
       ],
-      starterCode: `class Solution {\n    public int solve(int[] nums) {\n        return 0;\n    }\n}`,
+      starterCode: `class Solution {\n    public int solve(int[] nums) {\n        // Viết mã nguồn Java tại đây\n        return 0;\n    }\n}`,
       starterCodes: {
-        java: `class Solution {\n    public int solve(int[] nums) {\n        return 0;\n    }\n}`,
-        python: `class Solution:\n    def solve(self, nums: list[int]) -> int:\n        return 0`,
+        java: `class Solution {\n    public int solve(int[] nums) {\n        // Viết mã nguồn Java tại đây\n        return 0;\n    }\n}`,
+        python: `class Solution:\n    def solve(self, nums: list[int]) -> int:\n        # Viết mã nguồn Python tại đây\n        return 0`,
       },
       language: 'java',
-      constraints: [(addFormData as any).constraints || '1 ≤ N ≤ 10⁵'],
+      constraints: [addFormData.constraints.trim() || '1 ≤ N ≤ 10⁵'],
       isPublic: true,
       isAiGenerated: false,
       isVerified: true,
       updatedAt: new Date().toISOString().split('T')[0],
+      initialCode: `class Solution {\n    public int solve(int[] nums) {\n        return 0;\n    }\n}`,
+      testCases: [{ input: inputEx, output: outputEx }],
+      tags: [addFormData.topic || TOPICS[0], addFormData.difficulty || 'basic'],
+      author: 'Giảng viên',
     };
 
-    onAddGeneratedProblems?.([newProb]);
     onAddProblem?.(newProb);
     setIsAddingModalOpen(false);
+    setAddFormData({
+      title: '',
+      topic: TOPICS[0],
+      difficulty: 'basic',
+      description: '',
+      inputExample: 'nums = [2, 7, 11, 15], target = 9',
+      outputExample: '[0, 1]',
+      constraints: '1 ≤ N ≤ 10⁵',
+    });
   };
 
   return (
@@ -461,12 +532,12 @@ export function AdminProblemsTab({
                       padding: '2px 8px',
                       borderRadius: '12px',
                       fontWeight: 600,
-                      background: DIFFICULTY_COLORS[viewingProblem.difficulty]?.bg || '#78d39e18',
-                      color: DIFFICULTY_COLORS[viewingProblem.difficulty]?.color || '#78d39e',
-                      border: `1px solid ${DIFFICULTY_COLORS[viewingProblem.difficulty]?.border || '#78d39e33'}`,
+                      background: (DIFFICULTY_COLORS[normalizeDifficulty(viewingProblem.difficulty) || viewingProblem.difficulty] || DIFFICULTY_COLORS.beginner).bg,
+                      color: (DIFFICULTY_COLORS[normalizeDifficulty(viewingProblem.difficulty) || viewingProblem.difficulty] || DIFFICULTY_COLORS.beginner).color,
+                      border: `1px solid ${(DIFFICULTY_COLORS[normalizeDifficulty(viewingProblem.difficulty) || viewingProblem.difficulty] || DIFFICULTY_COLORS.beginner).border}`,
                     }}
                   >
-                    {viewingProblem.difficulty}
+                    {DIFFICULTY_COLORS[normalizeDifficulty(viewingProblem.difficulty) || viewingProblem.difficulty]?.label || LEVEL_LABELS[viewingProblem.difficulty] || viewingProblem.difficulty}
                   </span>
                   <span className="prob-topic-badge" style={{ fontSize: '11.5px', padding: '2px 8px' }}>
                     {viewingProblem.topic}
@@ -602,13 +673,9 @@ export function AdminProblemsTab({
                 <div className="auth-field">
                   <span className="auth-label" style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Độ khó</span>
                   <SearchableSelect
-                    options={[
-                      { label: 'Dễ (Easy)', value: 'Easy' },
-                      { label: 'Trung bình (Medium)', value: 'Medium' },
-                      { label: 'Khó (Hard)', value: 'Hard' },
-                    ]}
-                    value={editFormData.difficulty || 'Easy'}
-                    onChange={(val) => setEditFormData({ ...editFormData, difficulty: val as any })}
+                    options={LEVEL_OPTIONS}
+                    value={editFormData.difficulty || 'basic'}
+                    onChange={(val) => setEditFormData({ ...editFormData, difficulty: (val as SkillLevel) || 'basic' })}
                     showSearch={false}
                   />
                 </div>
@@ -631,8 +698,8 @@ export function AdminProblemsTab({
                   <input
                     type="text"
                     className="admin-modal-input"
-                    value={(editFormData as any).inputExample || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, inputExample: e.target.value } as any)}
+                    value={editFormData.inputExample || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, inputExample: e.target.value })}
                   />
                 </label>
 
@@ -641,8 +708,8 @@ export function AdminProblemsTab({
                   <input
                     type="text"
                     className="admin-modal-input"
-                    value={(editFormData as any).outputExample || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, outputExample: e.target.value } as any)}
+                    value={editFormData.outputExample || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, outputExample: e.target.value })}
                   />
                 </label>
               </div>
@@ -700,13 +767,9 @@ export function AdminProblemsTab({
                 <div className="auth-field">
                   <span className="auth-label" style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Độ khó</span>
                   <SearchableSelect
-                    options={[
-                      { label: 'Dễ (Easy)', value: 'Easy' },
-                      { label: 'Trung bình (Medium)', value: 'Medium' },
-                      { label: 'Khó (Hard)', value: 'Hard' },
-                    ]}
-                    value={addFormData.difficulty || 'Easy'}
-                    onChange={(val) => setAddFormData({ ...addFormData, difficulty: val as any })}
+                    options={LEVEL_OPTIONS}
+                    value={addFormData.difficulty || 'basic'}
+                    onChange={(val) => setAddFormData({ ...addFormData, difficulty: (val as SkillLevel) || 'basic' })}
                     showSearch={false}
                   />
                 </div>
@@ -890,7 +953,8 @@ export function AdminProblemsTab({
                   <tbody>
                     {paginatedProblems.map((prob, idx) => {
                       const TopicIcon = TOPIC_ICON_MAP[prob.topic] || Layers;
-                      const diffStyle = DIFFICULTY_COLORS[prob.difficulty] || DIFFICULTY_COLORS.Easy;
+                      const normDiff = normalizeDifficulty(prob.difficulty);
+                      const diffStyle = normDiff ? DIFFICULTY_COLORS[normDiff] : (DIFFICULTY_COLORS[prob.difficulty] || DIFFICULTY_COLORS.beginner);
                       const isVerified = isProblemVerified(prob);
                       const isPublic = prob.isPublic !== false;
 

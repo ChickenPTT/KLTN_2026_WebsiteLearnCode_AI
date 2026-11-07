@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Header } from '@/layout/Header';
 import { Footer } from '@/layout/Footer';
-import type { AuthMode } from '@/types';
+import type { AuthMode, FlashcardItem } from '@/types';
 import {
   BookOpen,
   Search,
@@ -16,12 +16,19 @@ import {
   Pencil,
   Trash2,
   Library,
+  Shuffle,
+  X,
+  AlertCircle,
+  Check,
 } from 'lucide-react';
 import {
   MOCK_FLASHCARD_SETS,
   MOCK_USER_FLASHCARD_SETS,
   deleteFlashcardSet,
+  getCompletedFlashcardSets,
+  combineAndShuffleFlashcards,
   type FlashcardMockSet,
+  type CompletedFlashcardSet,
   type CardIcon,
 } from '@/data/flashcardMockData';
 
@@ -39,8 +46,10 @@ interface FlashcardsPageProps {
   onGoHistory?: () => void;
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
+  onGoLeague?: () => void;
   onLoggedOut?: () => void;
   onSelectSet: (setId: string) => void;
+  onStartMultiSetPractice?: (cards: FlashcardItem[], title: string) => void;
   initialTab?: Tab;
 }
 
@@ -68,13 +77,58 @@ export function FlashcardsPage({
   onGoHistory,
   onGoAdmin,
   onGoSettings,
+  onGoLeague,
   onLoggedOut,
   onSelectSet,
+  onStartMultiSetPractice,
   initialTab = 'explore',
 }: FlashcardsPageProps) {
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [userSets, setUserSets] = useState<FlashcardMockSet[]>([...MOCK_USER_FLASHCARD_SETS]);
+
+  // Modal ôn luyện ngẫu nhiên từ nhiều bộ hoàn thành
+  const [isRandomModalOpen, setIsRandomModalOpen] = useState(false);
+  const [completedSets, setCompletedSets] = useState<CompletedFlashcardSet[]>([]);
+  const [selectedSetIds, setSelectedSetIds] = useState<string[]>([]);
+  const [randomModalError, setRandomModalError] = useState<string | null>(null);
+
+  const handleOpenRandomModal = () => {
+    const list = getCompletedFlashcardSets();
+    setCompletedSets(list);
+    setSelectedSetIds([]);
+    setRandomModalError(null);
+    setIsRandomModalOpen(true);
+  };
+
+  const handleToggleSelectSet = (id: string) => {
+    setSelectedSetIds((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((item) => item !== id);
+      }
+      if (prev.length >= 3) {
+        return prev; // Đã chọn tối đa 3 bộ, không thể chọn bộ thứ 4
+      }
+      return [...prev, id];
+    });
+  };
+
+  const handleStartRandomPractice = () => {
+    if (selectedSetIds.length === 0) return;
+    const chosen = completedSets.filter((s) => selectedSetIds.includes(s.id));
+    const combinedCards = combineAndShuffleFlashcards(chosen);
+
+    if (combinedCards.length === 0) {
+      setRandomModalError('Các bộ đã chọn không có từ vựng hợp lệ để ôn luyện.');
+      return;
+    }
+
+    setIsRandomModalOpen(false);
+    onStartMultiSetPractice?.(
+      combinedCards,
+      `Ôn luyện ngẫu nhiên (${chosen.length} bộ, ${combinedCards.length} từ)`
+    );
+  };
 
   // Luôn đồng bộ danh sách bộ thẻ tự tạo khi mở trang
   useEffect(() => {
@@ -117,6 +171,7 @@ export function FlashcardsPage({
         onGoHistory={onGoHistory}
         onGoAdmin={onGoAdmin}
         onGoSettings={onGoSettings}
+        onGoLeague={onGoLeague}
         onLoggedOut={onLoggedOut}
       />
 
@@ -186,9 +241,35 @@ export function FlashcardsPage({
                 : 'Các bộ từ vựng được biên soạn bởi hệ thống'}
             </p>
           </div>
-          <button className="fc-create-btn" onClick={() => onGoCreateSet?.()}>
-            <Plus size={16} /> Tạo bộ thẻ
-          </button>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="fc-random-study-btn"
+              onClick={handleOpenRandomModal}
+              title="Ôn luyện tổng hợp ngẫu nhiên từ tối đa 3 bộ flashcard đã hoàn thành"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 18px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                color: '#ffffff',
+                fontSize: '14px',
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)',
+                transition: 'all 0.2s',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <Shuffle size={16} /> Ôn luyện ngẫu nhiên
+            </button>
+            <button className="fc-create-btn" onClick={() => onGoCreateSet?.()}>
+              <Plus size={16} /> Tạo bộ thẻ
+            </button>
+          </div>
         </div>
 
         {/* Render theo Tab */}
@@ -334,6 +415,288 @@ export function FlashcardsPage({
           </>
         )}
       </main>
+
+      {/* ── MODAL CHỌN BỘ FLASHCARD ĐỂ ÔN LUYỆN NGẪU NHIÊN ── */}
+      {isRandomModalOpen && (
+        <div
+          className="fc-modal-overlay"
+          onClick={() => setIsRandomModalOpen(false)}
+        >
+          <div
+            className="fc-modal-box"
+            style={{ maxWidth: '540px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="fc-modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Shuffle size={18} color="#6366f1" /> Chọn bộ Flashcard để ôn luyện
+              </h3>
+              <button
+                type="button"
+                className="fc-modal-close"
+                onClick={() => setIsRandomModalOpen(false)}
+                aria-label="Đóng"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="fc-modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+              {completedSets.length === 0 ? (
+                /* Trường hợp không có bộ nào hoàn thành */
+                <div style={{ padding: '24px 12px', textAlign: 'center' }}>
+                  <div
+                    style={{
+                      width: '54px',
+                      height: '54px',
+                      borderRadius: '50%',
+                      background: 'rgba(239, 68, 68, 0.12)',
+                      color: '#ef4444',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 16px auto',
+                    }}
+                  >
+                    <AlertCircle size={28} />
+                  </div>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text-primary, #f8fafc)' }}>
+                    Chưa có bộ thẻ hoàn thành
+                  </h4>
+                  <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary, #94a3b8)', lineHeight: 1.5 }}>
+                    Bạn chưa có bộ Flashcard nào hoàn thành. Hãy hoàn thành một bộ để bắt đầu ôn luyện tổng hợp.
+                  </p>
+                  <div className="fc-modal-footer" style={{ marginTop: '24px', justifyContent: 'center' }}>
+                    <button
+                      type="button"
+                      className="fc-modal-cancel-btn"
+                      onClick={() => setIsRandomModalOpen(false)}
+                    >
+                      Đóng
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Danh sách các bộ đã hoàn thành */
+                <div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '14px',
+                      fontSize: '13px',
+                      color: 'var(--text-secondary, #94a3b8)',
+                    }}
+                  >
+                    <span>Chọn từ 1 đến 3 bộ Flashcard đã hoàn thành:</span>
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        color: selectedSetIds.length === 3 ? '#10b981' : '#6366f1',
+                        background: selectedSetIds.length === 3 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(99, 102, 241, 0.1)',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        border: `1px solid ${selectedSetIds.length === 3 ? 'rgba(16, 185, 129, 0.25)' : 'rgba(99, 102, 241, 0.25)'}`,
+                      }}
+                    >
+                      Đã chọn {selectedSetIds.length}/3 bộ
+                    </span>
+                  </div>
+
+                  {randomModalError && (
+                    <div
+                      style={{
+                        padding: '8px 12px',
+                        background: 'rgba(239, 68, 68, 0.12)',
+                        color: '#ef4444',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        borderRadius: '8px',
+                        fontSize: '13px',
+                        marginBottom: '12px',
+                      }}
+                    >
+                      {randomModalError}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {completedSets.map((s) => {
+                      const isSelected = selectedSetIds.includes(s.id);
+                      const isMaxReached = selectedSetIds.length >= 3 && !isSelected;
+                      const IconComp = ICON_MAP[s.iconName] || Code2;
+                      const cardCount = (s.cards && s.cards.length > 0) ? s.cards.length : s.wordCount;
+
+                      return (
+                        <div
+                          key={s.id}
+                          onClick={() => {
+                            if (!isMaxReached) {
+                              handleToggleSelectSet(s.id);
+                            }
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '14px',
+                            padding: '12px 14px',
+                            borderRadius: '12px',
+                            border: `1.5px solid ${
+                              isSelected
+                                ? '#6366f1'
+                                : 'var(--border-color, rgba(255, 255, 255, 0.1))'
+                            }`,
+                            background: isSelected
+                              ? 'rgba(99, 102, 241, 0.08)'
+                              : 'var(--bg-card, rgba(255, 255, 255, 0.02))',
+                            cursor: isMaxReached ? 'not-allowed' : 'pointer',
+                            opacity: isMaxReached ? 0.5 : 1,
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {/* Checkbox Indicator */}
+                          <div
+                            style={{
+                              width: '20px',
+                              height: '20px',
+                              borderRadius: '6px',
+                              border: `1.5px solid ${isSelected ? '#6366f1' : '#64748b'}`,
+                              background: isSelected ? '#6366f1' : 'transparent',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#fff',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {isSelected && <Check size={14} strokeWidth={3} />}
+                          </div>
+
+                          {/* Icon bộ thẻ */}
+                          <div
+                            style={{
+                              width: '38px',
+                              height: '38px',
+                              borderRadius: '8px',
+                              background: s.iconBg,
+                              color: s.iconColor,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <IconComp size={20} />
+                          </div>
+
+                          {/* Thông tin bộ thẻ */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <h4
+                                style={{
+                                  margin: 0,
+                                  fontSize: '14.5px',
+                                  fontWeight: 600,
+                                  color: 'var(--text-primary, #f8fafc)',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                {s.title}
+                              </h4>
+                            </div>
+                            {s.subtitle && (
+                              <p
+                                style={{
+                                  margin: '2px 0 0 0',
+                                  fontSize: '12.5px',
+                                  color: 'var(--text-secondary, #94a3b8)',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                {s.subtitle}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Số lượng từ */}
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              color: 'var(--text-secondary, #94a3b8)',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <BookOpen size={13} /> {cardCount} từ
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Footer */}
+                  <div
+                    className="fc-modal-footer"
+                    style={{
+                      marginTop: '20px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary, #94a3b8)' }}>
+                      Tối đa 30 từ ngẫu nhiên
+                    </span>
+
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button
+                        type="button"
+                        className="fc-modal-cancel-btn"
+                        onClick={() => setIsRandomModalOpen(false)}
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleStartRandomPractice}
+                        disabled={selectedSetIds.length === 0}
+                        style={{
+                          padding: '9px 20px',
+                          borderRadius: '8px',
+                          background: selectedSetIds.length === 0
+                            ? 'rgba(99, 102, 241, 0.4)'
+                            : 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                          color: '#ffffff',
+                          fontSize: '14px',
+                          fontWeight: 600,
+                          border: 'none',
+                          cursor: selectedSetIds.length === 0 ? 'not-allowed' : 'pointer',
+                          opacity: selectedSetIds.length === 0 ? 0.6 : 1,
+                          boxShadow: selectedSetIds.length === 0 ? 'none' : '0 4px 12px rgba(99, 102, 241, 0.3)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <Shuffle size={15} /> Bắt đầu ôn luyện
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>

@@ -1,10 +1,20 @@
 import { useState } from 'react';
 import { Header } from '@/layout/Header';
 import { useAuth } from '@/hooks/useAuth';
-import { PRACTICE_PROBLEMS, type PracticeProblem, type AuthMode, type SkillLevel } from '@/types';
+import { type PracticeProblem, type AuthMode, type SkillLevel } from '@/types';
+import {
+  getStoredProblems,
+  addProblem,
+  addProblems,
+  updateProblem,
+  deleteProblem,
+  togglePublicProblem,
+  normalizeProblem,
+} from '@/lib/problemService';
 
 import {
   type AdminTab,
+  type LeagueSubTab,
   type UserRecord,
   type SampleTemplate,
   type GeneratedQuestion,
@@ -21,6 +31,7 @@ import { AdminProblemsTab } from './AdminProblemsTab';
 import { AdminTemplatesTab } from './AdminTemplatesTab';
 import { AdminGeneratorTab } from './AdminGeneratorTab';
 import { AdminFlashcardsTab } from './AdminFlashcardsTab';
+import { AdminLeagueTab } from './AdminLeagueTab';
 import { AdminAuditLogsTab } from './AdminAuditLogsTab';
 import { AdminUserDetailModal } from './AdminUserDetailModal';
 import { AdminAddUserModal } from './AdminAddUserModal';
@@ -39,7 +50,6 @@ interface AdminPageProps {
   onGoProfile?: () => void;
   onGoProgress?: () => void;
   onGoHistory?: () => void;
-  onGoSettings?: () => void;
   onGoPractice?: () => void;
   onLoggedOut?: () => void;
 }
@@ -53,11 +63,11 @@ export function AdminPage({
   onGoProfile,
   onGoProgress,
   onGoHistory,
-  onGoSettings,
   onLoggedOut,
 }: AdminPageProps) {
   const { user } = useAuth();
   const [internalActiveTab, setInternalActiveTab] = useState<AdminTab>('dashboard');
+  const [leagueSubTab, setLeagueSubTab] = useState<LeagueSubTab>('overview');
 
   const activeTab = controlledActiveTab ?? internalActiveTab;
   const setActiveTab = (tab: AdminTab) => {
@@ -67,7 +77,7 @@ export function AdminPage({
 
   // Shared state
   const [users, setUsers] = useState<UserRecord[]>(MOCK_USERS_LIST);
-  const [practiceProblems, setPracticeProblems] = useState<PracticeProblem[]>(PRACTICE_PROBLEMS);
+  const [practiceProblems, setPracticeProblems] = useState<PracticeProblem[]>(() => getStoredProblems());
   const [sampleTemplates, setSampleTemplates] = useState<SampleTemplate[]>(MOCK_SAMPLE_TEMPLATES);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(INITIAL_ACTIVITY_LOGS);
 
@@ -125,7 +135,16 @@ export function AdminPage({
     ]);
   };
 
-  const handleAddUser = (newUser: UserRecord) => {
+  const handleAddUser = (userForm: { name: string; email: string; role: 'student' | 'teacher' | 'admin' }) => {
+    const newUser: UserRecord = {
+      id: `usr-${Date.now()}`,
+      name: userForm.name,
+      email: userForm.email,
+      role: userForm.role,
+      status: 'active',
+      solvedCount: 0,
+      joinDate: new Date().toLocaleDateString('vi-VN'),
+    };
     setUsers((prev) => [newUser, ...prev]);
     setActivityLogs((prev) => [
       {
@@ -140,7 +159,14 @@ export function AdminPage({
     setShowAddUserModal(false);
   };
 
-  const handleSaveUserDetail = (updatedUser: UserRecord) => {
+  const handleSaveUserDetail = (updatedData: { name: string; email: string; role: 'student' | 'teacher' | 'admin' }): boolean => {
+    if (!selectedUser) return false;
+    const updatedUser: UserRecord = {
+      ...selectedUser,
+      name: updatedData.name,
+      email: updatedData.email,
+      role: updatedData.role,
+    };
     setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
     setSelectedUser(updatedUser);
     setActivityLogs((prev) => [
@@ -153,12 +179,14 @@ export function AdminPage({
       },
       ...prev,
     ]);
+    return true;
   };
 
   // ── PROBLEM HANDLERS ──
   const handleDeleteProblem = (id: string) => {
     const targetProb = practiceProblems.find((p) => p.id === id);
-    setPracticeProblems((prev) => prev.filter((p) => p.id !== id));
+    deleteProblem(id);
+    setPracticeProblems(getStoredProblems());
     setActivityLogs((prev) => [
       {
         id: `log-${Date.now()}`,
@@ -173,10 +201,9 @@ export function AdminPage({
 
   const handleTogglePublicProblem = (id: string) => {
     const targetProb = practiceProblems.find((p) => p.id === id);
-    const isNowPublic = !(targetProb?.isPublic ?? true);
-    setPracticeProblems((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, isPublic: isNowPublic } : p)),
-    );
+    const toggled = togglePublicProblem(id);
+    const isNowPublic = toggled?.isPublic ?? true;
+    setPracticeProblems(getStoredProblems());
     setActivityLogs((prev) => [
       {
         id: `log-${Date.now()}`,
@@ -193,24 +220,14 @@ export function AdminPage({
 
   // ── GENERATOR & TEMPLATE HANDLERS ──
   const handlePublishQuestion = (question: GeneratedQuestion) => {
-    const newProb: PracticeProblem = {
-      id: question.id,
-      title: question.title,
-      difficulty: question.difficulty as SkillLevel,
-      topic: question.topic,
-      topicSlug: question.topic.toLowerCase().replace(/\s+/g, '-'),
-      tags: question.tags,
-      points: question.points,
-      solvedCount: 0,
-      acceptanceRate: '100%',
-      description: question.description,
-      initialCode: question.initialCode,
-      testCases: question.testCases,
-      aiGuidePrompt: question.aiGuidePrompt,
+    const newProb = addProblem({
+      ...normalizeProblem(question),
       isPublic: true,
-      author: user?.name ?? 'AI Generator',
-    };
-    setPracticeProblems((prev) => [newProb, ...prev]);
+      isAiGenerated: true,
+      isVerified: true,
+      updatedAt: 'Vừa xong',
+    });
+    setPracticeProblems(getStoredProblems());
     setActivityLogs((prev) => [
       {
         id: `log-${Date.now()}`,
@@ -224,30 +241,22 @@ export function AdminPage({
   };
 
   const handlePublishAllQuestions = (questions: GeneratedQuestion[]) => {
-    const newProbs: PracticeProblem[] = questions.map((q) => ({
-      id: q.id,
-      title: q.title,
-      difficulty: q.difficulty as SkillLevel,
-      topic: q.topic,
-      topicSlug: q.topic.toLowerCase().replace(/\s+/g, '-'),
-      tags: q.tags,
-      points: q.points,
-      solvedCount: 0,
-      acceptanceRate: '100%',
-      description: q.description,
-      initialCode: q.initialCode,
-      testCases: q.testCases,
-      aiGuidePrompt: q.aiGuidePrompt,
-      isPublic: true,
-      author: user?.name ?? 'AI Generator',
-    }));
-    setPracticeProblems((prev) => [...newProbs, ...prev]);
+    addProblems(
+      questions.map((q) => ({
+        ...normalizeProblem(q),
+        isPublic: true,
+        isAiGenerated: true,
+        isVerified: true,
+        updatedAt: 'Vừa xong',
+      }))
+    );
+    setPracticeProblems(getStoredProblems());
     setActivityLogs((prev) => [
       {
         id: `log-${Date.now()}`,
         user: user?.name ?? 'Quản trị viên Demo',
         action: 'CREATE',
-        target: `Xuất bản hàng loạt ${questions.length} câu hỏi AI tạo tự động vào Ngân hàng đề`,
+        target: `Xuất bản hàng loạt ${questions.length} bài tập AI vào Ngân hàng đề`,
         time: 'Vừa xong',
       },
       ...prev,
@@ -332,6 +341,7 @@ export function AdminPage({
     <div className="page-shell">
       <Header
         hideNav={true}
+        showThemeToggle={true}
         onGoLanding={() => setActiveTab('dashboard')}
         onGoAdmin={() => setActiveTab('dashboard')}
         onGoAuth={onGoAuth}
@@ -339,7 +349,6 @@ export function AdminPage({
         onGoProfile={() => setActiveTab('profile')}
         onGoProgress={onGoProgress}
         onGoHistory={onGoHistory}
-        onGoSettings={onGoSettings}
         onLoggedOut={onLoggedOut}
       />
 
@@ -349,7 +358,11 @@ export function AdminPage({
           userRole={user?.role}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          onGoSettings={onGoSettings}
+          activeLeagueSubTab={leagueSubTab}
+          setActiveLeagueSubTab={(sub) => {
+            setLeagueSubTab(sub);
+            setActiveTab('league');
+          }}
         />
 
         <main className="admin-main-panel">
@@ -378,18 +391,21 @@ export function AdminPage({
             <AdminProblemsTab
               problems={practiceProblems}
               onAddProblem={(newProb) => {
-                if (newProb) setPracticeProblems((prev) => [newProb, ...prev]);
+                if (newProb) {
+                  addProblem(newProb);
+                  setPracticeProblems(getStoredProblems());
+                }
               }}
               onEditProblem={(updatedProb) => {
-                setPracticeProblems((prev) =>
-                  prev.map((p) => (p.id === updatedProb.id ? updatedProb : p))
-                );
+                updateProblem(updatedProb);
+                setPracticeProblems(getStoredProblems());
               }}
               onDeleteProblem={handleDeleteProblem}
               onTogglePublicStatus={handleTogglePublicProblem}
               onViewDetail={() => {}}
               onAddGeneratedProblems={(newProbs) => {
-                setPracticeProblems((prev) => [...newProbs, ...prev]);
+                addProblems(newProbs);
+                setPracticeProblems(getStoredProblems());
               }}
               onGoGenerator={() => setActiveTab('generator')}
             />
@@ -421,6 +437,25 @@ export function AdminPage({
 
           {activeTab === 'flashcards' && (
             <AdminFlashcardsTab
+              onLogActivity={(action, target) => {
+                setActivityLogs((prev) => [
+                  {
+                    id: `log-${Date.now()}`,
+                    user: user?.name ?? 'Quản trị viên Demo',
+                    action,
+                    target,
+                    time: 'Vừa xong',
+                  },
+                  ...prev,
+                ]);
+              }}
+            />
+          )}
+
+          {activeTab === 'league' && (
+            <AdminLeagueTab
+              activeSubTab={leagueSubTab}
+              onSubTabChange={setLeagueSubTab}
               onLogActivity={(action, target) => {
                 setActivityLogs((prev) => [
                   {

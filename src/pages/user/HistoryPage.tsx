@@ -22,7 +22,8 @@ import {
 import { Header } from '@/layout/Header';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { Pagination } from '@/components/Pagination';
-import { TOPICS, type AuthMode } from '@/types';
+import { TOPICS, type AuthMode, LEVEL_COLORS, LEVEL_LABELS } from '@/types';
+import { normalizeDifficulty } from '@/lib/difficulty';
 import {
   MOCK_SUBMISSIONS,
   type SubmissionRecord,
@@ -38,16 +39,12 @@ interface HistoryPageProps {
   onGoHistory?: () => void;
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
+  onGoLeague?: () => void;
   onLoggedOut?: () => void;
   onGoFlashcards?: () => void;
   onGoFlashcardLibrary?: () => void;
 }
 
-const DIFF_COLORS: Record<string, string> = {
-  Easy: '#78d39e',
-  Medium: '#f5c95d',
-  Hard: '#f08a8a',
-};
 
 const SUBS_PER_PAGE = 5;
 
@@ -61,6 +58,7 @@ export function HistoryPage({
   onGoHistory,
   onGoAdmin,
   onGoSettings,
+  onGoLeague,
   onLoggedOut,
   onGoFlashcards,
   onGoFlashcardLibrary,
@@ -126,6 +124,7 @@ export function HistoryPage({
         onGoHistory={onGoHistory}
         onGoAdmin={onGoAdmin}
         onGoSettings={onGoSettings}
+        onGoLeague={onGoLeague}
         onLoggedOut={onLoggedOut}
       />
 
@@ -253,8 +252,8 @@ export function HistoryPage({
                       <span className="practice-topic-tag">{s.topic}</span>
                     </td>
                     <td>
-                      <span style={{ color: DIFF_COLORS[s.difficulty], fontWeight: 600 }}>
-                        {s.difficulty}
+                      <span style={{ color: LEVEL_COLORS[normalizeDifficulty(s.difficulty) || s.difficulty] || '#5e8dfa', fontWeight: 600 }}>
+                        {LEVEL_LABELS[normalizeDifficulty(s.difficulty) || s.difficulty] || s.difficulty}
                       </span>
                     </td>
                     <td>
@@ -327,8 +326,8 @@ export function HistoryPage({
                 <Code2 size={22} className="title-icon" />
                 <h2>{selectedRecord.problem}</h2>
                 <span className="practice-topic-tag">{selectedRecord.topic}</span>
-                <span style={{ color: DIFF_COLORS[selectedRecord.difficulty], fontWeight: 600 }}>
-                  {selectedRecord.difficulty}
+                <span style={{ color: LEVEL_COLORS[normalizeDifficulty(selectedRecord.difficulty) || selectedRecord.difficulty] || '#5e8dfa', fontWeight: 600 }}>
+                  {LEVEL_LABELS[normalizeDifficulty(selectedRecord.difficulty) || selectedRecord.difficulty] || selectedRecord.difficulty}
                 </span>
                 <span className="attempt-badge modal-badge">
                   <RotateCcw size={12} /> Tổng {selectedRecord.attemptCount} lần nộp

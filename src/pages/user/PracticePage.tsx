@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import {
+  ArrowLeft,
   CheckCircle2,
   Clock,
   Code2,
@@ -19,14 +20,16 @@ import {
   ChevronUp,
   Shuffle,
 } from 'lucide-react';
-import { PRACTICE_PROBLEMS, type PracticeProblem, type AuthMode } from '@/types';
+import { type PracticeProblem, type AuthMode, type SkillLevel, LEVEL_COLORS, LEVEL_LABELS } from '@/types';
+import { getPublishedProblems, getProblemById, normalizeProblem, normalizeDifficulty } from '@/lib/problemService';
 import { Brand } from '@/components/Brand';
 import { Header } from '@/layout/Header';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 interface PracticePageProps {
-  onBack: () => void;
+  onBack: (currentProblem?: PracticeProblem) => void;
   initialProblemId?: string;
+  onProblemChange?: (problem: PracticeProblem) => void;
   onGoLanding?: () => void;
   onGoAuth?: (mode: AuthMode) => void;
   onGoTopics?: () => void;
@@ -35,16 +38,12 @@ interface PracticePageProps {
   onGoHistory?: () => void;
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
+  onGoLeague?: () => void;
   onLoggedOut?: () => void;
   onGoFlashcards?: () => void;
   onGoFlashcardLibrary?: () => void;
 }
 
-const DIFFICULTY_COLORS: Record<string, string> = {
-  Easy: '#10b981',
-  Medium: '#f59e0b',
-  Hard: '#f43f5e',
-};
 
 type RunState = 'idle' | 'running' | 'passed' | 'failed';
 
@@ -65,6 +64,7 @@ interface SubmitResult {
 function PracticePage({
   onBack,
   initialProblemId,
+  onProblemChange,
   onGoLanding,
   onGoAuth,
   onGoTopics,
@@ -73,15 +73,19 @@ function PracticePage({
   onGoHistory,
   onGoAdmin,
   onGoSettings,
+  onGoLeague,
   onLoggedOut,
   onGoFlashcards,
   onGoFlashcardLibrary,
 }: PracticePageProps) {
-  const initialProblem = PRACTICE_PROBLEMS.find((p) => p.id === initialProblemId) || PRACTICE_PROBLEMS[0];
+  const initialProblem =
+    (initialProblemId ? getProblemById(initialProblemId, false) : null) ||
+    getPublishedProblems()[0] ||
+    normalizeProblem({});
   const [problem, setProblem] = useState<PracticeProblem>(initialProblem);
   const [language, setLanguage] = useState<'java' | 'python'>('java');
   const [code, setCode] = useState<string>(
-    initialProblem.starterCodes?.java || initialProblem.starterCode
+    initialProblem.starterCodes?.java || initialProblem.starterCode || initialProblem.initialCode || ''
   );
   const [runState, setRunState] = useState<RunState>('idle');
   const [results, setResults] = useState<TestResult[]>([]);
@@ -119,8 +123,12 @@ function PracticePage({
     const observer = new MutationObserver(updateTheme);
     observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    window.addEventListener('themechange', updateTheme);
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('themechange', updateTheme);
+    };
   }, []);
 
   // Draggable handle event listener
@@ -152,25 +160,54 @@ function PracticePage({
     };
   }, [isDragging]);
 
+  useEffect(() => {
+    if (initialProblemId) {
+      const found = getProblemById(initialProblemId, false) || getPublishedProblems().find((p) => p.id === initialProblemId);
+      if (found && found.id !== problem.id) {
+        setProblem(found);
+        setCode(found.starterCodes?.[language] || found.starterCode || found.initialCode || '');
+        setRunState('idle');
+        setResults([]);
+        setSubmitResult(null);
+      }
+    }
+  }, [initialProblemId, language]);
+
+  useEffect(() => {
+    const handleUpdated = () => {
+      const currentId = problem.id;
+      const found = getProblemById(currentId, false);
+      if (found) {
+        setProblem(found);
+      }
+    };
+    window.addEventListener('problems_updated', handleUpdated);
+    return () => window.removeEventListener('problems_updated', handleUpdated);
+  }, [problem.id]);
+
   const handleSelectProblem = (p: PracticeProblem): void => {
     setProblem(p);
-    const newCode = p.starterCodes?.[language] || p.starterCode;
+    const newCode = p.starterCodes?.[language] || p.starterCode || p.initialCode || '';
     setCode(newCode);
     setRunState('idle');
     setResults([]);
     setSubmitResult(null);
+    onProblemChange?.(p);
   };
 
   const handleLanguageChange = (newLang: 'java' | 'python'): void => {
     setLanguage(newLang);
-    const newCode = problem.starterCodes?.[newLang] || problem.starterCode;
+    const newCode = problem.starterCodes?.[newLang] || problem.starterCode || problem.initialCode || '';
     setCode(newCode);
   };
 
   const handleRun = (): void => {
     setRunState('running');
+    const examples = Array.isArray(problem.examples) && problem.examples.length > 0
+      ? problem.examples
+      : [{ input: 'nums = [1, 2, 3]', output: '6' }];
     setTimeout(() => {
-      const mockResults: TestResult[] = problem.examples.map((ex) => ({
+      const mockResults: TestResult[] = examples.map((ex) => ({
         passed: Math.random() > 0.3,
         input: ex.input,
         expected: ex.output,
@@ -184,8 +221,11 @@ function PracticePage({
   const handleSubmitConfirmed = (): void => {
     setShowSubmitConfirm(false);
     setRunState('running');
+    const examples = Array.isArray(problem.examples) && problem.examples.length > 0
+      ? problem.examples
+      : [{ input: 'nums = [1, 2, 3]', output: '6' }];
     setTimeout(() => {
-      const mockResults: TestResult[] = problem.examples.map((ex) => ({
+      const mockResults: TestResult[] = examples.map((ex) => ({
         passed: Math.random() > 0.15,
         input: ex.input,
         expected: ex.output,
@@ -217,12 +257,14 @@ function PracticePage({
   };
 
   const handleNextRandomProblem = () => {
-    const pool = PRACTICE_PROBLEMS.filter((p) => p.id !== problem.id && p.isPublic !== false);
-    const picked = pool[Math.floor(Math.random() * pool.length)] || PRACTICE_PROBLEMS[0];
+    const pool = getPublishedProblems().filter((p) => p.id !== problem.id);
+    const picked = pool[Math.floor(Math.random() * pool.length)] || getPublishedProblems()[0] || problem;
     setProblem(picked);
-    setCode(picked.starterCodes?.[language] || picked.starterCode);
+    setCode(picked.starterCodes?.[language] || picked.starterCode || picked.initialCode || '');
     setRunState('idle');
     setResults([]);
+    setSubmitResult(null);
+    onProblemChange?.(picked);
   };
 
   return (
@@ -240,6 +282,7 @@ function PracticePage({
         onGoHistory={onGoHistory}
         onGoAdmin={onGoAdmin}
         onGoSettings={onGoSettings}
+        onGoLeague={onGoLeague}
         onLoggedOut={onLoggedOut}
       />
 
@@ -257,19 +300,38 @@ function PracticePage({
             className="problem-panel"
             style={{ width: `${problemWidth}%`, flexShrink: 0 }}
           >
+            <button
+              type="button"
+              className="practice-content-back-btn"
+              onClick={() => onBack(problem)}
+              title="Quay lại danh sách bài tập"
+            >
+              <ArrowLeft size={15} /> Quay lại danh sách bài
+            </button>
+
             <div className="problem-header">
               <h2 className="problem-title">{problem.title}</h2>
               <div className="problem-tags">
                 <span className="practice-topic-tag">{problem.topic}</span>
-                <span className="practice-difficulty" style={{ color: DIFFICULTY_COLORS[problem.difficulty] }}>
-                  {problem.difficulty}
+                <span
+                  className="practice-difficulty"
+                  style={{
+                    color: LEVEL_COLORS[normalizeDifficulty(problem.difficulty) || problem.difficulty] || '#5e8dfa',
+                    borderColor: `${LEVEL_COLORS[normalizeDifficulty(problem.difficulty) || problem.difficulty] || '#5e8dfa'}44`,
+                    background: `${LEVEL_COLORS[normalizeDifficulty(problem.difficulty) || problem.difficulty] || '#5e8dfa'}18`,
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    fontWeight: 600,
+                  }}
+                >
+                  {LEVEL_LABELS[normalizeDifficulty(problem.difficulty) || problem.difficulty] || problem.difficulty}
                 </span>
               </div>
             </div>
             <p className="problem-description">{problem.description}</p>
 
             <div className="problem-examples">
-              {problem.examples.map((ex, i) => (
+              {(problem.examples || []).map((ex, i) => (
                 <div className="problem-example" key={i}>
                   <div className="example-label">Ví dụ {i + 1}:</div>
                   <div className="example-line"><span className="example-key">Input:</span> {ex.input}</div>
@@ -284,7 +346,7 @@ function PracticePage({
             <div className="problem-constraints">
               <div className="constraints-label"><ShieldAlert size={14} /> Ràng buộc:</div>
               <ul>
-                {problem.constraints.map((c, i) => (<li key={i}>{c}</li>))}
+                {(problem.constraints || []).map((c, i) => (<li key={i}>{c}</li>))}
               </ul>
             </div>
           </section>
@@ -317,10 +379,29 @@ function PracticePage({
             <div className="top-problem-banner">
               <div className="top-problem-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <button
+                    type="button"
+                    className="practice-content-back-btn"
+                    style={{ margin: 0 }}
+                    onClick={() => onBack(problem)}
+                    title="Quay lại danh sách bài tập"
+                  >
+                    <ArrowLeft size={14} /> Quay lại
+                  </button>
                   <h3 className="top-problem-title">{problem.title}</h3>
                   <span className="practice-topic-tag">{problem.topic}</span>
-                  <span className="practice-difficulty" style={{ color: DIFFICULTY_COLORS[problem.difficulty] }}>
-                    {problem.difficulty}
+                  <span
+                    className="practice-difficulty"
+                    style={{
+                      color: LEVEL_COLORS[normalizeDifficulty(problem.difficulty) || problem.difficulty] || '#5e8dfa',
+                      borderColor: `${LEVEL_COLORS[normalizeDifficulty(problem.difficulty) || problem.difficulty] || '#5e8dfa'}44`,
+                      background: `${LEVEL_COLORS[normalizeDifficulty(problem.difficulty) || problem.difficulty] || '#5e8dfa'}18`,
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {LEVEL_LABELS[normalizeDifficulty(problem.difficulty) || problem.difficulty] || problem.difficulty}
                   </span>
                 </div>
                 <button
@@ -333,7 +414,7 @@ function PracticePage({
               </div>
               <p className="top-problem-desc">{problem.description}</p>
               <div className="top-problem-examples">
-                {problem.examples.map((ex, i) => (
+                {(problem.examples || []).map((ex, i) => (
                   <div key={i} className="top-problem-example">
                     <span className="example-key">Ví dụ {i + 1}:</span> Input: <code>{ex.input}</code> | Output: <code>{ex.output}</code>
                   </div>
@@ -530,7 +611,13 @@ function PracticePage({
               </button>
               <button
                 className="assessment-primary"
-                onClick={() => { setSubmitResult(null); handleSelectProblem(PRACTICE_PROBLEMS[(PRACTICE_PROBLEMS.findIndex(p => p.id === problem.id) + 1) % PRACTICE_PROBLEMS.length]); }}
+                onClick={() => {
+                  setSubmitResult(null);
+                  const pool = getPublishedProblems();
+                  const currentIndex = pool.findIndex((p) => p.id === problem.id);
+                  const nextProb = pool[(currentIndex + 1) % pool.length] || problem;
+                  handleSelectProblem(nextProb);
+                }}
               >
                 Bài tiếp theo <Send size={14} />
               </button>

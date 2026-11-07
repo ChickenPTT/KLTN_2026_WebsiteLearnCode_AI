@@ -32,7 +32,7 @@ export function Footer() {
           <div className="footer-column">
             <h3>Tính năng</h3>
             <a href="#features">Flashcard Thuật toán</a>
-            <a href="#features">Trắc nghiệm Kiến thức</a>
+            <a href="#league">Đấu hạng Lập trình</a>
             <a href="#features">Code Sandbox Online</a>
             <a href="#features">Phân tích Lỗi bằng AI</a>
           </div>

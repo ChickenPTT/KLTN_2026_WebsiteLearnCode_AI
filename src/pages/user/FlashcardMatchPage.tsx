@@ -7,8 +7,6 @@ import {
   Clock,
   CheckCircle2,
   Trophy,
-  ChevronLeft,
-  ChevronRight,
   BookOpen,
   Binary,
   Database,
@@ -26,7 +24,10 @@ import {
 import type { FlashcardItem } from '@/types';
 
 interface FlashcardMatchPageProps {
-  setId: string;
+  setId?: string;
+  customCards?: FlashcardItem[];
+  customTitle?: string;
+  isMultiSetMode?: boolean;
   onBack: () => void;
   onAuth?: (mode: AuthMode) => void;
   onGoLanding?: () => void;
@@ -38,6 +39,7 @@ interface FlashcardMatchPageProps {
   onGoHistory?: () => void;
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
+  onGoLeague?: () => void;
   onLoggedOut?: () => void;
 }
 
@@ -89,6 +91,9 @@ function generateTilesForWords(words: FlashcardItem[], pagePrefix: string): Matc
 
 export function FlashcardMatchPage({
   setId,
+  customCards,
+  customTitle,
+  isMultiSetMode = false,
   onBack,
   onAuth,
   onGoLanding,
@@ -100,29 +105,42 @@ export function FlashcardMatchPage({
   onGoHistory,
   onGoAdmin,
   onGoSettings,
+  onGoLeague,
   onLoggedOut,
 }: FlashcardMatchPageProps) {
-  const set: FlashcardMockSet | undefined = ALL_FLASHCARD_SETS.find((s) => s.id === setId);
-  const IconComp = set ? ICON_MAP[set.iconName] || Code2 : Code2;
+  const set: FlashcardMockSet | undefined = isMultiSetMode
+    ? undefined
+    : ALL_FLASHCARD_SETS.find((s) => s.id === setId);
 
-  // Lấy 12 từ vựng chuẩn (chia thành 2 trang x 6 từ)
-  const all12Words = useMemo(() => {
+  // Danh sách từ vựng: lấy từ customCards nếu là chế độ ôn luyện nhiều bộ,
+  // hoặc lấy 12 từ vựng chuẩn của bộ thẻ nếu là chế độ ghép thẻ 1 bộ cũ
+  const allWords = useMemo<FlashcardItem[]>(() => {
+    if (isMultiSetMode && customCards && customCards.length > 0) {
+      return customCards;
+    }
     return getFlashcardMatchCards(set);
-  }, [set]);
+  }, [isMultiSetMode, customCards, set]);
 
-  const page1Words = useMemo(() => all12Words.slice(0, 6), [all12Words]);
-  const page2Words = useMemo(() => all12Words.slice(6, 12), [all12Words]);
+  // Phân trang: mỗi trang 6 từ vựng (tương ứng 6 cặp = 12 thẻ)
+  const WORDS_PER_PAGE = 6;
+  const totalPages = Math.max(1, Math.ceil(allWords.length / WORDS_PER_PAGE));
 
-  // Phân trang: 1 hoặc 2
-  const [currentPage, setCurrentPage] = useState<1 | 2>(1);
+  const getWordsForPage = useCallback(
+    (pageNum: number): FlashcardItem[] => {
+      const start = (pageNum - 1) * WORDS_PER_PAGE;
+      return allWords.slice(start, start + WORDS_PER_PAGE);
+    },
+    [allWords]
+  );
 
-  // Tiles cho từng trang
-  const [tilesP1, setTilesP1] = useState<MatchTile[]>([]);
-  const [tilesP2, setTilesP2] = useState<MatchTile[]>([]);
+  // Trang hiện tại
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
-  // Các cặp đã ghép thành công
-  const [matchedP1, setMatchedP1] = useState<Set<string>>(new Set());
-  const [matchedP2, setMatchedP2] = useState<Set<string>>(new Set());
+  // Tiles cho từng trang: Record<number, MatchTile[]>
+  const [pageTiles, setPageTiles] = useState<Record<number, MatchTile[]>>({});
+
+  // Các cặp đã ghép thành công cho từng trang: Record<number, Set<string>>
+  const [pageMatched, setPageMatched] = useState<Record<number, Set<string>>>({});
 
   // Thẻ đang được chọn lần 1
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
@@ -135,19 +153,26 @@ export function FlashcardMatchPage({
   const [attempts, setAttempts] = useState(0);
   const [isGameActive, setIsGameActive] = useState(true);
 
-  // Khởi tạo thẻ cho 2 trang khi tải trang hoặc ấn chơi lại
+  // Khởi tạo thẻ cho tất cả các trang khi bắt đầu hoặc bấm chơi lại
   const resetGame = useCallback(() => {
-    setTilesP1(generateTilesForWords(page1Words, 'p1'));
-    setTilesP2(generateTilesForWords(page2Words, 'p2'));
-    setMatchedP1(new Set());
-    setMatchedP2(new Set());
+    const newTiles: Record<number, MatchTile[]> = {};
+    const newMatched: Record<number, Set<string>> = {};
+
+    for (let p = 1; p <= totalPages; p++) {
+      const pWords = getWordsForPage(p);
+      newTiles[p] = generateTilesForWords(pWords, `p${p}`);
+      newMatched[p] = new Set<string>();
+    }
+
+    setPageTiles(newTiles);
+    setPageMatched(newMatched);
     setSelectedTileId(null);
     setWrongTileIds([]);
     setSeconds(0);
     setAttempts(0);
     setIsGameActive(true);
     setCurrentPage(1);
-  }, [page1Words, page2Words]);
+  }, [totalPages, getWordsForPage]);
 
   useEffect(() => {
     resetGame();
@@ -169,13 +194,24 @@ export function FlashcardMatchPage({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Trang hiện tại
-  const currentTiles = currentPage === 1 ? tilesP1 : tilesP2;
-  const currentMatched = currentPage === 1 ? matchedP1 : matchedP2;
-  const isCurrentPageDone = currentMatched.size >= 6;
-  const isAllDone = matchedP1.size >= 6 && matchedP2.size >= 6;
+  // Dữ liệu trang hiện tại
+  const currentWords = getWordsForPage(currentPage);
+  const currentTiles = pageTiles[currentPage] || [];
+  const currentMatched = pageMatched[currentPage] || new Set<string>();
+  const isCurrentPageDone = currentWords.length > 0 && currentMatched.size >= currentWords.length;
 
-  // Dừng đồng hồ khi hoàn thành toàn bộ 2 trang
+  // Kiểm tra toàn bộ các trang đã hoàn thành chưa
+  const isAllDone = useMemo(() => {
+    if (totalPages === 0) return false;
+    for (let p = 1; p <= totalPages; p++) {
+      const words = getWordsForPage(p);
+      const matched = pageMatched[p];
+      if (!matched || matched.size < words.length) return false;
+    }
+    return true;
+  }, [totalPages, getWordsForPage, pageMatched]);
+
+  // Dừng đồng hồ khi hoàn thành toàn bộ tất cả các trang
   useEffect(() => {
     if (isAllDone && isGameActive) {
       setIsGameActive(false);
@@ -211,11 +247,14 @@ export function FlashcardMatchPage({
     // Kiểm tra MATCH: Cùng termId nhưng khác loại (1 term + 1 definition)
     if (firstTile.termId === tile.termId && firstTile.type !== tile.type) {
       // Ghép đúng!
-      if (currentPage === 1) {
-        setMatchedP1((prev) => new Set(prev).add(tile.termId));
-      } else {
-        setMatchedP2((prev) => new Set(prev).add(tile.termId));
-      }
+      setPageMatched((prev) => {
+        const nextSet = new Set(prev[currentPage] || []);
+        nextSet.add(tile.termId);
+        return {
+          ...prev,
+          [currentPage]: nextSet,
+        };
+      });
       setSelectedTileId(null);
     } else {
       // Ghép sai! Báo đỏ và rung trong 500ms
@@ -226,6 +265,10 @@ export function FlashcardMatchPage({
       }, 500);
     }
   };
+
+  const displayTitle = isMultiSetMode
+    ? (customTitle || `Ôn luyện ngẫu nhiên (${allWords.length} từ)`)
+    : `Ghép thẻ: ${set?.title || 'Bộ từ vựng'}`;
 
   return (
     <div className="page-shell">
@@ -241,6 +284,7 @@ export function FlashcardMatchPage({
         onGoHistory={onGoHistory}
         onGoAdmin={onGoAdmin}
         onGoSettings={onGoSettings}
+        onGoLeague={onGoLeague}
         onLoggedOut={onLoggedOut}
       />
 
@@ -248,11 +292,9 @@ export function FlashcardMatchPage({
         {/* ── TOP CONTROLS BAR ── */}
         <div className="fc-match-topbar">
           <div className="fc-match-title-group">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <h1 className="fc-match-page-title">
-                Ghép thẻ: {set?.title || 'Bộ từ vựng'}
-              </h1>
-            </div>
+            <h1 className="fc-match-page-title">
+              {displayTitle}
+            </h1>
           </div>
 
           {/* Stats: Đồng hồ & Tiến độ & Nút Chơi lại */}
@@ -263,7 +305,7 @@ export function FlashcardMatchPage({
             </div>
             <div className="fc-match-progress-pill" title="Tiến độ trang hiện tại">
               <CheckCircle2 size={15} />
-              <span>Trang {currentPage}: {currentMatched.size}/6 cặp</span>
+              <span>Trang {currentPage}/{totalPages}: {currentMatched.size}/{currentWords.length} cặp</span>
             </div>
             <button
               type="button"
@@ -276,10 +318,9 @@ export function FlashcardMatchPage({
           </div>
         </div>
 
-
         {/* ── MAIN CONTENT AREA ── */}
         {isAllDone ? (
-          /* TRƯỜNG HỢP: HOÀN THÀNH TOÀN BỘ CẢ 2 TRANG (12 TỪ) */
+          /* TRƯỜNG HỢP: HOÀN THÀNH TOÀN BỘ TẤT CẢ CÁC TRANG */
           <div className="fc-match-victory-box">
             <div
               style={{
@@ -300,7 +341,7 @@ export function FlashcardMatchPage({
               Xuất sắc! Bạn đã ghép thành công tất cả thẻ!
             </h2>
             <p className="fc-completion-sub" style={{ fontSize: '15px', marginBottom: '24px' }}>
-              Bạn đã hoàn thành ghép cả 2 trang (12 từ vựng) trong thời gian <strong>{formatTime(seconds)}</strong> với <strong>{attempts}</strong> lượt ghép.
+              Bạn đã hoàn thành ghép cả {totalPages} trang ({allWords.length} từ vựng) trong thời gian <strong>{formatTime(seconds)}</strong> với <strong>{attempts}</strong> lượt ghép.
             </p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <button
@@ -331,12 +372,12 @@ export function FlashcardMatchPage({
                 }}
                 onClick={onBack}
               >
-                Quay lại bộ thẻ
+                {isMultiSetMode ? 'Quay lại Khám phá' : 'Quay lại bộ thẻ'}
               </button>
             </div>
           </div>
         ) : isCurrentPageDone ? (
-          /* TRƯỜNG HỢP: HOÀN THÀNH TRANG HIỆN TẠI (CHƯA XONG TRANG CÒN LẠI) */
+          /* TRƯỜNG HỢP: HOÀN THÀNH TRANG HIỆN TẠI (CHƯA XONG TOÀN BỘ CÁC TRANG) */
           <div className="fc-match-victory-box">
             <div
               style={{
@@ -354,45 +395,73 @@ export function FlashcardMatchPage({
               <CheckCircle2 size={32} />
             </div>
             <h2 className="fc-completion-title" style={{ fontSize: '24px', marginBottom: '8px' }}>
-              Tuyệt vời! Đã hoàn thành 6/6 từ của Trang {currentPage}!
+              Tuyệt vời! Đã hoàn thành {currentWords.length}/{currentWords.length} cặp của Trang {currentPage}!
             </h2>
             <p className="fc-completion-sub" style={{ fontSize: '14.5px', marginBottom: '20px' }}>
-              {currentPage === 1
-                ? 'Hãy chuyển sang Trang 2 để tiếp tục thử thách 6 từ tiếp theo.'
-                : 'Bạn có thể chuyển về Trang 1 để hoàn thành nếu còn từ chưa ghép.'}
+              {currentPage < totalPages
+                ? `Hãy chuyển sang Trang ${currentPage + 1} để tiếp tục thử thách ${getWordsForPage(currentPage + 1).length} từ tiếp theo.`
+                : 'Bạn có thể chuyển về các trang trước để hoàn thành nếu còn từ chưa ghép.'}
             </p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
-              <button
-                type="button"
-                className="fc-match-reset-btn"
-                style={{
-                  padding: '10px 22px',
-                  borderRadius: '999px',
-                  background: '#3b82f6',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  border: 'none',
-                }}
-                onClick={() => {
-                  setCurrentPage(currentPage === 1 ? 2 : 1);
-                  setSelectedTileId(null);
-                  setWrongTileIds([]);
-                }}
-              >
-                {currentPage === 1 ? 'Sang Trang 2 tiếp tục →' : 'Quay lại Trang 1'}
-              </button>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              {currentPage < totalPages ? (
+                <button
+                  type="button"
+                  className="fc-match-reset-btn"
+                  style={{
+                    padding: '10px 22px',
+                    borderRadius: '999px',
+                    background: '#3b82f6',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    border: 'none',
+                  }}
+                  onClick={() => {
+                    setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+                    setSelectedTileId(null);
+                    setWrongTileIds([]);
+                  }}
+                >
+                  Sang Trang {currentPage + 1} tiếp tục →
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="fc-match-reset-btn"
+                  style={{
+                    padding: '10px 22px',
+                    borderRadius: '999px',
+                    background: '#3b82f6',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    border: 'none',
+                  }}
+                  onClick={() => {
+                    for (let p = 1; p <= totalPages; p++) {
+                      if ((pageMatched[p]?.size || 0) < getWordsForPage(p).length) {
+                        setCurrentPage(p);
+                        break;
+                      }
+                    }
+                    setSelectedTileId(null);
+                    setWrongTileIds([]);
+                  }}
+                >
+                  Chuyển đến trang còn từ chưa ghép
+                </button>
+              )}
               <button
                 type="button"
                 className="fc-match-reset-btn"
                 style={{ padding: '10px 20px', borderRadius: '999px' }}
                 onClick={() => {
-                  if (currentPage === 1) {
-                    setTilesP1(generateTilesForWords(page1Words, 'p1'));
-                    setMatchedP1(new Set());
-                  } else {
-                    setTilesP2(generateTilesForWords(page2Words, 'p2'));
-                    setMatchedP2(new Set());
-                  }
+                  setPageTiles((prev) => ({
+                    ...prev,
+                    [currentPage]: generateTilesForWords(currentWords, `p${currentPage}`),
+                  }));
+                  setPageMatched((prev) => ({
+                    ...prev,
+                    [currentPage]: new Set<string>(),
+                  }));
                   setSelectedTileId(null);
                   setWrongTileIds([]);
                 }}
@@ -402,7 +471,7 @@ export function FlashcardMatchPage({
             </div>
           </div>
         ) : (
-          /* ── GRID 12 THẺ (4 CỘT x 3 HÀNG TRÊN MÁY TÍNH | 3 CỘT x 4 HÀNG TRÊN ĐIỆN THOẠI) ── */
+          /* ── GRID THẺ GHÉP CỦA TRANG HIỆN TẠI (4 CỘT x 3 HÀNG) ── */
           <div className="fc-match-grid">
             {currentTiles.map((tile) => {
               const isMatched = currentMatched.has(tile.termId);

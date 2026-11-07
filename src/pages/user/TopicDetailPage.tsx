@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
+  ArrowLeft,
   Search,
   Play,
   Code2,
@@ -23,9 +24,20 @@ import {
   RotateCcw,
   type LucideIcon,
 } from 'lucide-react';
-import { PRACTICE_PROBLEMS, type PracticeProblem, type TopicInfo, type AuthMode } from '@/types';
+import {
+  type PracticeProblem,
+  type TopicInfo,
+  type AuthMode,
+  type SkillLevel,
+  type TopicScore,
+  LEVEL_COLORS,
+  LEVEL_LABELS,
+  LEVEL_ORDER,
+} from '@/types';
+import { getPublishedProblems, normalizeDifficulty } from '@/lib/problemService';
 import { MOCK_SUBMISSIONS } from '@/data/userMockData';
 import { Pagination } from '@/components/Pagination';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Header } from '@/layout/Header';
 import { Footer } from '@/layout/Footer';
 
@@ -44,10 +56,12 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Share2,
 };
 
-const DIFFICULTY_COLORS: Record<string, string> = {
-  Easy: '#10b981',
-  Medium: '#f59e0b',
-  Hard: '#f43f5e',
+const LEVEL_WEIGHT: Record<SkillLevel, number> = {
+  beginner: 1,
+  basic: 2,
+  intermediate: 3,
+  advanced: 4,
+  expert: 5,
 };
 
 const ITEMS_PER_PAGE = 6;
@@ -63,6 +77,7 @@ interface TopicDetailPageProps {
   onGoProgress?: () => void;
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
+  onGoLeague?: () => void;
   onLoggedOut?: () => void;
   onGoFlashcards?: () => void;
   onGoFlashcardLibrary?: () => void;
@@ -70,7 +85,7 @@ interface TopicDetailPageProps {
 
 // Helper to get exact practice problems for a topic
 function getTopicProblems(topic: TopicInfo): PracticeProblem[] {
-  return PRACTICE_PROBLEMS.filter(
+  return getPublishedProblems().filter(
     (p) => p.topic.toLowerCase() === topic.name.toLowerCase() && p.isPublic !== false
   );
 }
@@ -86,19 +101,44 @@ export function TopicDetailPage({
   onGoProgress,
   onGoAdmin,
   onGoSettings,
+  onGoLeague,
   onLoggedOut,
   onGoFlashcards,
   onGoFlashcardLibrary,
 }: TopicDetailPageProps) {
   const [search, setSearch] = useState('');
-  const [diffFilter, setDiffFilter] = useState<'All' | 'Easy' | 'Medium' | 'Hard'>('All');
+  const [diffFilter, setDiffFilter] = useState<'all' | SkillLevel>('all');
   const [sortOrder, setSortOrder] = useState<'default' | 'name' | 'diff-asc' | 'diff-desc'>('default');
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [problemVersion, setProblemVersion] = useState(0);
+
+  const userAssessedScores: TopicScore[] = useMemo(() => {
+    try {
+      const stored = localStorage.getItem('user_assessment_scores');
+      if (stored) return JSON.parse(stored);
+    } catch {
+      // ignore
+    }
+    return [];
+  }, []);
+
+  const userTopicLevel: SkillLevel | undefined = useMemo(() => {
+    const found = userAssessedScores.find(
+      (s) => s.topic.toLowerCase() === topic.name.toLowerCase()
+    );
+    return found?.level;
+  }, [userAssessedScores, topic]);
+
+  useEffect(() => {
+    const handleUpdate = () => setProblemVersion((v) => v + 1);
+    window.addEventListener('problems_updated', handleUpdate);
+    return () => window.removeEventListener('problems_updated', handleUpdate);
+  }, []);
 
   const TopicIcon = ICON_MAP[topic.icon] ?? Code2;
 
-  const allProblems = useMemo(() => getTopicProblems(topic), [topic]);
+  const allProblems = useMemo(() => getTopicProblems(topic), [topic, problemVersion]);
 
   // Filtering & Sorting
   const filteredProblems = useMemo(() => {
@@ -107,14 +147,16 @@ export function TopicDetailPage({
         const matchesSearch =
           p.title.toLowerCase().includes(search.toLowerCase()) ||
           p.description.toLowerCase().includes(search.toLowerCase());
-        const matchesDiff = diffFilter === 'All' || p.difficulty === diffFilter;
+        const pDiff = normalizeDifficulty(p.difficulty) || p.difficulty;
+        const matchesDiff = diffFilter === 'all' || pDiff === diffFilter;
         return matchesSearch && matchesDiff;
       })
       .sort((a, b) => {
+        const aDiff = (normalizeDifficulty(a.difficulty) || a.difficulty) as SkillLevel;
+        const bDiff = (normalizeDifficulty(b.difficulty) || b.difficulty) as SkillLevel;
         if (sortOrder === 'name') return a.title.localeCompare(b.title);
-        const weight = { Easy: 1, Medium: 2, Hard: 3 };
-        if (sortOrder === 'diff-asc') return weight[a.difficulty] - weight[b.difficulty];
-        if (sortOrder === 'diff-desc') return weight[b.difficulty] - weight[a.difficulty];
+        if (sortOrder === 'diff-asc') return (LEVEL_WEIGHT[aDiff] ?? 3) - (LEVEL_WEIGHT[bDiff] ?? 3);
+        if (sortOrder === 'diff-desc') return (LEVEL_WEIGHT[bDiff] ?? 3) - (LEVEL_WEIGHT[aDiff] ?? 3);
         return 0;
       });
   }, [allProblems, search, diffFilter, sortOrder]);
@@ -156,10 +198,24 @@ export function TopicDetailPage({
         onGoProgress={onGoProgress}
         onGoAdmin={onGoAdmin}
         onGoSettings={onGoSettings}
+        onGoLeague={onGoLeague}
         onLoggedOut={onLoggedOut}
       />
 
       <main className="topic-detail-main">
+        <ErrorBoundary fallbackTitle="Không thể tải chi tiết chủ đề" onReset={onBack}>
+        {/* Top navigation back button */}
+        <div className="topic-detail-nav">
+          <button
+            type="button"
+            className="topic-detail-back-btn"
+            onClick={onBack}
+            title="Quay lại danh sách các chủ đề"
+          >
+            <ArrowLeft size={16} /> Danh sách chủ đề
+          </button>
+        </div>
+
         {/* Hero Header */}
         <div className="topic-detail-hero">
           <div className="topic-detail-hero-icon">
@@ -173,15 +229,36 @@ export function TopicDetailPage({
               <span className="stat-pill total">
                 <Code2 size={14} /> {topic.problemCount} bài tập
               </span>
-              <span className="stat-pill easy">
-                Cơ bản: {topic.difficulties.easy}
-              </span>
-              <span className="stat-pill medium">
-                Trung bình: {topic.difficulties.medium}
-              </span>
-              <span className="stat-pill hard">
-                Nâng cao: {topic.difficulties.hard}
-              </span>
+              {(['beginner', 'basic', 'intermediate', 'advanced', 'expert'] as SkillLevel[]).map((lvl) => {
+                const count = topic.difficulties?.[lvl] ?? 0;
+                if (count === 0) return null;
+                return (
+                  <span
+                    key={lvl}
+                    className="stat-pill"
+                    style={{
+                      color: LEVEL_COLORS[lvl],
+                      borderColor: `${LEVEL_COLORS[lvl]}44`,
+                      background: `${LEVEL_COLORS[lvl]}15`,
+                    }}
+                  >
+                    {LEVEL_LABELS[lvl]}: {count}
+                  </span>
+                );
+              })}
+              {userTopicLevel && (
+                <span
+                  className="stat-pill user-level"
+                  style={{
+                    color: LEVEL_COLORS[userTopicLevel],
+                    borderColor: LEVEL_COLORS[userTopicLevel],
+                    background: `${LEVEL_COLORS[userTopicLevel]}22`,
+                    fontWeight: 600,
+                  }}
+                >
+                  Trình độ của bạn: {LEVEL_LABELS[userTopicLevel]}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -205,22 +282,48 @@ export function TopicDetailPage({
           {/* Difficulty Filter Tabs */}
           <div className="topic-filter-tabs">
             <Filter size={14} className="filter-icon" />
-            {(['All', 'Easy', 'Medium', 'Hard'] as const).map((lvl) => (
+            <button
+              className={`filter-tab ${diffFilter === 'all' ? 'is-active' : ''}`}
+              onClick={() => {
+                setDiffFilter('all');
+                setCurrentPage(1);
+              }}
+            >
+              Tất cả
+            </button>
+            {LEVEL_ORDER.map((lvl) => (
               <button
                 key={lvl}
                 className={`filter-tab ${diffFilter === lvl ? 'is-active' : ''}`}
+                style={
+                  diffFilter === lvl
+                    ? {
+                        borderColor: LEVEL_COLORS[lvl],
+                        color: LEVEL_COLORS[lvl],
+                        backgroundColor: `${LEVEL_COLORS[lvl]}18`,
+                      }
+                    : undefined
+                }
                 onClick={() => {
                   setDiffFilter(lvl);
                   setCurrentPage(1);
                 }}
               >
-                {lvl === 'All'
-                  ? 'Tất cả'
-                  : lvl === 'Easy'
-                  ? 'Cơ bản'
-                  : lvl === 'Medium'
-                  ? 'Trung bình'
-                  : 'Nâng cao'}
+                {LEVEL_LABELS[lvl]}
+                {userTopicLevel === lvl && (
+                  <span
+                    style={{
+                      marginLeft: '6px',
+                      fontSize: '10px',
+                      padding: '1px 5px',
+                      borderRadius: '10px',
+                      background: LEVEL_COLORS[lvl],
+                      color: '#fff',
+                    }}
+                  >
+                    Phù hợp
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -286,16 +389,12 @@ export function TopicDetailPage({
                       <span
                         className="problem-diff-badge"
                         style={{
-                          color: DIFFICULTY_COLORS[p.difficulty],
-                          backgroundColor: `${DIFFICULTY_COLORS[p.difficulty]}15`,
-                          borderColor: `${DIFFICULTY_COLORS[p.difficulty]}40`,
+                          color: LEVEL_COLORS[normalizeDifficulty(p.difficulty) || p.difficulty] || '#5e8dfa',
+                          backgroundColor: `${LEVEL_COLORS[normalizeDifficulty(p.difficulty) || p.difficulty] || '#5e8dfa'}15`,
+                          borderColor: `${LEVEL_COLORS[normalizeDifficulty(p.difficulty) || p.difficulty] || '#5e8dfa'}40`,
                         }}
                       >
-                        {p.difficulty === 'Easy'
-                          ? 'Cơ bản'
-                          : p.difficulty === 'Medium'
-                          ? 'Trung bình'
-                          : 'Nâng cao'}
+                        {LEVEL_LABELS[normalizeDifficulty(p.difficulty) || p.difficulty] || p.difficulty}
                       </span>
                     </div>
 
@@ -348,6 +447,7 @@ export function TopicDetailPage({
             }}
           />
         )}
+        </ErrorBoundary>
       </main>
 
       <Footer />

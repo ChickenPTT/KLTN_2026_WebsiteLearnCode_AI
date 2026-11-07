@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react';
-import { BrainCircuit, Code2, Menu, X, BookOpen, Compass, Library, ChevronDown } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Trophy, Code2, Menu, X, BookOpen, Compass, Library, ChevronDown, Sun, Moon } from 'lucide-react';
 import { Brand } from '@/components/Brand';
 import { UserMenu } from '@/components/UserMenu';
 import { useAuth } from '@/hooks/useAuth';
 import type { AuthMode } from '@/types';
+import { getSavedTheme, resolveTheme, applyTheme, type ThemeOption } from '@/lib/theme';
 
 interface HeaderProps {
   onGoLanding?: () => void;
@@ -11,6 +12,7 @@ interface HeaderProps {
   onGoTopics?: () => void;
   onGoFlashcards?: () => void;
   onGoFlashcardLibrary?: () => void;
+  onGoLeague?: () => void;
   onScrollFeatures?: () => void;
   onGoProfile?: () => void;
   onGoProgress?: () => void;
@@ -19,6 +21,7 @@ interface HeaderProps {
   onGoSettings?: () => void;
   onLoggedOut?: () => void;
   hideNav?: boolean;
+  showThemeToggle?: boolean;
   activeView?: string;
 }
 
@@ -28,6 +31,7 @@ export function Header({
   onGoTopics,
   onGoFlashcards,
   onGoFlashcardLibrary,
+  onGoLeague,
   onScrollFeatures,
   onGoProfile,
   onGoProgress,
@@ -36,11 +40,35 @@ export function Header({
   onGoSettings,
   onLoggedOut,
   hideNav = false,
+  showThemeToggle = false,
   activeView,
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [flashcardDropdownOpen, setFlashcardDropdownOpen] = useState(false);
   const [mobileFlashcardExpanded, setMobileFlashcardExpanded] = useState(false);
+  const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(() => {
+    return resolveTheme(getSavedTheme());
+  });
+
+  useEffect(() => {
+    const handleThemeChange = (e: Event) => {
+      const customEvent = e as CustomEvent<{ theme: ThemeOption; resolved: 'light' | 'dark' }>;
+      if (customEvent.detail?.resolved) {
+        setCurrentTheme(customEvent.detail.resolved);
+      } else {
+        setCurrentTheme(resolveTheme(getSavedTheme()));
+      }
+    };
+    window.addEventListener('themechange', handleThemeChange);
+    return () => window.removeEventListener('themechange', handleThemeChange);
+  }, []);
+
+  const handleToggleTheme = () => {
+    const next = currentTheme === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    setCurrentTheme(next);
+  };
+
   const dropdownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { user } = useAuth();
 
@@ -52,9 +80,14 @@ export function Header({
     else { window.scrollTo({ top: 0, behavior: 'smooth' }); }
   };
 
-  const handleScrollFeatures = () => {
-    if (onScrollFeatures) { onScrollFeatures(); }
-    else if (onGoLanding) { onGoLanding(); }
+  const handleGoLeague = () => {
+    if (onGoLeague) {
+      onGoLeague();
+    } else if (onScrollFeatures) {
+      onScrollFeatures();
+    } else if (onGoLanding) {
+      onGoLanding();
+    }
     setMenuOpen(false);
   };
 
@@ -184,10 +217,10 @@ export function Header({
             </div>
 
             <button
-              className={activeView === 'quiz' ? 'is-active' : ''}
-              onClick={handleScrollFeatures}
+              className={activeView === 'league' || activeView === 'quiz' ? 'is-active' : ''}
+              onClick={handleGoLeague}
             >
-              <BrainCircuit size={18} /> Trắc nghiệm
+              <Trophy size={18} /> Đấu hạng
             </button>
             <button
               className={activeView === 'topics' || activeView === 'topic-detail' || activeView === 'practice' ? 'is-active' : ''}
@@ -198,24 +231,38 @@ export function Header({
           </div>
         )}
 
-        {user ? (
-          <UserMenu
-            activeView={activeView}
-            onGoProfile={() => { setMenuOpen(false); onGoProfile?.(); }}
-            onGoProgress={() => { setMenuOpen(false); onGoProgress?.(); }}
-            onGoHistory={() => { setMenuOpen(false); onGoHistory?.(); }}
-            onGoAdmin={() => { setMenuOpen(false); onGoAdmin?.(); }}
-            onGoSettings={() => { setMenuOpen(false); onGoSettings?.(); }}
-            onLoggedOut={() => { setMenuOpen(false); onLoggedOut?.(); }}
-          />
-        ) : (
-          <button
-            className="login-button"
-            onClick={() => { setMenuOpen(false); onGoAuth?.('login'); }}
-          >
-            Login
-          </button>
-        )}
+        <div className="topbar-user-area" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {showThemeToggle && (
+            <button
+              type="button"
+              className="admin-theme-toggle-btn"
+              onClick={handleToggleTheme}
+              title={currentTheme === 'dark' ? 'Chuyển sang giao diện Sáng' : 'Chuyển sang giao diện Tối'}
+              aria-label="Chuyển đổi giao diện sáng/tối"
+            >
+              {currentTheme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+          )}
+
+          {user ? (
+            <UserMenu
+              activeView={activeView}
+              onGoProfile={() => { setMenuOpen(false); onGoProfile?.(); }}
+              onGoProgress={() => { setMenuOpen(false); onGoProgress?.(); }}
+              onGoHistory={() => { setMenuOpen(false); onGoHistory?.(); }}
+              onGoAdmin={() => { setMenuOpen(false); onGoAdmin?.(); }}
+              onGoSettings={() => { setMenuOpen(false); onGoSettings?.(); }}
+              onLoggedOut={() => { setMenuOpen(false); onLoggedOut?.(); }}
+            />
+          ) : (
+            <button
+              className="login-button"
+              onClick={() => { setMenuOpen(false); onGoAuth?.('login'); }}
+            >
+              Login
+            </button>
+          )}
+        </div>
       </nav>
     </header>
   );

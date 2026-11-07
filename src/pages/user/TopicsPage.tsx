@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   AlignJustify,
   ArrowDownWideNarrow,
@@ -21,10 +21,12 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { TOPIC_INFOS, PRACTICE_PROBLEMS, type TopicInfo, type AuthMode } from '@/types';
+import { TOPIC_INFOS, LEVEL_LABELS, LEVEL_COLORS, type TopicInfo, type AuthMode, type SkillLevel } from '@/types';
+import { getPublishedProblems } from '@/lib/problemService';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { MOCK_SUBMISSIONS } from '@/data/userMockData';
 import { Brand } from '@/components/Brand';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Footer } from '@/layout/Footer';
 import { Header } from '@/layout/Header';
 import { useAuth } from '@/hooks/useAuth.tsx';
@@ -49,6 +51,7 @@ interface TopicsPageProps {
   onAuth: (mode: AuthMode) => void;
   onGoFlashcards?: () => void;
   onGoFlashcardLibrary?: () => void;
+  onGoLeague?: () => void;
   onSelectTopic: (topic: TopicInfo) => void;
   onGoPractice: (problemId?: string) => void;
   onGoProfile?: () => void;
@@ -63,6 +66,7 @@ export function TopicsPage({
   onAuth,
   onGoFlashcards,
   onGoFlashcardLibrary,
+  onGoLeague,
   onSelectTopic,
   onGoPractice,
   onGoProfile,
@@ -78,18 +82,23 @@ export function TopicsPage({
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const solvedCount = MOCK_SUBMISSIONS.filter((s) => s.status === 'passed').length;
-  const userLevelLabel =
-    solvedCount < 3 ? 'Cơ bản (Easy)' : solvedCount < 8 ? 'Trung bình (Medium)' : 'Nâng cao (Hard)';
+  const userSkillLevel: SkillLevel =
+    solvedCount >= 20 ? 'expert' :
+    solvedCount >= 12 ? 'advanced' :
+    solvedCount >= 8 ? 'intermediate' :
+    solvedCount >= 5 ? 'basic' : 'beginner';
+  const userLevelLabel = LEVEL_LABELS[userSkillLevel];
 
-  const filteredTopics = TOPIC_INFOS.filter((topic) => {
+  const filteredTopics = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      topic.name.toLowerCase().includes(q) ||
-      topic.description.toLowerCase().includes(q) ||
-      topic.slug.toLowerCase().includes(q)
-    );
-  });
+    if (!q) return TOPIC_INFOS;
+    return TOPIC_INFOS.filter((topic) => {
+      const nameMatch = topic.name.toLowerCase().includes(q);
+      const descMatch = topic.description.toLowerCase().includes(q);
+      const slugMatch = topic.slug.toLowerCase().includes(q);
+      return nameMatch || descMatch || slugMatch;
+    });
+  }, [searchQuery]);
 
   const handleTopicCardClick = (topic: TopicInfo) => {
     onSelectTopic(topic);
@@ -100,15 +109,18 @@ export function TopicsPage({
       onAuth('signup');
       return;
     }
-    let pool = PRACTICE_PROBLEMS.filter((p) => p.isPublic !== false);
+    let pool = getPublishedProblems();
     if (randomDiff !== 'all') {
-      pool = pool.filter((p) => p.difficulty === randomDiff);
+      const diffFiltered = pool.filter((p) => p.difficulty === randomDiff);
+      if (diffFiltered.length > 0) {
+        pool = diffFiltered;
+      }
     }
-    if (pool.length === 0) {
-      pool = PRACTICE_PROBLEMS;
-    }
+    if (pool.length === 0) return;
     const picked = pool[Math.floor(Math.random() * pool.length)];
-    onGoPractice(picked.id);
+    if (picked) {
+      onGoPractice(picked.id);
+    }
   };
 
   return (
@@ -120,6 +132,7 @@ export function TopicsPage({
         onGoTopics={() => {}}
         onGoFlashcards={onGoFlashcards}
         onGoFlashcardLibrary={onGoFlashcardLibrary}
+        onGoLeague={onGoLeague}
         onGoProfile={onGoProfile}
         onGoProgress={onGoProgress}
         onGoAdmin={onGoAdmin}
@@ -128,6 +141,7 @@ export function TopicsPage({
       />
 
       <main className="topics-main">
+        <ErrorBoundary fallbackTitle="Không thể tải danh sách chủ đề" onReset={() => setSearchQuery('')}>
         <div className="topics-hero">
           <h1>Khám phá {TOPIC_INFOS.length} chủ đề, {TOPIC_INFOS.reduce((acc, t) => acc + t.problemCount, 0)} bài tập mẫu</h1>
           <p className="topics-hero-copy">
@@ -169,14 +183,16 @@ export function TopicsPage({
             <SearchableSelect
               options={[
                 { label: '🎲 Ngẫu nhiên tất cả', value: 'all' },
-                { label: '🟢 Bài Dễ (Easy)', value: 'Easy' },
-                { label: '🟡 Bài Vừa (Medium)', value: 'Medium' },
-                { label: '🔴 Bài Khó (Hard)', value: 'Hard' },
+                { label: '⚪ Mới bắt đầu', value: 'beginner' },
+                { label: '🟢 Cơ bản', value: 'basic' },
+                { label: '🔵 Trung bình', value: 'intermediate' },
+                { label: '🟡 Khá', value: 'advanced' },
+                { label: '🟣 Nâng cao', value: 'expert' },
               ]}
               value={randomDiff}
               onChange={(val) => setRandomDiff(val)}
               showSearch={false}
-              style={{ width: '180px' }}
+              style={{ width: '190px' }}
             />
 
             <button
@@ -285,9 +301,26 @@ export function TopicsPage({
                   <div className="topic-card-stats">
                     <span className="topic-stat">{topic.problemCount} bài</span>
                     <span className="topic-diff-bits">
-                      <span className="diff-bit easy">{topic.difficulties.easy}</span>
-                      <span className="diff-bit medium">{topic.difficulties.medium}</span>
-                      <span className="diff-bit hard">{topic.difficulties.hard}</span>
+                      {(['beginner', 'basic', 'intermediate', 'advanced', 'expert'] as SkillLevel[]).map((lvl) => {
+                        const count = topic.difficulties?.[lvl] ?? 0;
+                        if (count === 0) return null;
+                        return (
+                          <span
+                            key={lvl}
+                            className={`diff-bit ${lvl}`}
+                            style={{
+                              color: LEVEL_COLORS[lvl],
+                              borderColor: `${LEVEL_COLORS[lvl]}44`,
+                              background: `${LEVEL_COLORS[lvl]}15`,
+                              fontSize: '11px',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            {count}
+                          </span>
+                        );
+                      })}
                     </span>
                   </div>
                   <button
@@ -324,6 +357,7 @@ export function TopicsPage({
             </div>
           </div>
         )}
+        </ErrorBoundary>
       </main>
 
       <Footer />

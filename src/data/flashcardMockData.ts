@@ -327,3 +327,90 @@ export function getFlashcardMatchCards(set?: FlashcardMockSet): FlashcardItem[] 
   return cards.slice(0, 12);
 }
 
+/**
+ * Lấy danh sách các bộ Flashcard mà người dùng hiện tại đã học hoàn thành.
+ * Luôn đảm bảo lấy đầy đủ mảng cards từ ALL_FLASHCARD_SETS nếu cần.
+ */
+export function getCompletedFlashcardSets(): CompletedFlashcardSet[] {
+  return MOCK_COMPLETED_FLASHCARD_SETS.map((completedSet) => {
+    const fullSet = ALL_FLASHCARD_SETS.find((s) => s.id === completedSet.id);
+    const cards = (completedSet.cards && completedSet.cards.length > 0)
+      ? completedSet.cards
+      : (fullSet?.cards || []);
+
+    return {
+      ...completedSet,
+      cards,
+      wordCount: cards.length > 0 ? cards.length : completedSet.wordCount,
+    };
+  });
+}
+
+/**
+ * Thuật toán xáo trộn Fisher-Yates
+ */
+export function shuffleArray<T>(items: T[]): T[] {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+/**
+ * Tổng hợp từ vựng từ tối đa 3 bộ Flashcard:
+ * - Chuẩn hóa dữ liệu theo FlashcardItem
+ * - Loại bỏ trùng lặp (cùng từ VÀ cùng nghĩa). Nếu cùng từ nhưng khác nghĩa thì vẫn giữ cả hai!
+ * - Xáo trộn ngẫu nhiên (Fisher-Yates)
+ * - Lấy tối đa 30 từ (nếu > 30 lấy 30, nếu <= 30 lấy toàn bộ, không tạo dữ liệu giả)
+ */
+export function combineAndShuffleFlashcards(
+  sets: (FlashcardMockSet | CompletedFlashcardSet)[]
+): FlashcardItem[] {
+  const rawCards: FlashcardItem[] = [];
+
+  for (const s of sets) {
+    let sourceCards = s.cards;
+    if (!sourceCards || sourceCards.length === 0) {
+      const full = ALL_FLASHCARD_SETS.find((item) => item.id === s.id);
+      sourceCards = full?.cards || [];
+    }
+    if (Array.isArray(sourceCards)) {
+      rawCards.push(...sourceCards);
+    }
+  }
+
+  // Khử trùng lặp: Tránh hiển thị nhiều lần cùng một từ CÓ CÙNG NGHĨA.
+  // Không loại bỏ những từ có cùng cách viết nhưng khác nghĩa.
+  const uniqueMap = new Map<string, FlashcardItem>();
+
+  for (const card of rawCards) {
+    if (!card) continue;
+    const term = typeof card.term === 'string' ? card.term.trim() : '';
+    const definition = typeof card.definition === 'string' ? card.definition.trim() : '';
+    if (!term || !definition) continue;
+
+    const dedupeKey = `${term.toLowerCase()}:::${definition.toLowerCase()}`;
+    if (!uniqueMap.has(dedupeKey)) {
+      uniqueMap.set(dedupeKey, {
+        id: card.id || `card-multi-${uniqueMap.size + 1}`,
+        term,
+        definition,
+        example: card.example ? String(card.example).trim() : undefined,
+      });
+    }
+  }
+
+  const uniqueList = Array.from(uniqueMap.values());
+
+  // Xáo trộn bằng Fisher-Yates shuffle
+  const shuffled = shuffleArray(uniqueList);
+
+  // Giới hạn tối đa 30 từ
+  if (shuffled.length > 30) {
+    return shuffled.slice(0, 30);
+  }
+  return shuffled;
+}
+

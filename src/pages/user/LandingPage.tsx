@@ -24,6 +24,7 @@ interface LandingPageProps {
   onGoTopics: () => void;
   onGoFlashcards?: () => void;
   onGoFlashcardLibrary?: () => void;
+  onGoLeague?: () => void;
   onGoProfile?: () => void;
   onGoProgress?: () => void;
   onGoSettings?: () => void;
@@ -67,6 +68,7 @@ export function LandingPage({
   onGoTopics,
   onGoFlashcards,
   onGoFlashcardLibrary,
+  onGoLeague,
   onGoProfile,
   onGoProgress,
   onGoSettings,
@@ -104,6 +106,7 @@ export function LandingPage({
         onGoTopics={onGoTopics}
         onGoFlashcards={onGoFlashcards}
         onGoFlashcardLibrary={onGoFlashcardLibrary}
+        onGoLeague={onGoLeague}
         onScrollFeatures={scrollToFeatures}
         onGoProfile={onGoProfile ?? (() => {})}
         onGoProgress={onGoProgress ?? (() => {})}

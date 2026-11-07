@@ -15,7 +15,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { Header } from '@/layout/Header';
-import { LEVEL_COLORS, TOPIC_INFOS, type AuthMode } from '@/types';
+import { LEVEL_COLORS, LEVEL_LABELS, type SkillLevel, TOPIC_INFOS, type AuthMode } from '@/types';
 import {
   MOCK_STREAK,
   MOCK_XP,
@@ -36,6 +36,7 @@ interface ProgressPageProps {
   onGoScoringGuide?: () => void;
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
+  onGoLeague?: () => void;
   onLoggedOut?: () => void;
   onGoFlashcards?: () => void;
   onGoFlashcardLibrary?: () => void;
@@ -45,25 +46,24 @@ const maxWeekly = Math.max(...MOCK_WEEKLY.map((d) => d.solved), 1);
 
 interface TopicSkillStat {
   name: string;
-  levelLabel: 'Khá' | 'Trung bình' | 'Cơ bản' | 'Mới bắt đầu' | 'Giỏi';
-  levelColor: string;
+  level: SkillLevel;
   pct: number;
   solvedCount: number;
 }
 
 const TOPIC_SKILL_STATS: TopicSkillStat[] = [
-  { name: 'Array', levelLabel: 'Khá', levelColor: '#f59e0b', pct: 70, solvedCount: 2 },
-  { name: 'String', levelLabel: 'Trung bình', levelColor: '#3b82f6', pct: 50, solvedCount: 1 },
-  { name: 'Hash Table', levelLabel: 'Trung bình', levelColor: '#3b82f6', pct: 50, solvedCount: 1 },
-  { name: 'Two Pointers', levelLabel: 'Trung bình', levelColor: '#3b82f6', pct: 50, solvedCount: 1 },
-  { name: 'Linked List', levelLabel: 'Cơ bản', levelColor: '#22c55e', pct: 35, solvedCount: 1 },
-  { name: 'Stack', levelLabel: 'Cơ bản', levelColor: '#22c55e', pct: 35, solvedCount: 1 },
-  { name: 'Queue', levelLabel: 'Mới bắt đầu', levelColor: '#64748b', pct: 20, solvedCount: 0 },
-  { name: 'Recursion', levelLabel: 'Trung bình', levelColor: '#3b82f6', pct: 50, solvedCount: 1 },
-  { name: 'Sorting', levelLabel: 'Trung bình', levelColor: '#3b82f6', pct: 50, solvedCount: 1 },
-  { name: 'Binary Search', levelLabel: 'Cơ bản', levelColor: '#22c55e', pct: 35, solvedCount: 1 },
-  { name: 'Tree', levelLabel: 'Mới bắt đầu', levelColor: '#64748b', pct: 20, solvedCount: 1 },
-  { name: 'Graph', levelLabel: 'Mới bắt đầu', levelColor: '#64748b', pct: 20, solvedCount: 0 },
+  { name: 'Array', level: 'advanced', pct: 70, solvedCount: 2 },
+  { name: 'String', level: 'intermediate', pct: 50, solvedCount: 1 },
+  { name: 'Hash Table', level: 'intermediate', pct: 50, solvedCount: 1 },
+  { name: 'Two Pointers', level: 'intermediate', pct: 50, solvedCount: 1 },
+  { name: 'Linked List', level: 'basic', pct: 35, solvedCount: 1 },
+  { name: 'Stack', level: 'basic', pct: 35, solvedCount: 1 },
+  { name: 'Queue', level: 'beginner', pct: 20, solvedCount: 0 },
+  { name: 'Recursion', level: 'intermediate', pct: 50, solvedCount: 1 },
+  { name: 'Sorting', level: 'intermediate', pct: 50, solvedCount: 1 },
+  { name: 'Binary Search', level: 'basic', pct: 35, solvedCount: 1 },
+  { name: 'Tree', level: 'beginner', pct: 20, solvedCount: 1 },
+  { name: 'Graph', level: 'beginner', pct: 20, solvedCount: 0 },
 ];
 
 interface TopicPieData {
@@ -112,6 +112,7 @@ export function ProgressPage({
   onGoScoringGuide,
   onGoAdmin,
   onGoSettings,
+  onGoLeague,
   onLoggedOut,
   onGoFlashcards,
   onGoFlashcardLibrary,
@@ -138,6 +139,7 @@ export function ProgressPage({
         onGoHistory={onGoHistory}
         onGoAdmin={onGoAdmin}
         onGoSettings={onGoSettings}
+        onGoLeague={onGoLeague}
         onLoggedOut={onLoggedOut}
       />
 
@@ -329,11 +331,11 @@ export function ProgressPage({
                 <div className="topic-skill-track">
                   <div
                     className="topic-skill-fill"
-                    style={{ width: `${topic.pct}%`, backgroundColor: topic.levelColor }}
+                    style={{ width: `${topic.pct}%`, backgroundColor: LEVEL_COLORS[topic.level] }}
                   />
                 </div>
-                <span className="topic-skill-label" style={{ color: topic.levelColor }}>
-                  {topic.levelLabel}
+                <span className="topic-skill-label" style={{ color: LEVEL_COLORS[topic.level] }}>
+                  {LEVEL_LABELS[topic.level]}
                 </span>
               </div>
             ))}
