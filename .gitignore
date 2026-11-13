@@ -40,3 +40,9 @@ node_modules/
 frontend/dist/
 frontend/.env.local
 *.log
+*.tsbuildinfo
+
+### Cong cu ca nhan (graphify, AI agent) - khong thuoc du an ###
+graphify-out/
+.cursor/rules/graphify.mdc
+.junie/

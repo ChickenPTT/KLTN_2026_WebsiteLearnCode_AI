@@ -1,0 +1,51 @@
+# Chay ca he thong tren 1 VPS:  docker compose up -d --build
+# Bien bi mat (DB_PASSWORD, JWT_SECRET, API key...) doc tu file .env canh file nay.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: testai_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data   # du lieu van con khi restart / build lai
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d testai_db"]
+      interval: 5s
+      retries: 10
+
+  backend:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Ghi de localhost trong application.properties -> container "db"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/testai_db
+      # Cung 1 nguon voi POSTGRES_PASSWORD o tren -> mat khau luon khop
+      DB_PASSWORD: ${DB_PASSWORD}
+      SPRING_JPA_SHOW_SQL: "false"
+      # VPS 2GB RAM: gioi han Java de con cho cho Postgres
+      JAVA_OPTS: -Xms256m -Xmx768m
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    volumes:
+      - caddy_data:/data       # luu chung chi HTTPS, khong phai xin lai moi lan
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

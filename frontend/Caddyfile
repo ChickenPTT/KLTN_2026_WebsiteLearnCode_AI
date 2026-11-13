@@ -1,0 +1,18 @@
+# SITE_ADDRESS:
+#   - de trong (mac dinh ":80")  -> chay HTTP, dung de thu
+#   - ten mien, vd "kltn.southeastasia.cloudapp.azure.com" -> Caddy tu lay HTTPS mien phi (Let's Encrypt)
+{$SITE_ADDRESS::80} {
+	encode gzip
+
+	# Goi API -> chuyen sang container backend (cung domain nen cookie refresh token hoat dong)
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+
+	# Con lai la file tinh cua React; duong dan la -> tra ve index.html
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

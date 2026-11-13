@@ -1,0 +1,11 @@
+# Backend image chi can mvnw, .mvn, pom.xml, src
+frontend
+target
+graphify-out
+.git
+.idea
+.vscode
+.junie
+.env
+.env.*
+*.log
