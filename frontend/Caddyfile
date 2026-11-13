@@ -4,9 +4,11 @@
 {$SITE_ADDRESS::80} {
 	encode gzip
 
-	# Goi API -> chuyen sang container backend (cung domain nen cookie refresh token hoat dong)
+	# Goi API -> chuyen sang backend (cung domain nen cookie refresh token hoat dong)
+	# BACKEND_HOST: docker-compose dung mac dinh "backend:8080";
+	# Railway dat thanh "<ten-service-backend>.railway.internal:8080"
 	handle /api/* {
-		reverse_proxy backend:8080
+		reverse_proxy {$BACKEND_HOST:backend:8080}
 	}
 
 	# Con lai la file tinh cua React; duong dan la -> tra ve index.html

@@ -1,0 +1,58 @@
+# Render Blueprint: tao backend (Docker) + frontend (static) bang 1 lan bam.
+# Database dung Neon (mien phi, khong het han) -> dien chuoi ket noi khi Render hoi.
+services:
+  # ---------- Backend Spring Boot ----------
+  - type: web
+    name: kltn-learncode-api
+    runtime: docker
+    plan: free
+    branch: TienThinh
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Endpoint cong khai, nhe -> Render dung de biet app da chay xong
+    healthCheckPath: /api/contest/seasons
+    envVars:
+      # Render tu cap PORT, app doc qua server.port=${PORT:8080}
+      - key: JAVA_OPTS
+        value: -Xmx300m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC
+      - key: SPRING_JPA_SHOW_SQL
+        value: "false"
+      # Neon free gioi han so ket noi -> pool nho
+      - key: SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE
+        value: "3"
+      - key: JWT_COOKIE_SECURE
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+      # sync: false -> Render hoi ban nhap gia tri khi tao Blueprint (khong luu trong Git)
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: JUDGE0_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROD_API_KEY
+        sync: false
+
+  # ---------- Frontend React (file tinh, khong ngu) ----------
+  - type: web
+    name: kltn-learncode-web
+    runtime: static
+    branch: TienThinh
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    routes:
+      # Goi /api cung domain voi frontend -> cookie dang nhap hoat dong.
+      # Neu URL backend thuc te khac (Render them hau to khi trung ten), sua dong nay trong Dashboard.
+      - type: rewrite
+        source: /api/*
+        destination: https://kltn-learncode-api.onrender.com/api/*
+      # Duong dan cua React -> tra ve index.html
+      - type: rewrite
+        source: /*
+        destination: /index.html
