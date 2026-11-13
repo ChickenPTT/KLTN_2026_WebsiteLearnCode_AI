@@ -12,4 +12,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     List<AuditLog> findAllByOrderByCreatedAtDesc();
 
     List<AuditLog> findByActionOrderByCreatedAtDesc(String action);
+
+    // Dashboard chi can 5 log moi nhat -> LIMIT 5 o database, khong tai het
+    List<AuditLog> findTop5ByOrderByCreatedAtDesc();
 }

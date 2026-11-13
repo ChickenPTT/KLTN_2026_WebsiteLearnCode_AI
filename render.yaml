@@ -6,6 +6,8 @@ services:
     name: kltn-learncode-api
     runtime: docker
     plan: free
+    # Cung vung voi database Neon (ap-southeast-1) -> moi truy van chi vai ms thay vi ~200ms
+    region: singapore
     branch: TienThinh
     dockerfilePath: ./Dockerfile
     dockerContext: .
@@ -17,9 +19,9 @@ services:
         value: -Xmx300m -XX:MaxMetaspaceSize=128m -Xss512k -XX:+UseSerialGC
       - key: SPRING_JPA_SHOW_SQL
         value: "false"
-      # Neon free gioi han so ket noi -> pool nho
+      # Trang admin goi ~6 API cung luc -> pool du cho cac request khong phai xep hang
       - key: SPRING_DATASOURCE_HIKARI_MAXIMUMPOOLSIZE
-        value: "3"
+        value: "8"
       - key: JWT_COOKIE_SECURE
         value: "true"
       - key: JWT_SECRET

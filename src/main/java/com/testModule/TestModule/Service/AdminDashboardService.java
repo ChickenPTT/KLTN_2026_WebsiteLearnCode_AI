@@ -160,9 +160,8 @@ public class AdminDashboardService {
     }
 
     private List<AdminDashboardStats.AuditLog> getAuditLogs() {
-        List<AuditLog> logs = auditLogRepository.findAllByOrderByCreatedAtDesc();
+        List<AuditLog> logs = auditLogRepository.findTop5ByOrderByCreatedAtDesc();
         return logs.stream()
-            .limit(5)
             .map(log -> {
                 String time = formatRelativeTime(log.getCreatedAt());
                 return new AdminDashboardStats.AuditLog(
