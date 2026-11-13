@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Calendar,
   CheckCircle2,
@@ -11,16 +11,24 @@ import {
   RotateCcw,
   PieChart,
   HelpCircle,
+  ClipboardCheck,
 } from 'lucide-react';
 import { Header } from '@/layout/Header';
-import type { AuthMode } from '@/types';
+import { LEVEL_LABELS, type AuthMode, type TopicScore } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { LoginModal } from '@/components/LoginModal';
 import { userApi, BackendUnavailableError, type UserStats } from '@/lib/api';
 import { useMyHistory } from '@/hooks/useMyHistory';
 import { usePublishedProblems } from '@/hooks/usePublishedProblems';
 import { buildTopics } from '@/lib/topics';
-import { formatDate, recentActivity, solvedByTopic, topicSkills } from '@/lib/progress';
+import {
+  bandUpdates,
+  formatDate,
+  recentActivity,
+  solvedByTopic,
+  topicSkills,
+  type TopicBands,
+} from '@/lib/progress';
 
 interface ProgressPageProps {
   onBack: () => void;
@@ -33,9 +41,12 @@ interface ProgressPageProps {
   onGoScoringGuide?: () => void;
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
+  onGoLeague?: () => void;
   onLoggedOut?: () => void;
   onGoFlashcards?: () => void;
   onGoFlashcardLibrary?: () => void;
+  /** Mo trang tu danh gia lai trinh do */
+  onGoSelfRate?: () => void;
 }
 
 const RADIUS = 54;
@@ -51,12 +62,53 @@ export function ProgressPage({
   onGoScoringGuide,
   onGoAdmin,
   onGoSettings,
+  onGoLeague,
   onLoggedOut,
   onGoFlashcards,
   onGoFlashcardLibrary,
+  onGoSelfRate,
 }: ProgressPageProps) {
-  const { user } = useAuth();
+  const { user, getSelfAssessment, getTopicBands, saveTopicBands } = useAuth();
   const isLoggedIn = !!user;
+
+  // Band nang luc da luu tren backend (deadband). null = dang tai.
+  const [storedBands, setStoredBands] = useState<TopicBands | null>(null);
+  const [bandsLoadFailed, setBandsLoadFailed] = useState(false);
+  const persistedBandsRef = useRef<TopicBands>({});
+  useEffect(() => {
+    let cancelled = false;
+    getTopicBands()
+      .then((b) => {
+        if (cancelled) return;
+        persistedBandsRef.current = { ...b };
+        setStoredBands(b);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // Khong tai duoc -> van hien thi (band mac dinh) nhung KHONG ghi de len backend
+        setBandsLoadFailed(true);
+        setStoredBands({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [getTopicBands]);
+
+  // Trinh do tu danh gia -> diem khoi dau khi chu de chua du bai that
+  const [selfAssessment, setSelfAssessment] = useState<TopicScore[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    getSelfAssessment()
+      .then((s) => {
+        if (!cancelled) setSelfAssessment(s);
+      })
+      .catch(() => {
+        // Khong tai duoc -> hien thi nhu cu (khong co tu danh gia)
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [getSelfAssessment]);
 
   // Modal state for 7-day activity log
   const [showActivityModal, setShowActivityModal] = useState(false);
@@ -108,9 +160,30 @@ export function ProgressPage({
   }, [pieData, totalPieSolved]);
 
   const skills = useMemo(
-    () => topicSkills(history, buildTopics(problems).filter((t) => t.problemCount > 0).map((t) => t.name), user?.id),
-    [history, problems, user?.id],
+    () =>
+      topicSkills(
+        history,
+        buildTopics(problems).filter((t) => t.problemCount > 0).map((t) => t.name),
+        { storedBands: storedBands ?? {}, selfAssessment },
+      ),
+    [history, problems, storedBands, selfAssessment],
   );
+
+  // Luu band moi len backend (giong hanh vi localStorage cu: dung cho lan tinh sau, khong tinh lai ngay)
+  useEffect(() => {
+    if (storedBands === null || bandsLoadFailed) return;
+    const updates = bandUpdates(skills, persistedBandsRef.current);
+    if (updates.length === 0) return;
+    updates.forEach((u) => {
+      persistedBandsRef.current[u.topic] = u.bandIndex;
+    });
+    saveTopicBands(updates).catch(() => {
+      // Luu that bai -> lan sau thu lai
+      updates.forEach((u) => {
+        delete persistedBandsRef.current[u.topic];
+      });
+    });
+  }, [skills, storedBands, bandsLoadFailed, saveTopicBands]);
 
   const streak = stats?.streak ?? 0;
   const totalXp = stats?.totalXp ?? 0;
@@ -132,6 +205,7 @@ export function ProgressPage({
         onGoHistory={onGoHistory}
         onGoAdmin={onGoAdmin}
         onGoSettings={onGoSettings}
+        onGoLeague={onGoLeague}
         onLoggedOut={onLoggedOut}
       />
 
@@ -312,16 +386,28 @@ export function ProgressPage({
                 Theo dõi năng lực và tiến độ luyện tập của bạn theo từng chủ đề.
               </p>
             </div>
-            {onGoScoringGuide && (
-              <button
-                type="button"
-                className="view-activity-log-btn"
-                onClick={onGoScoringGuide}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', fontSize: '12.5px' }}
-              >
-                <HelpCircle size={14} /> Cách tính điểm
-              </button>
-            )}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {onGoSelfRate && isLoggedIn && user?.role === 'student' && (
+                <button
+                  type="button"
+                  className="view-activity-log-btn"
+                  onClick={onGoSelfRate}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', fontSize: '12.5px' }}
+                >
+                  <ClipboardCheck size={14} /> Đánh giá lại trình độ
+                </button>
+              )}
+              {onGoScoringGuide && (
+                <button
+                  type="button"
+                  className="view-activity-log-btn"
+                  onClick={onGoScoringGuide}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', fontSize: '12.5px' }}
+                >
+                  <HelpCircle size={14} /> Cách tính điểm
+                </button>
+              )}
+            </div>
           </div>
           <div className="topic-skill-list scrollable" style={{ maxHeight: '240px' }}>
             {skills.length === 0 && (
@@ -330,17 +416,21 @@ export function ProgressPage({
             {skills.map((topic) => {
               let labelDisplay: string = topic.label;
               let scoreDisplay = topic.score;
+              const isSelf = topic.bandStatus === 'self';
               if (topic.bandStatus === 'nodata') {
                 labelDisplay = 'Chưa đủ dữ liệu';
                 scoreDisplay = 0;
+              } else if (isSelf) {
+                labelDisplay = `${topic.label} (Tự đánh giá)`;
               } else if (topic.bandStatus === 'evaluating') {
                 labelDisplay = `${topic.label} (Đang đánh giá)`;
               }
+              const selfNote = topic.selfLevel ? ` • Tự đánh giá: ${LEVEL_LABELS[topic.selfLevel]}` : '';
               return (
                 <div
                   className="topic-skill-row three-cols"
                   key={topic.name}
-                  title={`${scoreDisplay}/100 điểm • ${topic.submissions} lần nộp • ${topic.officialProblemCount} bài chính thức • Độ tin cậy: ${topic.confidence}`}
+                  title={`${scoreDisplay}/100 điểm • ${topic.submissions} lần nộp • ${topic.officialProblemCount} bài chính thức • Độ tin cậy: ${topic.confidence}${selfNote}`}
                 >
                   <span className="topic-skill-name">{topic.name}</span>
                   <div className="topic-skill-track">
@@ -349,7 +439,7 @@ export function ProgressPage({
                       style={{
                         width: `${Math.max(scoreDisplay, topic.bandStatus === 'nodata' ? 0 : 2)}%`,
                         backgroundColor: topic.bandStatus === 'nodata' ? '#7d8599' : topic.color,
-                        opacity: topic.bandStatus === 'evaluating' ? 0.6 : 1,
+                        opacity: topic.bandStatus === 'evaluating' ? 0.6 : isSelf ? 0.45 : 1,
                       }}
                     />
                   </div>
@@ -357,7 +447,7 @@ export function ProgressPage({
                     className="topic-skill-label"
                     style={{
                       color: topic.bandStatus === 'nodata' ? '#7d8599' : topic.color,
-                      opacity: topic.bandStatus === 'evaluating' ? 0.7 : 1,
+                      opacity: topic.bandStatus === 'evaluating' ? 0.7 : isSelf ? 0.75 : 1,
                     }}
                   >
                     {labelDisplay} ({scoreDisplay})

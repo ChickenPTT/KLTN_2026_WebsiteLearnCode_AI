@@ -4,12 +4,35 @@ import {
   ApiError,
   BackendUnavailableError,
   authApi,
+  selfAssessmentApi,
+  topicBandsApi,
   refreshSession,
   setAccessToken,
   setSessionExpiredHandler,
   type AuthResponse,
   type BackendUser,
 } from '@/lib/api';
+import type { SkillLevel, TopicScore } from '@/types';
+import { clearLegacyBands, readLegacyBands, type TopicBands } from '@/lib/progress';
+
+const SKILL_LEVELS: SkillLevel[] = ['beginner', 'basic', 'intermediate', 'advanced', 'expert'];
+
+function toTopicScores(items: { topic: string; level: string }[]): TopicScore[] {
+  return items
+    .map((i) => ({ topic: i.topic, level: (i.level ?? '').toLowerCase() as SkillLevel }))
+    .filter((s) => SKILL_LEVELS.includes(s.level));
+}
+
+const mockSelfAssessmentKey = (userId: string) => `mock_self_assessment_${userId}`;
+const mockTopicBandsKey = (userId: string) => `mock_topic_bands_${userId}`;
+
+function toTopicBands(items: { topic: string; bandIndex: number }[]): TopicBands {
+  const result: TopicBands = {};
+  items.forEach((i) => {
+    if (i && typeof i.topic === 'string' && Number.isInteger(i.bandIndex)) result[i.topic] = i.bandIndex;
+  });
+  return result;
+}
 
 /**
  * VITE_AUTH_MODE:
@@ -49,6 +72,14 @@ interface AuthContextValue {
   signup: (name: string, email: string, password: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
+  /** Doc trinh do tu danh gia cua user hien tai ([] neu chua co) */
+  getSelfAssessment: () => Promise<TopicScore[]>;
+  /** Luu tu danh gia + danh dau da xong onboarding. Nem loi neu luu that bai. */
+  saveSelfAssessment: (scores: TopicScore[]) => Promise<void>;
+  /** Band nang luc hien tai theo chu de (deadband). Tu chuyen du lieu localStorage cu len backend. */
+  getTopicBands: () => Promise<TopicBands>;
+  /** Cap nhat band cho cac chu de thay doi */
+  saveTopicBands: (updates: { topic: string; bandIndex: number }[]) => Promise<void>;
   updateUser: (updatedData: Partial<AuthUser>) => void;
   clearError: () => void;
 }
@@ -290,6 +321,94 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     updateUser({ isNewUser: false });
   };
 
+  const userId = user?.id;
+  const getSelfAssessment = useCallback(async (): Promise<TopicScore[]> => {
+    if (!userId) return [];
+    if (backend === 'api') {
+      return toTopicScores(await selfAssessmentApi.get());
+    }
+    try {
+      const saved = localStorage.getItem(mockSelfAssessmentKey(userId));
+      return saved ? toTopicScores(JSON.parse(saved)) : [];
+    } catch {
+      return [];
+    }
+  }, [userId, backend]);
+
+  const saveSelfAssessment = async (scores: TopicScore[]) => {
+    if (!user) throw new Error('Bạn cần đăng nhập để lưu đánh giá.');
+    const items = scores.map((s) => ({ topic: s.topic, level: s.level }));
+    if (backend === 'api') {
+      await selfAssessmentApi.save(items);
+    } else {
+      try {
+        localStorage.setItem(mockSelfAssessmentKey(user.id), JSON.stringify(items));
+      } catch {
+        // ignore
+      }
+      mockUsers = mockUsers.map((u) => (u.id === user.id ? { ...u, isNewUser: false } : u));
+      saveMockUsers();
+    }
+    updateUser({ isNewUser: false });
+  };
+
+  const getTopicBands = useCallback(async (): Promise<TopicBands> => {
+    if (!userId) return {};
+    const legacy = readLegacyBands(userId);
+    const hasLegacy = Object.keys(legacy).length > 0;
+
+    if (backend === 'api') {
+      const remote = toTopicBands(await topicBandsApi.get());
+      if (hasLegacy) {
+        // Chuyen band cu trong localStorage len backend (chi chu de backend chua co)
+        const missing = Object.entries(legacy).filter(([t]) => !Object.keys(remote).some((r) => r.toLowerCase() === t.toLowerCase()));
+        if (missing.length > 0) {
+          await topicBandsApi.save(missing.map(([topic, bandIndex]) => ({ topic, bandIndex })));
+          missing.forEach(([t, b]) => {
+            remote[t] = b;
+          });
+        }
+        clearLegacyBands(userId);
+      }
+      return remote;
+    }
+
+    try {
+      const saved = localStorage.getItem(mockTopicBandsKey(userId));
+      const bands: TopicBands = saved ? JSON.parse(saved) : {};
+      if (hasLegacy) {
+        const merged = { ...legacy, ...bands };
+        localStorage.setItem(mockTopicBandsKey(userId), JSON.stringify(merged));
+        clearLegacyBands(userId);
+        return merged;
+      }
+      return bands;
+    } catch {
+      return {};
+    }
+  }, [userId, backend]);
+
+  const saveTopicBands = useCallback(
+    async (updates: { topic: string; bandIndex: number }[]) => {
+      if (!userId || updates.length === 0) return;
+      if (backend === 'api') {
+        await topicBandsApi.save(updates);
+        return;
+      }
+      try {
+        const saved = localStorage.getItem(mockTopicBandsKey(userId));
+        const bands: TopicBands = saved ? JSON.parse(saved) : {};
+        updates.forEach((u) => {
+          bands[u.topic] = u.bandIndex;
+        });
+        localStorage.setItem(mockTopicBandsKey(userId), JSON.stringify(bands));
+      } catch {
+        // ignore
+      }
+    },
+    [userId, backend],
+  );
+
   return (
     <AuthContext.Provider
       value={{
@@ -304,6 +423,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signup,
         logout,
         completeOnboarding,
+        getSelfAssessment,
+        saveSelfAssessment,
+        getTopicBands,
+        saveTopicBands,
       }}
     >
       {children}

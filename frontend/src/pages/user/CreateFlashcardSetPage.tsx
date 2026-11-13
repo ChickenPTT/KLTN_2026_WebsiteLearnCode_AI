@@ -40,6 +40,7 @@ interface CreateFlashcardSetPageProps {
   onGoHistory?: () => void;
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
+  onGoLeague?: () => void;
   onLoggedOut?: () => void;
   onCreated: (setId: string, studyNow: boolean) => void;
 }
@@ -56,6 +57,7 @@ export function CreateFlashcardSetPage({
   onGoHistory,
   onGoAdmin,
   onGoSettings,
+  onGoLeague,
   onLoggedOut,
   onCreated,
 }: CreateFlashcardSetPageProps) {
@@ -324,6 +326,7 @@ export function CreateFlashcardSetPage({
         onGoHistory={onGoHistory}
         onGoAdmin={onGoAdmin}
         onGoSettings={onGoSettings}
+        onGoLeague={onGoLeague}
         onLoggedOut={onLoggedOut}
       />
 

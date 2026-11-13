@@ -10,11 +10,11 @@
  * - Deadband ±2: chi len band khi >= nguong + 2, chi xuong khi <= nguong - 2.
  * - Cold start: <2 bai -> "Chua du du lieu", 2-4 bai -> "Dang danh gia", >=5 -> binh thuong.
  * - Myen tru: accuracy < 30% o bai kho hon 1+ muc -> bo qua, khong lam giam band.
- * - Band hien tai du luu trong localStorage theo userId+topic de co hysteresis.
+ * - Band hien tai luu tren backend (/api/auth/me/topic-bands) theo user+topic de co hysteresis.
  */
 import type { BackendHistoryItem } from '@/lib/api';
-import { LANGUAGE_LABELS, sameTopic, toDifficultyLevel } from '@/lib/problemsApi';
-import type { DifficultyLevel } from '@/types';
+import { LANGUAGE_LABELS, sameTopic, toScoringLevel } from '@/lib/problemsApi';
+import type { DifficultyLevel, SkillLevel, TopicScore } from '@/types';
 import { DIFFICULTY_CEILING } from '@/types';
 
 export const XP_PER_SOLVED = 100;
@@ -29,6 +29,21 @@ const COLD_START_MIN = 2;
 const EVALUATING_MIN = 2;
 const EVALUATING_MAX = 4;
 
+/**
+ * Tu danh gia lam diem khoi dau (prior) khi chua du bai that.
+ * w = PRIOR_WEIGHT x max(0, 1 - n / PRIOR_FADE_COUNT); tu n >= 5 bai -> w = 0 (chi con bai that).
+ * Diem khoi dau = giua band tuong ung.
+ */
+const PRIOR_WEIGHT = 2;
+const PRIOR_FADE_COUNT = 5;
+const SELF_LEVEL_PRIOR_SCORE: Record<SkillLevel, number> = {
+  beginner: 10,
+  basic: 30,
+  intermediate: 50,
+  advanced: 70,
+  expert: 90,
+};
+
 /** Nguong band tren thang 0-100 */
 const BAND_THRESHOLDS = [0, 20, 40, 60, 80];
 const BAND_LABELS: SkillLabel[] = ['Mới bắt đầu', 'Cơ bản', 'Trung bình', 'Khá', 'Nâng cao'];
@@ -42,37 +57,71 @@ export interface TopicSkill {
   submissions: number;
   solvedCount: number;
   confidence: 'Thấp' | 'Trung bình' | 'Cao';
-  /** 'nodata' | 'evaluating' | 'stable' */
-  bandStatus: 'nodata' | 'evaluating' | 'stable';
+  /**
+   * 'nodata' | 'self' | 'evaluating' | 'stable'
+   * 'self': chua du 2 bai nhung co tu danh gia -> diem dua chu yeu vao tu danh gia.
+   */
+  bandStatus: 'nodata' | 'self' | 'evaluating' | 'stable';
   /** So bai khac nhau duoc ghi nhap chinh thuc */
   officialProblemCount: number;
+  /** Muc tu danh gia cua chu de (neu co) */
+  selfLevel?: SkillLevel;
+  /**
+   * Band can luu lai cho lan tinh sau (deadband). undefined = khong cap nhat.
+   * Chi tinh tu bai that; trang thai 'nodata'/'self' khong luu.
+   */
+  nextBandIndex?: number;
 }
 
-// ─── LocalStorage band persistence ───
+/** Band hien tai theo chu de (0..4), luu tren backend (truoc day localStorage). */
+export type TopicBands = Record<string, number>;
 
-function getStoredBandKey(userId: string | undefined, topic: string): string | undefined {
-  if (!userId) return undefined;
-  return `mnemonic_band_${userId}_${topic}`;
+function isValidBand(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 4;
 }
 
-function getStoredBandIndex(userId: string | undefined, topic: string): number | undefined {
-  const key = getStoredBandKey(userId, topic);
-  if (!key) return undefined;
-  try {
-    const val = localStorage.getItem(key);
-    if (val !== null) {
-      const idx = parseInt(val, 10);
-      if (!isNaN(idx) && idx >= 0 && idx < 5) return idx;
-    }
-  } catch { /* ignore */ }
+function findStoredBand(bands: TopicBands, topic: string): number | undefined {
+  for (const [k, v] of Object.entries(bands)) {
+    if (sameTopic(k, topic) && isValidBand(v)) return v;
+  }
   return undefined;
 }
 
-function setStoredBandIndex(userId: string | undefined, topic: string, bandIndex: number) {
-  const key = getStoredBandKey(userId, topic);
-  if (!key) return;
+/** Cac chu de co band moi khac voi band da luu -> can gui len backend. */
+export function bandUpdates(skills: TopicSkill[], stored: TopicBands): { topic: string; bandIndex: number }[] {
+  return skills
+    .filter((s) => s.nextBandIndex !== undefined && findStoredBand(stored, s.name) !== s.nextBandIndex)
+    .map((s) => ({ topic: s.name, bandIndex: s.nextBandIndex as number }));
+}
+
+// ─── Du lieu cu trong localStorage (chi dung de chuyen len backend 1 lan) ───
+
+const LEGACY_BAND_PREFIX = 'mnemonic_band_';
+
+export function readLegacyBands(userId: string): TopicBands {
+  const result: TopicBands = {};
+  const prefix = `${LEGACY_BAND_PREFIX}${userId}_`;
   try {
-    localStorage.setItem(key, String(bandIndex));
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith(prefix)) continue;
+      const idx = parseInt(localStorage.getItem(key) ?? '', 10);
+      const topic = key.slice(prefix.length);
+      if (topic && isValidBand(idx)) result[topic] = idx;
+    }
+  } catch { /* ignore */ }
+  return result;
+}
+
+export function clearLegacyBands(userId: string) {
+  const prefix = `${LEGACY_BAND_PREFIX}${userId}_`;
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(prefix)) keys.push(key);
+    }
+    keys.forEach((k) => localStorage.removeItem(k));
   } catch { /* ignore */ }
 }
 
@@ -238,7 +287,7 @@ export function submissionScores(
   // Tinh diem cho moi bai
   const result = new Map<number, { normalizedScore: number; difficultyLevel: DifficultyLevel }>();
   bestByProblem.forEach((h, problemId) => {
-    const difficultyLevel = toDifficultyLevel(h.level);
+    const difficultyLevel = toScoringLevel(h.level);
     const acc = h.passedCount != null && h.totalCount ? (h.passedCount / h.totalCount) * 100 : h.passed ? 100 : 0;
     const retries = failedBefore.get(problemId) ?? 0;
 
@@ -264,13 +313,19 @@ export function submissionScores(
  * - Chi tinh bai co do kho >= band hien tai - 1 (bai de hon 2 muc bo qua).
  * - Deadband ±2 de chong dao dong.
  * - Cold start: <2 bai -> "Chua du du lieu", 2-4 bai -> "Dang danh gia".
- * - Band hien tai du luu trong localStorage de co hysteresis.
+ * - Band hien tai (storedBands, luu tren backend) de co hysteresis. Ham THUAN: khong doc/ghi storage;
+ *   band moi tra ve qua TopicSkill.nextBandIndex, noi goi tu quyet dinh co luu hay khong.
+ * - selfAssessment (tuy chon): tron diem tu danh gia khi < 5 bai.
+ *   nextBandIndex van chi tinh tu bai that (tu danh gia khong anh huong bo loc lan sau).
+ * Hoc vien (ProgressPage) va admin (AdminUserDetailModal) goi cung ham voi cung du lieu -> ket qua giong nhau.
  */
 export function topicSkills(
   history: BackendHistoryItem[],
   topicNames: string[] = [],
-  userId?: string,
+  options: { storedBands?: TopicBands; selfAssessment?: TopicScore[] } = {},
 ): TopicSkill[] {
+  const storedBands = options.storedBands ?? {};
+  const selfAssessment = options.selfAssessment ?? [];
   const names: string[] = [];
   [...topicNames, ...history.map(topicOf)].forEach((n) => {
     if (!names.some((x) => sameTopic(x, n))) names.push(n);
@@ -280,9 +335,10 @@ export function topicSkills(
     .map((name) => {
       const items = history.filter((h) => sameTopic(topicOf(h), name));
 
-      // Lay band hien tai tu localStorage (de co hysteresis)
-      const storedBandIndex = getStoredBandIndex(userId, name);
+      // Band hien tai da luu (de co hysteresis)
+      const storedBandIndex = findStoredBand(storedBands, name);
       const currentBandIndex = storedBandIndex ?? 0;
+      let nextBandIndex: number | undefined;
 
       // Gom ket qua theo bai tap - moi bai lay diem tot nhat
       const problemMap = new Map<number, {
@@ -302,7 +358,7 @@ export function topicSkills(
 
       // Voi moi bai, tim lan nop tot nhat
       chronological.forEach((h) => {
-        const difficultyLevel = toDifficultyLevel(h.level);
+        const difficultyLevel = toScoringLevel(h.level);
         const acc = h.passedCount != null && h.totalCount ? (h.passedCount / h.totalCount) * 100 : h.passed ? 100 : 0;
         const retries = failedBefore.get(h.problemId) ?? 0;
 
@@ -334,10 +390,31 @@ export function topicSkills(
       const officialProblemCount = scores.length;
 
       let bandScore = 0;
-      let bandStatus: 'nodata' | 'evaluating' | 'stable';
+      let bandStatus: TopicSkill['bandStatus'];
       let bandIndex = currentBandIndex;
 
-      if (officialProblemCount < COLD_START_MIN) {
+      const selfLevel = selfAssessment.find((s) => sameTopic(s.topic, name))?.level;
+      const priorScore = selfLevel ? SELF_LEVEL_PRIOR_SCORE[selfLevel] : undefined;
+      const priorWeight =
+        priorScore !== undefined ? PRIOR_WEIGHT * Math.max(0, 1 - officialProblemCount / PRIOR_FADE_COUNT) : 0;
+
+      if (priorScore !== undefined && priorWeight > 0) {
+        // Tron tu danh gia voi bai that
+        const sum = scores.reduce((a, b) => a + b, 0);
+        bandScore = Math.round((priorWeight * priorScore + sum) / (priorWeight + officialProblemCount));
+
+        if (officialProblemCount < COLD_START_MIN) {
+          bandStatus = 'self';
+          bandIndex = scoreToBandIndex(bandScore);
+          // Khong luu band o trang thai tu danh gia
+        } else {
+          bandStatus = 'evaluating';
+          bandIndex = applyDeadband(bandScore, currentBandIndex);
+          // Luu band tinh tu bai that (giong logic cu) de bo loc lan sau khong bi tu danh gia lam lech
+          const realScore = Math.round(sum / officialProblemCount);
+          nextBandIndex = applyDeadband(realScore, currentBandIndex);
+        }
+      } else if (officialProblemCount < COLD_START_MIN) {
         bandStatus = 'nodata';
         bandScore = 0;
         bandIndex = 0;
@@ -345,8 +422,8 @@ export function topicSkills(
         bandScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
         // Ap dung deadband
         bandIndex = applyDeadband(bandScore, currentBandIndex);
-        // Luu band moi
-        setStoredBandIndex(userId, name, bandIndex);
+        // Band moi can luu
+        nextBandIndex = bandIndex;
 
         if (officialProblemCount <= EVALUATING_MAX) {
           bandStatus = 'evaluating';
@@ -373,6 +450,8 @@ export function topicSkills(
         confidence,
         bandStatus,
         officialProblemCount,
+        selfLevel,
+        nextBandIndex,
       };
     })
     .sort((a, b) => b.submissions - a.submissions || b.score - a.score);

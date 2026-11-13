@@ -12,6 +12,16 @@ public interface ProblemRepository extends JpaRepository<Problem, Long> {
 
     List<Problem> findByStatus(Problem.Status status);
 
+    // Bai luyen tap (purpose NULL o du lieu cu cung la luyen tap) — khong lo bai thi dau
+    @Query("SELECT p FROM Problem p WHERE p.status = :status AND (p.purpose IS NULL OR p.purpose <> :contest)")
+    List<Problem> findPracticeByStatus(@Param("status") Problem.Status status, @Param("contest") Problem.Purpose contest);
+
+    // Trang quan ly de luyen tap cua admin: khong lan bai thi dau / kho de mua giai
+    @Query("SELECT p FROM Problem p WHERE p.purpose IS NULL OR p.purpose <> :contest ORDER BY p.id DESC")
+    List<Problem> findAllPractice(@Param("contest") Problem.Purpose contest);
+
+    List<Problem> findByPoolSeasonIdOrderByIdDesc(Long poolSeasonId);
+
     long countByStatus(Problem.Status status);
 
     List<Problem> findByTemplate_Id(Long templateId);

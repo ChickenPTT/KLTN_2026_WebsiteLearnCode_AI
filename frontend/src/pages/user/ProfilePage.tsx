@@ -28,6 +28,7 @@ interface ProfilePageProps {
   onGoHistory?: () => void;
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
+  onGoLeague?: () => void;
   onGoFlashcards?: () => void;
   onGoFlashcardLibrary?: () => void;
 }
@@ -42,6 +43,7 @@ export function ProfilePage({
   onGoHistory,
   onGoAdmin,
   onGoSettings,
+  onGoLeague,
   onGoFlashcards,
   onGoFlashcardLibrary,
 }: ProfilePageProps) {
@@ -151,6 +153,7 @@ export function ProfilePage({
         onGoHistory={onGoHistory}
         onGoAdmin={onGoAdmin}
         onGoSettings={onGoSettings}
+        onGoLeague={onGoLeague}
       />
 
       <main className="profile-main">

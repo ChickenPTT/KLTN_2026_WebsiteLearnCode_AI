@@ -1,3 +1,5 @@
+import type { SkillLevel } from '@/types';
+
 export interface SubmissionAttempt {
   attemptId: string;
   attemptNumber: number;
@@ -21,7 +23,7 @@ export interface SubmissionRecord {
   id: string;
   problem: string;
   topic: string;
-  difficulty: 'Easy' | 'Medium' | 'Hard';
+  difficulty: SkillLevel;
   status: 'passed' | 'failed';
   timestamp: string;
   attemptCount: number;
@@ -82,7 +84,7 @@ export const MOCK_SUBMISSIONS: SubmissionRecord[] = [
     id: 'sub-001',
     problem: 'Two Sum',
     topic: 'Array',
-    difficulty: 'Easy',
+    difficulty: 'beginner',
     status: 'passed',
     timestamp: '12/09/2026 10:30',
     attemptCount: 3,
@@ -150,7 +152,7 @@ export const MOCK_SUBMISSIONS: SubmissionRecord[] = [
     id: 'sub-002',
     problem: 'Valid Parentheses',
     topic: 'Stack',
-    difficulty: 'Easy',
+    difficulty: 'beginner',
     status: 'passed',
     timestamp: '11/09/2026 15:45',
     attemptCount: 2,
@@ -197,7 +199,7 @@ export const MOCK_SUBMISSIONS: SubmissionRecord[] = [
     id: 'sub-003',
     problem: 'Binary Search',
     topic: 'Binary Search',
-    difficulty: 'Easy',
+    difficulty: 'basic',
     status: 'failed',
     timestamp: '11/09/2026 11:20',
     attemptCount: 2,
@@ -244,7 +246,7 @@ export const MOCK_SUBMISSIONS: SubmissionRecord[] = [
     id: 'sub-004',
     problem: 'Reverse Linked List',
     topic: 'Linked List',
-    difficulty: 'Medium',
+    difficulty: 'basic',
     status: 'passed',
     timestamp: '10/09/2026 18:10',
     attemptCount: 2,
@@ -273,7 +275,7 @@ export const MOCK_SUBMISSIONS: SubmissionRecord[] = [
     id: 'sub-005',
     problem: 'Best Time to Buy Stock',
     topic: 'Array',
-    difficulty: 'Medium',
+    difficulty: 'intermediate',
     status: 'passed',
     timestamp: '10/09/2026 14:05',
     attemptCount: 1,

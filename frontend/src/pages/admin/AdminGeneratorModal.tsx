@@ -57,11 +57,17 @@ export function AdminGeneratorModal({
       ? `[Biến thể từ Template] Giữ nguyên cấu trúc bài toán ${genTopic}. Bộ Testcases Input được AI sinh tự động. Cần bấm Nút Test 🧪 để chạy Sandbox sinh Output & kiểm thử.`
       : `[Sáng tác mới AI Engine] Bài toán sinh mới theo kiến trúc chủ đề ${genTopic}. Yêu cầu tối ưu thời gian xử lý và dữ liệu bộ nhớ.`;
 
+    const chosenLevel: SkillLevel =
+      (Object.keys(levelPcts) as SkillLevel[]).reduce((maxLvl, lvl) =>
+        levelPcts[lvl] > levelPcts[maxLvl] ? lvl : maxLvl,
+        'basic' as SkillLevel
+      );
+
     const newProblem: PracticeProblem = {
       id: `ai-gen-${now}`,
       title: titleText,
       topic: genTopic,
-      difficulty: 'Easy',
+      difficulty: chosenLevel,
       description: descText,
       examples: [
         {

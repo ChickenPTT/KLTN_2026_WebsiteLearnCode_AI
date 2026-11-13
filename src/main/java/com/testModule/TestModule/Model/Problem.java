@@ -10,6 +10,8 @@ public class Problem {
 
     public enum Status { DRAFT, PUBLISHED }
     public enum SourceType { MANUAL, AI_GENERATED }
+    // PRACTICE: bai luyen tap; CONTEST: bai thi dau (an khoi trang luyen tap)
+    public enum Purpose { PRACTICE, CONTEST }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,6 +29,15 @@ public class Problem {
 
     @Enumerated(EnumType.STRING)
     private SourceType sourceType = SourceType.MANUAL;
+
+    // Cot moi them sau: du lieu cu co the NULL -> coi la PRACTICE
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private Purpose purpose = Purpose.PRACTICE;
+
+    // Kho de cua mua giai: bai sinh/them cho mua nao (chua chac da duoc chon vao bo 4 de)
+    @Column(name = "pool_season_id")
+    private Long poolSeasonId;
 
     // THAY THẾ templateGroupId (Long) bằng liên kết Entity thật
     @ManyToOne
@@ -62,6 +73,13 @@ public class Problem {
 
     public SourceType getSourceType() { return sourceType; }
     public void setSourceType(SourceType sourceType) { this.sourceType = sourceType; }
+
+    public Purpose getPurpose() { return purpose == null ? Purpose.PRACTICE : purpose; }
+    public void setPurpose(Purpose purpose) { this.purpose = purpose; }
+    public boolean isContest() { return getPurpose() == Purpose.CONTEST; }
+
+    public Long getPoolSeasonId() { return poolSeasonId; }
+    public void setPoolSeasonId(Long poolSeasonId) { this.poolSeasonId = poolSeasonId; }
 
     public Template getTemplate() { return template; }
     public void setTemplate(Template template) { this.template = template; }

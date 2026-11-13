@@ -3,9 +3,12 @@ package com.testModule.TestModule.Service;
 import com.testModule.TestModule.Model.HistorySubmit;
 import com.testModule.TestModule.Model.Role;
 import com.testModule.TestModule.Model.User;
+import com.testModule.TestModule.Repository.ContestAttemptRepository;
 import com.testModule.TestModule.Repository.HistorySubmitRepository;
 import com.testModule.TestModule.Repository.RefreshTokenRepository;
 import com.testModule.TestModule.Repository.UserRepository;
+import com.testModule.TestModule.Repository.UserSelfAssessmentRepository;
+import com.testModule.TestModule.Repository.UserTopicBandRepository;
 import com.testModule.TestModule.dto.UserManagementDTO;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -28,17 +31,26 @@ public class UserManagementService {
     private final UserRepository userRepository;
     private final HistorySubmitRepository historySubmitRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final UserSelfAssessmentRepository selfAssessmentRepository;
+    private final UserTopicBandRepository topicBandRepository;
+    private final ContestAttemptRepository contestAttemptRepository;
     private final PasswordEncoder passwordEncoder;
 
     public UserManagementService(
             UserRepository userRepository,
             HistorySubmitRepository historySubmitRepository,
             RefreshTokenRepository refreshTokenRepository,
+            UserSelfAssessmentRepository selfAssessmentRepository,
+            UserTopicBandRepository topicBandRepository,
+            ContestAttemptRepository contestAttemptRepository,
             PasswordEncoder passwordEncoder
     ) {
+        this.contestAttemptRepository = contestAttemptRepository;
         this.userRepository = userRepository;
         this.historySubmitRepository = historySubmitRepository;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.selfAssessmentRepository = selfAssessmentRepository;
+        this.topicBandRepository = topicBandRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -130,6 +142,11 @@ public class UserManagementService {
         }
         historySubmitRepository.deleteByStudentId(id);
         refreshTokenRepository.deleteByUserId(id);
+        selfAssessmentRepository.deleteByUserId(id);
+        topicBandRepository.deleteByUserId(id);
+        // Xoa luot thi (cascade xoa ca tung bai trong luot)
+        contestAttemptRepository.deleteAll(contestAttemptRepository.findByUserId(id));
+        contestAttemptRepository.flush();
         userRepository.deleteById(id);
     }
 

@@ -21,7 +21,8 @@ import { SearchableSelect } from '@/components/SearchableSelect';
 import { Pagination } from '@/components/Pagination';
 import { LoginModal } from '@/components/LoginModal';
 import { useAuth } from '@/hooks/useAuth';
-import type { AuthMode } from '@/types';
+import { LEVEL_COLORS, LEVEL_LABELS, type AuthMode, type SkillLevel } from '@/types';
+import { normalizeDifficulty } from '@/lib/difficulty';
 import { historyApi, type BackendHistoryDetail, type BackendHistoryItem } from '@/lib/api';
 import { sameTopic, toDifficultyLevel } from '@/lib/problemsApi';
 import { useMyHistory } from '@/hooks/useMyHistory';
@@ -37,22 +38,12 @@ interface HistoryPageProps {
   onGoHistory?: () => void;
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
+  onGoLeague?: () => void;
   onLoggedOut?: () => void;
   onGoFlashcards?: () => void;
   onGoFlashcardLibrary?: () => void;
 }
 
-const DIFF_COLORS: Record<string, string> = {
-  Level1: '#7d8599',
-  Level2: '#78d39e',
-  Level3: '#5e8dfa',
-  Level4: '#f5c95d',
-  Level5: '#a995ff',
-  // Legacy fallback
-  Easy: '#78d39e',
-  Medium: '#f5c95d',
-  Hard: '#f08a8a',
-};
 
 const ERROR_TYPE_LABELS: Record<string, string> = {
   logic: 'Lỗi logic',
@@ -68,7 +59,7 @@ interface ProblemRecord {
   problemId: number;
   title: string;
   topic: string;
-  difficulty: string;
+  difficulty: SkillLevel;
   /** Moi nhat truoc */
   attempts: BackendHistoryItem[];
 }
@@ -102,6 +93,7 @@ export function HistoryPage({
   onGoHistory,
   onGoAdmin,
   onGoSettings,
+  onGoLeague,
   onLoggedOut,
   onGoFlashcards,
   onGoFlashcardLibrary,
@@ -210,6 +202,7 @@ export function HistoryPage({
         onGoHistory={onGoHistory}
         onGoAdmin={onGoAdmin}
         onGoSettings={onGoSettings}
+        onGoLeague={onGoLeague}
         onLoggedOut={onLoggedOut}
       />
 
@@ -354,7 +347,7 @@ export function HistoryPage({
                         <span className="practice-topic-tag">{r.topic}</span>
                       </td>
                       <td>
-                        <span style={{ color: DIFF_COLORS[r.difficulty], fontWeight: 600 }}>{r.difficulty}</span>
+                        <span style={{ color: LEVEL_COLORS[r.difficulty], fontWeight: 600 }}>{LEVEL_LABELS[r.difficulty]}</span>
                       </td>
                       <td>
                         <span className="attempt-badge">
@@ -429,8 +422,8 @@ export function HistoryPage({
                 <Code2 size={22} className="title-icon" />
                 <h2>{selectedRecord.title}</h2>
                 <span className="practice-topic-tag">{selectedRecord.topic}</span>
-                <span style={{ color: DIFF_COLORS[selectedRecord.difficulty], fontWeight: 600 }}>
-                  {selectedRecord.difficulty}
+                <span style={{ color: LEVEL_COLORS[normalizeDifficulty(selectedRecord.difficulty) || selectedRecord.difficulty] || '#5e8dfa', fontWeight: 600 }}>
+                  {LEVEL_LABELS[normalizeDifficulty(selectedRecord.difficulty) || selectedRecord.difficulty] || selectedRecord.difficulty}
                 </span>
                 <span className="attempt-badge modal-badge">
                   <RotateCcw size={12} /> Tổng {selectedRecord.attempts.length} lần nộp

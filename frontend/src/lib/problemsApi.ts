@@ -4,7 +4,8 @@
  * sang PracticeProblem (kieu UI dang dung) de khong phai sua giao dien nhieu.
  */
 import { apiFetch } from '@/lib/api';
-import type { PracticeProblem } from '@/types';
+import type { DifficultyLevel, PracticeProblem } from '@/types';
+import { DIFFICULTY_LEVEL_NUMBERS, normalizeDifficulty } from '@/lib/difficulty';
 
 // ─── Kieu du lieu backend ───────────────────────────────────────────────────
 
@@ -153,21 +154,17 @@ main()
 // ─── Chuyen doi sang kieu UI ────────────────────────────────────────────────
 
 /**
- * Map level trong DB sang 5 muc do kho (DifficultyLevel).
- * DB luu: Easy | MediumEasy | Medium | MediumHard | Hard
- * Legacy backward-compatible: Easy->Level1, Medium->Level3, Hard->Level5
- * Alias VN: de->Level1, trung binh->Level3, kho->Level5
+ * Map level trong DB sang 5 cap do kho chuan hoa (SkillLevel) — dung chung chuan voi lib/difficulty:
+ * beginner(1) · basic(2) · intermediate(3) · advanced(4) · expert(5).
+ * Ho tro ca gia tri cu: Easy/Medium/Hard, Level1..Level5, ten tieng Viet. Khong nhan ra -> intermediate.
  */
 export function toDifficultyLevel(level: string | null | undefined): PracticeProblem['difficulty'] {
-  const l = (level ?? '').trim().toLowerCase().replace(/[\s_]/g, '');
-  // 5 muc moi
-  if (['easy', 'de', 'dễ', 'beginner', 'basic', 'co ban', 'cơ bản', 'level1'].includes(l)) return 'Level1';
-  if (['mediumeasy', 'mediumde', 'mediumdễ', 'levle2', 'level2'].includes(l)) return 'Level2';
-  if (['medium', 'trungbinh', 'trung bình', 'level3'].includes(l)) return 'Level3';
-  if (['mediumhard', 'mediumkho', 'mediumkhó', 'level4'].includes(l)) return 'Level4';
-  if (['hard', 'kho', 'khó', 'advanced', 'expert', 'nangcao', 'nâng cao', 'level5'].includes(l)) return 'Level5';
-  // Default: Medium
-  return 'Level3';
+  return normalizeDifficulty(level, 'intermediate');
+}
+
+/** Cap do dang 'Level1'..'Level5' — dung cho cong thuc tinh diem nang luc (progress.ts) */
+export function toScoringLevel(level: string | null | undefined): DifficultyLevel {
+  return `Level${DIFFICULTY_LEVEL_NUMBERS[toDifficultyLevel(level)]}` as DifficultyLevel;
 }
 
 /** @deprecated Dùng toDifficultyLevel thay thế */

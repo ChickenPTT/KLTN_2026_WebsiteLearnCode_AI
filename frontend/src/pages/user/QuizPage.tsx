@@ -53,9 +53,11 @@ export function QuizPage({
       let level: SkillLevel = 'beginner';
       if (total > 0) {
         const ratio = correct / total;
-        if (ratio >= 0.75) level = 'advanced';
+        if (ratio >= 0.9) level = 'expert';
+        else if (ratio >= 0.75) level = 'advanced';
         else if (ratio >= 0.5) level = 'intermediate';
-        else if (ratio > 0) level = 'beginner';
+        else if (ratio >= 0.25) level = 'basic';
+        else level = 'beginner';
       }
       return { topic, level };
     });

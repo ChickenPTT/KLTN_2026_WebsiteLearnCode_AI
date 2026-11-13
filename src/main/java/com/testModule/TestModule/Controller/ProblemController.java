@@ -33,19 +33,20 @@ public class ProblemController {
 //    Giang vien/admin: toan bo bai (ca nhap), co samples input/output
     @GetMapping("/manage")
     public List<ProblemView> getAllProblems() {
-        return problemService.getAllProblems().stream().map(ProblemView::from).toList();
+        return problemService.getAllProblems().stream().map(ProblemView::fromStaff).toList();
     }
 
     @GetMapping("/drafts")
     public List<ProblemView> getDrafts() {
-        return problemService.getDraftProblem().stream().map(ProblemView::from).toList();
+        return problemService.getDraftProblem().stream().map(ProblemView::fromStaff).toList();
     }
 
     @GetMapping("/{id}")
     public ProblemView getProblem(@PathVariable Long id, @AuthenticationPrincipal AuthUserDetails user) {
         Problem problem = problemService.getProblemById(id);
         boolean staff = user != null && user.getUser().getRole() != Role.STUDENT;
-        if (problem.getStatus() != Problem.Status.PUBLISHED && !staff) {
+        // Bai thi dau chi xem duoc trong luot thi (/api/contest), khong mo qua trang luyen tap
+        if ((problem.getStatus() != Problem.Status.PUBLISHED || problem.isContest()) && !staff) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bài tập id: " + id);
         }
         return ProblemView.from(problem);

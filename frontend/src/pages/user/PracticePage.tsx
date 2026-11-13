@@ -19,7 +19,8 @@ import {
   ChevronUp,
   Shuffle,
 } from 'lucide-react';
-import type { PracticeProblem, AuthMode } from '@/types';
+import { LEVEL_COLORS, LEVEL_LABELS, type PracticeProblem, type AuthMode } from '@/types';
+import { normalizeDifficulty } from '@/lib/difficulty';
 import { Header } from '@/layout/Header';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { LoginModal } from '@/components/LoginModal';
@@ -36,7 +37,7 @@ import {
 } from '@/lib/problemsApi';
 
 interface PracticePageProps {
-  onBack: () => void;
+  onBack: (currentProblem?: PracticeProblem) => void;
   initialProblemId?: string;
   /** Chuyen sang bai khac (Bài ngẫu nhiên / Bài tiếp theo) */
   onGoPractice: (problemId: string) => void;
@@ -48,16 +49,12 @@ interface PracticePageProps {
   onGoHistory?: () => void;
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
+  onGoLeague?: () => void;
   onLoggedOut?: () => void;
   onGoFlashcards?: () => void;
   onGoFlashcardLibrary?: () => void;
 }
 
-const DIFFICULTY_COLORS: Record<string, string> = {
-  Easy: '#10b981',
-  Medium: '#f59e0b',
-  Hard: '#f43f5e',
-};
 
 type RunState = 'idle' | 'running' | 'passed' | 'failed';
 
@@ -112,6 +109,7 @@ function PracticePage({
   onGoHistory,
   onGoAdmin,
   onGoSettings,
+  onGoLeague,
   onLoggedOut,
   onGoFlashcards,
   onGoFlashcardLibrary,
@@ -169,8 +167,12 @@ function PracticePage({
     const observer = new MutationObserver(updateTheme);
     observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    window.addEventListener('themechange', updateTheme);
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('themechange', updateTheme);
+    };
   }, []);
 
   // Draggable handle event listener
@@ -338,7 +340,7 @@ function PracticePage({
               <XCircle size={40} strokeWidth={1.2} />
               <h3>Không mở được bài tập</h3>
               <p>{loadError}</p>
-              <button className="assessment-ghost" onClick={onBack}>
+              <button className="assessment-ghost" onClick={() => onBack()}>
                 <ArrowLeft size={14} /> Quay lại danh sách bài
               </button>
             </>
@@ -368,6 +370,7 @@ function PracticePage({
         onGoHistory={onGoHistory}
         onGoAdmin={onGoAdmin}
         onGoSettings={onGoSettings}
+        onGoLeague={onGoLeague}
         onLoggedOut={onLoggedOut}
       />
 
@@ -385,12 +388,31 @@ function PracticePage({
             className="problem-panel"
             style={{ width: `${problemWidth}%`, flexShrink: 0 }}
           >
+            <button
+              type="button"
+              className="practice-content-back-btn"
+              onClick={() => onBack(problem)}
+              title="Quay lại danh sách bài tập"
+            >
+              <ArrowLeft size={15} /> Quay lại danh sách bài
+            </button>
+
             <div className="problem-header">
               <h2 className="problem-title">{problem.title}</h2>
               <div className="problem-tags">
                 <span className="practice-topic-tag">{problem.topic}</span>
-                <span className="practice-difficulty" style={{ color: DIFFICULTY_COLORS[problem.difficulty] }}>
-                  {problem.difficulty}
+                <span
+                  className="practice-difficulty"
+                  style={{
+                    color: LEVEL_COLORS[normalizeDifficulty(problem.difficulty) || problem.difficulty] || '#5e8dfa',
+                    borderColor: `${LEVEL_COLORS[normalizeDifficulty(problem.difficulty) || problem.difficulty] || '#5e8dfa'}44`,
+                    background: `${LEVEL_COLORS[normalizeDifficulty(problem.difficulty) || problem.difficulty] || '#5e8dfa'}18`,
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    fontWeight: 600,
+                  }}
+                >
+                  {LEVEL_LABELS[normalizeDifficulty(problem.difficulty) || problem.difficulty] || problem.difficulty}
                 </span>
               </div>
             </div>
@@ -449,10 +471,29 @@ function PracticePage({
             <div className="top-problem-banner">
               <div className="top-problem-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <button
+                    type="button"
+                    className="practice-content-back-btn"
+                    style={{ margin: 0 }}
+                    onClick={() => onBack(problem)}
+                    title="Quay lại danh sách bài tập"
+                  >
+                    <ArrowLeft size={14} /> Quay lại
+                  </button>
                   <h3 className="top-problem-title">{problem.title}</h3>
                   <span className="practice-topic-tag">{problem.topic}</span>
-                  <span className="practice-difficulty" style={{ color: DIFFICULTY_COLORS[problem.difficulty] }}>
-                    {problem.difficulty}
+                  <span
+                    className="practice-difficulty"
+                    style={{
+                      color: LEVEL_COLORS[normalizeDifficulty(problem.difficulty) || problem.difficulty] || '#5e8dfa',
+                      borderColor: `${LEVEL_COLORS[normalizeDifficulty(problem.difficulty) || problem.difficulty] || '#5e8dfa'}44`,
+                      background: `${LEVEL_COLORS[normalizeDifficulty(problem.difficulty) || problem.difficulty] || '#5e8dfa'}18`,
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {LEVEL_LABELS[normalizeDifficulty(problem.difficulty) || problem.difficulty] || problem.difficulty}
                   </span>
                 </div>
                 <button
@@ -465,7 +506,7 @@ function PracticePage({
               </div>
               <p className="top-problem-desc" style={{ whiteSpace: 'pre-wrap' }}>{problem.description}</p>
               <div className="top-problem-examples">
-                {problem.examples.map((ex, i) => (
+                {(problem.examples || []).map((ex, i) => (
                   <div key={i} className="top-problem-example">
                     <span className="example-key">Ví dụ {i + 1}:</span> Input: <code>{ex.input}</code> | Output: <code>{ex.output}</code>
                   </div>
@@ -652,7 +693,7 @@ function PracticePage({
         actionLabel={loginAction}
         onLogin={(mode) => {
           setShowLoginModal(false);
-          onGoAuth(mode);
+          onGoAuth?.(mode);
         }}
         onClose={() => setShowLoginModal(false)}
       />

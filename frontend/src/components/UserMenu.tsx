@@ -136,18 +136,18 @@ export function UserMenu({
                 >
                   <BookOpen size={15} /> Lịch sử học
                 </button>
+
+                <button
+                  className={`user-dropdown-item ${activeView === 'settings' ? 'is-active' : ''}`}
+                  onClick={() => {
+                    setOpen(false);
+                    onGoSettings?.();
+                  }}
+                >
+                  <Settings size={15} /> Cài đặt hệ thống
+                </button>
               </>
             )}
-
-            <button
-              className={`user-dropdown-item ${activeView === 'settings' ? 'is-active' : ''}`}
-              onClick={() => {
-                setOpen(false);
-                onGoSettings?.();
-              }}
-            >
-              <Settings size={15} /> Cài đặt hệ thống
-            </button>
 
             <div className="user-dropdown-divider" />
 

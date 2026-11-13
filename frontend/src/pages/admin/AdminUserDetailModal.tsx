@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
 import { X, ShieldAlert, CheckCircle2, Flame, Trash2, Loader2 } from 'lucide-react';
-import { LEVEL_COLORS, LEVEL_LABELS } from '@/types';
-import { type UserRecord, type UserTopicStat } from './admin.types';
+import { LEVEL_LABELS, type SkillLevel, type TopicScore } from '@/types';
+import { type UserRecord } from './admin.types';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { adminApi, type BackendHistoryItem } from '@/lib/api';
-import { topicSkills, type TopicSkill } from '@/lib/progress';
+import { adminApi } from '@/lib/api';
+import { topicSkills, type TopicBands, type TopicSkill } from '@/lib/progress';
+import { loadPublishedProblems } from '@/hooks/usePublishedProblems';
+import { buildTopics } from '@/lib/topics';
+
+const SKILL_LEVELS: SkillLevel[] = ['beginner', 'basic', 'intermediate', 'advanced', 'expert'];
 
 interface AdminUserDetailModalProps {
   userRecord: UserRecord;
@@ -30,8 +34,9 @@ export function AdminUserDetailModal({
   const [editUserSaved, setEditUserSaved] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Load real topic stats from backend
-  const [topicStats, setTopicStats] = useState<UserTopicStat[] | null>(null);
+  // Thống kê trình độ: tính bằng CÙNG hàm topicSkills + cùng dữ liệu như trang Tiến độ của học viên
+  // (lịch sử nộp bài, tự đánh giá, band đã lưu, danh sách chủ đề có bài). Chỉ đọc — không lưu band.
+  const [topicStats, setTopicStats] = useState<TopicSkill[] | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {
@@ -43,23 +48,24 @@ export function AdminUserDetailModal({
       return;
     }
     setStatsLoading(true);
-    adminApi.getUserHistory(backendId)
-      .then((history: BackendHistoryItem[]) => {
+    Promise.all([
+      adminApi.getUserHistory(backendId),
+      adminApi.getUserSelfAssessment(backendId).catch(() => []),
+      adminApi.getUserTopicBands(backendId).catch(() => []),
+      loadPublishedProblems().catch(() => []),
+    ])
+      .then(([history, selfItems, bandItems, problems]) => {
         if (cancelled) return;
-        // Tính topic skills giống như ProgressPage
-        const skills: TopicSkill[] = topicSkills(history);
-        // Map sang UserTopicStat
-        const mapped: UserTopicStat[] = skills.map((s) => {
-          // Map skill level label sang SkillLevel
-          let level: UserTopicStat['level'] = 'beginner';
-          if (s.score >= 80) level = 'expert';
-          else if (s.score >= 60) level = 'advanced';
-          else if (s.score >= 40) level = 'intermediate';
-          else if (s.score >= 20) level = 'basic';
-          else level = 'beginner';
-          return { topic: s.name, solvedCount: s.solvedCount, level };
+        const selfAssessment: TopicScore[] = selfItems
+          .map((i) => ({ topic: i.topic, level: (i.level ?? '').toLowerCase() as SkillLevel }))
+          .filter((s) => SKILL_LEVELS.includes(s.level));
+        const storedBands: TopicBands = {};
+        bandItems.forEach((b) => {
+          storedBands[b.topic] = b.bandIndex;
         });
-        setTopicStats(mapped.length > 0 ? mapped : null);
+        const topicNames = buildTopics(problems).filter((t) => t.problemCount > 0).map((t) => t.name);
+        const skills = topicSkills(history, topicNames, { storedBands, selfAssessment });
+        setTopicStats(skills.length > 0 ? skills : null);
         setStatsLoading(false);
       })
       .catch(() => {
@@ -194,30 +200,51 @@ export function AdminUserDetailModal({
             </div>
           ) : topicStats && topicStats.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {topicStats.map((t) => (
-                <div key={t.topic} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 110px 90px', alignItems: 'center', gap: '12px', fontSize: '13px' }}>
-                  <span style={{ color: '#9ba5bf', fontWeight: 500 }}>{t.topic}</span>
-                  <div className="topic-progress-track">
-                    <div
-                      className="topic-progress-fill"
-                      style={{
-                        width: t.level === 'expert' ? '100%' : t.level === 'advanced' ? '80%' : t.level === 'intermediate' ? '60%' : t.level === 'basic' ? '40%' : '20%',
-                        background: LEVEL_COLORS[t.level],
-                      }}
-                    />
+              {topicStats.map((t) => {
+                // Hiển thị giống hệt trang Tiến độ (ProgressPage)
+                const isNoData = t.bandStatus === 'nodata';
+                const isSelf = t.bandStatus === 'self';
+                const isEvaluating = t.bandStatus === 'evaluating';
+                const scoreDisplay = isNoData ? 0 : t.score;
+                const labelDisplay = isNoData
+                  ? 'Chưa đủ dữ liệu'
+                  : isSelf
+                    ? `${t.label} (Tự đánh giá)`
+                    : isEvaluating
+                      ? `${t.label} (Đang đánh giá)`
+                      : t.label;
+                const color = isNoData ? '#7d8599' : t.color;
+                const selfNote = t.selfLevel ? ` • Tự đánh giá: ${LEVEL_LABELS[t.selfLevel]}` : '';
+                return (
+                  <div
+                    key={t.name}
+                    title={`${scoreDisplay}/100 điểm • ${t.submissions} lần nộp • ${t.officialProblemCount} bài chính thức • Độ tin cậy: ${t.confidence}${selfNote}`}
+                    style={{ display: 'grid', gridTemplateColumns: '120px 1fr 190px 80px', alignItems: 'center', gap: '12px', fontSize: '13px' }}
+                  >
+                    <span style={{ color: '#9ba5bf', fontWeight: 500 }}>{t.name}</span>
+                    <div className="topic-progress-track">
+                      <div
+                        className="topic-progress-fill"
+                        style={{
+                          width: `${Math.max(scoreDisplay, isNoData ? 0 : 2)}%`,
+                          background: color,
+                          opacity: isEvaluating ? 0.6 : isSelf ? 0.45 : 1,
+                        }}
+                      />
+                    </div>
+                    <span style={{ color, fontWeight: 600, fontSize: '12px', opacity: isEvaluating ? 0.7 : isSelf ? 0.75 : 1 }}>
+                      {labelDisplay} ({scoreDisplay})
+                    </span>
+                    <span style={{ color: '#888f9c', fontSize: '12px', textAlign: 'right' }}>
+                      {t.solvedCount} bài giải
+                    </span>
                   </div>
-                  <span style={{ color: LEVEL_COLORS[t.level], fontWeight: 600, fontSize: '12px' }}>
-                    {LEVEL_LABELS[t.level]}
-                  </span>
-                  <span style={{ color: '#888f9c', fontSize: '12px', textAlign: 'right' }}>
-                    {t.solvedCount} bài giải
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div style={{ textAlign: 'center', padding: '24px', color: '#7d8599', fontSize: '13px' }}>
-              Người dùng chưa có lần nộp bài nào.
+              Chưa có dữ liệu luyện tập.
             </div>
           )}
         </div>

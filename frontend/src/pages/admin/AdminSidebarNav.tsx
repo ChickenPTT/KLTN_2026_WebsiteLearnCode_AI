@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ShieldCheck,
   LayoutDashboard,
@@ -9,17 +9,24 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
-  Settings,
+  ChevronDown,
   BookOpen,
+  Trophy,
+  Calendar,
+  Gift,
+  Award,
+  BarChart3,
+  TrendingUp,
 } from 'lucide-react';
-import type { AdminTab } from './admin.types';
+import type { AdminTab, LeagueSubTab } from './admin.types';
 
 interface AdminSidebarNavProps {
   userName?: string;
   userRole?: string;
   activeTab: AdminTab;
   setActiveTab: (tab: AdminTab) => void;
-  onGoSettings?: () => void;
+  activeLeagueSubTab?: LeagueSubTab;
+  setActiveLeagueSubTab?: (subTab: LeagueSubTab) => void;
 }
 
 export function AdminSidebarNav({
@@ -27,9 +34,35 @@ export function AdminSidebarNav({
   userRole,
   activeTab,
   setActiveTab,
-  onGoSettings,
+  activeLeagueSubTab = 'overview',
+  setActiveLeagueSubTab,
 }: AdminSidebarNavProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isLeagueExpanded, setIsLeagueExpanded] = useState(activeTab === 'league');
+
+  // Auto expand league submenu if active tab becomes 'league'
+  useEffect(() => {
+    if (activeTab === 'league') {
+      setIsLeagueExpanded(true);
+    }
+  }, [activeTab]);
+
+  const handleLeagueParentClick = () => {
+    if (activeTab !== 'league') {
+      setActiveTab('league');
+      setIsLeagueExpanded(true);
+    } else {
+      setIsLeagueExpanded((prev) => !prev);
+    }
+  };
+
+  const handleSubTabClick = (sub: LeagueSubTab) => {
+    if (setActiveLeagueSubTab) {
+      setActiveLeagueSubTab(sub);
+    } else if (activeTab !== 'league') {
+      setActiveTab('league');
+    }
+  };
 
   return (
     <aside className={`admin-sidebar-nav ${isCollapsed ? 'is-collapsed' : ''}`}>
@@ -99,6 +132,68 @@ export function AdminSidebarNav({
           {!isCollapsed && <span>Quản lý Flashcards</span>}
         </button>
 
+        {/* ── QUẢN LÝ ĐẤU HẠNG (ACCORDION PARENT MENU) ── */}
+        <div className="admin-nav-group">
+          <button
+            className={`admin-nav-item ${activeTab === 'league' ? 'is-active' : ''}`}
+            onClick={handleLeagueParentClick}
+            title={isCollapsed ? 'Quản lý đấu hạng' : undefined}
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <Trophy size={18} className="text-violet-400" />
+              {!isCollapsed && <span>Quản lý đấu hạng</span>}
+            </div>
+            {!isCollapsed && (
+              <ChevronDown
+                size={16}
+                style={{
+                  transform: isLeagueExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s ease',
+                  opacity: 0.7,
+                }}
+              />
+            )}
+          </button>
+
+          {/* Submenu: indented 4 sub-pages */}
+          {!isCollapsed && isLeagueExpanded && (
+            <div className="admin-nav-sublist">
+              <button
+                className={`admin-nav-subitem ${activeTab === 'league' && activeLeagueSubTab === 'overview' ? 'is-sub-active' : ''}`}
+                onClick={() => handleSubTabClick('overview')}
+              >
+                <TrendingUp size={14} />
+                <span>Tổng quan</span>
+              </button>
+
+              <button
+                className={`admin-nav-subitem ${activeTab === 'league' && activeLeagueSubTab === 'seasons' ? 'is-sub-active' : ''}`}
+                onClick={() => handleSubTabClick('seasons')}
+              >
+                <Calendar size={14} />
+                <span>Quản lý mùa giải</span>
+              </button>
+
+              <button
+                className={`admin-nav-subitem ${activeTab === 'league' && activeLeagueSubTab === 'leaderboard' ? 'is-sub-active' : ''}`}
+                onClick={() => handleSubTabClick('leaderboard')}
+              >
+                <Trophy size={14} />
+                <span>Quản lý bảng xếp hạng</span>
+              </button>
+
+              <button
+                className={`admin-nav-subitem ${activeTab === 'league' && activeLeagueSubTab === 'summary' ? 'is-sub-active' : ''}`}
+                onClick={() => handleSubTabClick('summary')}
+              >
+                <BarChart3 size={14} />
+                <span>Tổng kết mùa giải</span>
+              </button>
+            </div>
+          )}
+        </div>
+
         <button
           className={`admin-nav-item ${activeTab === 'logs' ? 'is-active' : ''}`}
           onClick={() => setActiveTab('logs')}
@@ -111,3 +206,4 @@ export function AdminSidebarNav({
     </aside>
   );
 }
+

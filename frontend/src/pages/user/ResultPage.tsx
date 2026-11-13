@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { ArrowRight, Sparkles, Trophy } from 'lucide-react';
 import { Header } from '@/layout/Header';
+import { useAuth } from '@/hooks/useAuth';
 import { LEVEL_COLORS, LEVEL_LABELS, type SkillLevel, type TopicScore, type AuthMode } from '@/types';
 
 interface ResultPageProps {
@@ -14,13 +16,34 @@ interface ResultPageProps {
 const LEVEL_ORDER: SkillLevel[] = ['expert', 'advanced', 'intermediate', 'basic', 'beginner'];
 
 export function ResultPage({
-  scores,
+  scores: scoresProp,
   onGoTopics,
   onGoLanding,
   onGoAuth,
   onGoProfile,
   onGoProgress,
 }: ResultPageProps) {
+  const { getSelfAssessment } = useAuth();
+  const [loadedScores, setLoadedScores] = useState<TopicScore[]>([]);
+
+  // Tai lai trang (F5) lam mat state trong App -> lay ket qua da luu tu backend
+  useEffect(() => {
+    if (scoresProp.length > 0) return;
+    let cancelled = false;
+    getSelfAssessment()
+      .then((s) => {
+        if (!cancelled) setLoadedScores(s);
+      })
+      .catch(() => {
+        // ignore
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [scoresProp.length, getSelfAssessment]);
+
+  const scores = scoresProp.length > 0 ? scoresProp : loadedScores;
+
   const counts: Record<SkillLevel, number> = {
     expert: scores.filter((s) => s.level === 'expert').length,
     advanced: scores.filter((s) => s.level === 'advanced').length,
@@ -115,7 +138,7 @@ export function ResultPage({
           <Sparkles size={16} />
           <p>
             {counts.beginner > 4
-              ? `Bạn có ${counts.beginner} chủ đề cơ bản — hệ thống sẽ ưu tiên nội dung nhập môn để xây dựng nền tảng vững chắc.`
+              ? `Bạn có ${counts.beginner} chủ đề chưa học — hệ thống sẽ ưu tiên nội dung nhập môn để xây dựng nền tảng vững chắc.`
               : counts.advanced >= Math.floor(total / 2)
                 ? `Bạn đã thành thạo ${counts.advanced}/${total} chủ đề — hệ thống sẽ tập trung vào các bài khó hơn.`
                 : `Bạn đang ở giai đoạn phát triển — hệ thống sẽ xen kẽ bài ôn và bài nâng cao để tiến bộ nhanh nhất.`}

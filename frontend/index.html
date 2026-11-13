@@ -8,6 +8,25 @@
     <meta property="og:image" content="https://bolt.new/static/og_default.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="https://bolt.new/static/og_default.png" />
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('app_theme') || 'dark';
+          var isDark = saved === 'dark';
+          if (saved === 'system') {
+            isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          }
+          var root = document.documentElement;
+          if (!isDark) {
+            root.setAttribute('data-theme', 'light');
+            root.classList.add('light-mode');
+          } else {
+            root.setAttribute('data-theme', 'dark');
+            root.classList.remove('light-mode');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

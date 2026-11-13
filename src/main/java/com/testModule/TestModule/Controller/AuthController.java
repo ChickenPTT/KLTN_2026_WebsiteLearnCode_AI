@@ -3,10 +3,14 @@ package com.testModule.TestModule.Controller;
 import com.testModule.TestModule.Security.AuthUserDetails;
 import com.testModule.TestModule.Service.AuthService;
 import com.testModule.TestModule.Service.RefreshTokenService;
+import com.testModule.TestModule.Service.SelfAssessmentService;
+import com.testModule.TestModule.Service.TopicBandService;
+import com.testModule.TestModule.dto.TopicBandItem;
 import com.testModule.TestModule.dto.AuthResponse;
 import com.testModule.TestModule.dto.ChangePasswordRequest;
 import com.testModule.TestModule.dto.LoginRequest;
 import com.testModule.TestModule.dto.RegisterRequest;
+import com.testModule.TestModule.dto.SelfAssessmentItem;
 import com.testModule.TestModule.dto.UpdateProfileRequest;
 import com.testModule.TestModule.dto.UserResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -36,14 +41,20 @@ public class AuthController {
 
     private final AuthService authService;
     private final RefreshTokenService refreshTokenService;
+    private final SelfAssessmentService selfAssessmentService;
+    private final TopicBandService topicBandService;
     private final boolean secureCookie;
 
     public AuthController(
             AuthService authService,
             RefreshTokenService refreshTokenService,
+            SelfAssessmentService selfAssessmentService,
+            TopicBandService topicBandService,
             @Value("${jwt.refresh-cookie-secure}") boolean secureCookie) {
         this.authService = authService;
         this.refreshTokenService = refreshTokenService;
+        this.selfAssessmentService = selfAssessmentService;
+        this.topicBandService = topicBandService;
         this.secureCookie = secureCookie;
     }
 
@@ -87,6 +98,27 @@ public class AuthController {
     @PostMapping("/me/onboarding")
     public UserResponse completeOnboarding(Authentication authentication) {
         return authService.completeOnboarding(currentUser(authentication).getUser().getId());
+    }
+
+    @GetMapping("/me/self-assessment")
+    public List<SelfAssessmentItem> getSelfAssessment(Authentication authentication) {
+        return selfAssessmentService.getForUser(currentUser(authentication).getUser().getId());
+    }
+
+    /** Luu tu danh gia + danh dau da hoan tat onboarding. */
+    @PutMapping("/me/self-assessment")
+    public UserResponse saveSelfAssessment(Authentication authentication, @RequestBody List<SelfAssessmentItem> items) {
+        return selfAssessmentService.save(currentUser(authentication).getUser().getId(), items);
+    }
+
+    @GetMapping("/me/topic-bands")
+    public List<TopicBandItem> getTopicBands(Authentication authentication) {
+        return topicBandService.getForUser(currentUser(authentication).getUser().getId());
+    }
+
+    @PutMapping("/me/topic-bands")
+    public List<TopicBandItem> saveTopicBands(Authentication authentication, @RequestBody List<TopicBandItem> items) {
+        return topicBandService.save(currentUser(authentication).getUser().getId(), items);
     }
 
     @PutMapping("/me")

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowLeft,
   BrainCircuit,
@@ -16,6 +16,7 @@ import {
   TOPICS,
 } from '@/types';
 import { Header } from '@/layout/Header';
+import { useAuth } from '@/hooks/useAuth';
 
 interface AssessmentPageProps {
   onBack: () => void;
@@ -36,8 +37,34 @@ export function AssessmentPage({
   onGoProfile,
   onGoProgress,
 }: AssessmentPageProps) {
+  const { getSelfAssessment, saveSelfAssessment } = useAuth();
   const [ratings, setRatings] = useState<Record<string, SkillLevel>>({});
   const [step, setStep] = useState(0); // paginate topics 4 at a time
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Danh gia lai: hien san lua chon cu (neu co)
+  useEffect(() => {
+    let cancelled = false;
+    getSelfAssessment()
+      .then((scores) => {
+        if (cancelled || scores.length === 0) return;
+        setRatings((prev) => {
+          const next = { ...prev };
+          scores.forEach((s) => {
+            const topic = TOPICS.find((t) => t.toLowerCase() === s.topic.trim().toLowerCase());
+            if (topic && !next[topic]) next[topic] = s.level;
+          });
+          return next;
+        });
+      })
+      .catch(() => {
+        // Chua co / khong tai duoc -> bat dau trong
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [getSelfAssessment]);
 
   const TOPICS_PER_PAGE = 4;
   const totalPages = Math.ceil(TOPICS.length / TOPICS_PER_PAGE);
@@ -48,14 +75,25 @@ export function AssessmentPage({
 
   const handleSelect = (topic: string, level: SkillLevel) => {
     setRatings((prev) => ({ ...prev, [topic]: level }));
+    setSaveError(null);
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
+    if (!allRated || saving) return;
     const scores: TopicScore[] = TOPICS.map((t) => ({
       topic: t,
-      level: ratings[t] ?? 'none',
+      level: ratings[t],
     }));
-    onComplete(scores);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await saveSelfAssessment(scores);
+      onComplete(scores);
+    } catch (e) {
+      setSaveError(e instanceof Error && e.message ? e.message : 'Không lưu được đánh giá. Vui lòng thử lại.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -134,8 +172,8 @@ export function AssessmentPage({
 
             {/* Footer actions */}
             <div className="assessment-footer">
-              <p className="assessment-hint">
-                {isLastPage
+              <p className="assessment-hint" style={saveError ? { color: '#f87171' } : undefined}>
+                {saveError ? saveError : isLastPage
                   ? allRated
                     ? 'Bạn đã đánh giá đủ tất cả chủ đề!'
                     : 'Hãy đánh giá đủ tất cả chủ đề để xác nhận.'
@@ -152,10 +190,10 @@ export function AssessmentPage({
                 {isLastPage ? (
                   <button
                     className="assessment-primary"
-                    disabled={!allRated}
+                    disabled={!allRated || saving}
                     onClick={handleConfirm}
                   >
-                    <ClipboardCheck size={16} /> Xác nhận &amp; xem kết quả{' '}
+                    <ClipboardCheck size={16} /> {saving ? 'Đang lưu...' : <>Xác nhận &amp; xem kết quả</>}{' '}
                     <ChevronRight size={16} />
                   </button>
                 ) : (

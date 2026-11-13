@@ -26,6 +26,7 @@ interface FlashcardDetailPageProps {
   onGoHistory?: () => void;
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
+  onGoLeague?: () => void;
   onLoggedOut?: () => void;
   onGoMatch?: (setId: string) => void;
 }
@@ -134,6 +135,7 @@ export function FlashcardDetailPage({
   onGoHistory,
   onGoAdmin,
   onGoSettings,
+  onGoLeague,
   onLoggedOut,
   onGoMatch,
 }: FlashcardDetailPageProps) {
@@ -397,6 +399,7 @@ export function FlashcardDetailPage({
         onGoHistory={onGoHistory}
         onGoAdmin={onGoAdmin}
         onGoSettings={onGoSettings}
+        onGoLeague={onGoLeague}
         onLoggedOut={onLoggedOut}
       />
 

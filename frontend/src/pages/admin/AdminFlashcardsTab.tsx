@@ -16,8 +16,6 @@ import {
   Check,
   AlertTriangle,
   Users,
-  Sparkles,
-  GraduationCap,
 } from 'lucide-react';
 import { Pagination } from '@/components/Pagination';
 import { useAuth } from '@/hooks/useAuth';
@@ -432,13 +430,23 @@ export function AdminFlashcardsTab({ onLogActivity }: AdminFlashcardsTabProps) {
       </div>
 
       {/* ── FILTER & SEARCH BAR ── */}
-      <div className="history-filter-bar" style={{ marginBottom: '20px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+      <div
+        className="history-filter-bar"
+        style={{
+          marginBottom: '20px',
+          display: 'flex',
+          justifyContent: 'flex-start',
+          gap: '12px',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+        }}
+      >
         {/* Search – bên trái */}
-        <div className="history-search-wrap" style={{ flex: 1, minWidth: '240px', maxWidth: '380px' }}>
+        <div className="history-search-wrap" style={{ flex: 'none', width: '320px', minWidth: '240px', maxWidth: '100%' }}>
           <Search size={16} className="history-search-icon" />
           <input
             type="text"
-            placeholder="Tìm kiếm bộ thẻ, tác giả..."
+            placeholder="Tìm kiếm bộ thẻ, vai trò..."
             value={searchKey}
             onChange={(e) => {
               setSearchKey(e.target.value);
@@ -472,7 +480,7 @@ export function AdminFlashcardsTab({ onLogActivity }: AdminFlashcardsTabProps) {
             }}
           >
             <option value="all">Tất cả vai trò</option>
-            <option value="admin">Quản trị viên ({adminCount})</option>
+            <option value="admin">Admin ({adminCount})</option>
             <option value="teacher">Giảng viên ({teacherCount})</option>
             <option value="student">Sinh viên ({studentCount})</option>
           </select>
@@ -487,7 +495,7 @@ export function AdminFlashcardsTab({ onLogActivity }: AdminFlashcardsTabProps) {
               <th style={{ width: '50px' }}>#</th>
               <th>Bộ Flashcard</th>
               <th style={{ width: '120px' }}>Số thuật ngữ</th>
-              <th style={{ width: '150px' }}>Tác giả</th>
+              <th style={{ width: '130px' }}>Vai trò</th>
               <th style={{ width: '100px' }}>Lượt học</th>
               <th style={{ width: '130px' }}>Trạng thái</th>
               <th style={{ width: '120px', textAlign: 'right' }}>Thao tác</th>
@@ -551,21 +559,21 @@ export function AdminFlashcardsTab({ onLogActivity }: AdminFlashcardsTabProps) {
                         const role = set.authorRole;
                         if (role === 'admin') {
                           return (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(59, 130, 246, 0.12)', color: '#2563eb', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: 600 }}>
-                              <Sparkles size={12} /> {set.authorName}
+                            <span className="fc-admin-role-badge role-admin">
+                              Admin
                             </span>
                           );
                         }
                         if (role === 'teacher') {
                           return (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(16, 185, 129, 0.12)', color: '#059669', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: 600 }}>
-                              <GraduationCap size={13} /> {set.authorName}
+                            <span className="fc-admin-role-badge role-teacher">
+                              Giảng viên
                             </span>
                           );
                         }
                         return (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(168, 85, 247, 0.12)', color: '#9333ea', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: 500 }}>
-                            <Users size={12} /> {set.authorName}
+                          <span className="fc-admin-role-badge role-student">
+                            Sinh viên
                           </span>
                         );
                       })()}

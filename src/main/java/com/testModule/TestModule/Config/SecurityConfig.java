@@ -59,6 +59,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/admin/**").hasAnyRole("ADMIN", "TEACHER")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/run", "/api/submit", "/api/analyze", "/api/history/**").authenticated()
+                        // Thi dau: khach xem duoc mua giai + bang xep hang; vao thi phai dang nhap
+                        .requestMatchers(HttpMethod.GET, "/api/contest/current", "/api/contest/seasons", "/api/contest/seasons/*/leaderboard").permitAll()
+                        .requestMatchers("/api/contest/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/flashcard/decks/mine").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/flashcard/decks", "/api/flashcard/decks/**").permitAll()
                         // Chức năng quản trị flashcard: chỉ ADMIN/TEACHER

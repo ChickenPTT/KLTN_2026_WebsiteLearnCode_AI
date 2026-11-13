@@ -30,6 +30,7 @@ interface FlashcardMatchPageProps {
   onGoHistory?: () => void;
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
+  onGoLeague?: () => void;
   onLoggedOut?: () => void;
 }
 
@@ -63,6 +64,7 @@ export function FlashcardMatchPage({
   onGoHistory,
   onGoAdmin,
   onGoSettings,
+  onGoLeague,
   onLoggedOut,
 }: FlashcardMatchPageProps) {
   const { user } = useAuth();
@@ -274,7 +276,7 @@ export function FlashcardMatchPage({
   if (error) {
     return (
       <div className="page-shell">
-        <Header activeView="flashcards" onGoLanding={onGoLanding} onGoAuth={onAuth} onGoTopics={onGoTopics} onGoFlashcards={onGoFlashcards} onGoFlashcardLibrary={onGoFlashcardLibrary} onGoProfile={onGoProfile} onGoProgress={onGoProgress} onGoHistory={onGoHistory} onGoAdmin={onGoAdmin} onGoSettings={onGoSettings} onLoggedOut={onLoggedOut} />
+        <Header activeView="flashcards" onGoLanding={onGoLanding} onGoAuth={onAuth} onGoTopics={onGoTopics} onGoFlashcards={onGoFlashcards} onGoFlashcardLibrary={onGoFlashcardLibrary} onGoProfile={onGoProfile} onGoProgress={onGoProgress} onGoHistory={onGoHistory} onGoAdmin={onGoAdmin} onGoSettings={onGoSettings} onGoLeague={onGoLeague} onLoggedOut={onLoggedOut} />
         <main style={{ padding: '40px', textAlign: 'center' }}>
           <h2>{error}</h2>
           <button onClick={onBack} className="secondary-button" style={{ marginTop: '16px' }}>
@@ -300,6 +302,7 @@ export function FlashcardMatchPage({
         onGoHistory={onGoHistory}
         onGoAdmin={onGoAdmin}
         onGoSettings={onGoSettings}
+        onGoLeague={onGoLeague}
         onLoggedOut={onLoggedOut}
       />
 

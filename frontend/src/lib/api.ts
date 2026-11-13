@@ -158,6 +158,38 @@ export const authApi = {
     }),
 };
 
+/** 1 chu de tu danh gia; level chu thuong: beginner | basic | intermediate | advanced | expert */
+export interface BackendSelfAssessmentItem {
+  topic: string;
+  level: string;
+}
+
+export const selfAssessmentApi = {
+  get: () => apiFetch<BackendSelfAssessmentItem[]>('/api/auth/me/self-assessment'),
+  /** Luu tu danh gia + backend danh dau onboardingCompleted = true */
+  save: (items: BackendSelfAssessmentItem[]) =>
+    apiFetch<BackendUser>('/api/auth/me/self-assessment', {
+      method: 'PUT',
+      body: JSON.stringify(items),
+    }),
+};
+
+/** Band nang luc hien tai theo chu de (0..4) — phuc vu deadband */
+export interface BackendTopicBandItem {
+  topic: string;
+  bandIndex: number;
+}
+
+export const topicBandsApi = {
+  get: () => apiFetch<BackendTopicBandItem[]>('/api/auth/me/topic-bands'),
+  /** Merge: chi cap nhat cac chu de gui len */
+  save: (items: BackendTopicBandItem[]) =>
+    apiFetch<BackendTopicBandItem[]>('/api/auth/me/topic-bands', {
+      method: 'PUT',
+      body: JSON.stringify(items),
+    }),
+};
+
 export interface DailySubmission {
   day: string;
   count: number;
@@ -263,6 +295,10 @@ export const adminApi = {
   },
   getUserHistory: (userId: number) =>
     apiFetch<BackendHistoryItem[]>(`/api/admin/users/${userId}/history`),
+  getUserSelfAssessment: (userId: number) =>
+    apiFetch<BackendSelfAssessmentItem[]>(`/api/admin/users/${userId}/self-assessment`),
+  getUserTopicBands: (userId: number) =>
+    apiFetch<BackendTopicBandItem[]>(`/api/admin/users/${userId}/topic-bands`),
 };
 
 // ── Public stats (no auth required) ──
@@ -362,6 +398,8 @@ export interface BackendProblem {
   samples: BackendProblemSample[];
   testCaseCount: number;
   templateName: string | null;
+  /** Chi co o endpoint admin (/manage, /drafts): loi giai mau de admin xem */
+  referenceSolution?: string | null;
 }
 
 export const problemsApi = {

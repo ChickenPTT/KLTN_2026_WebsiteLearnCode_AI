@@ -7,10 +7,13 @@ import { TOPIC_INFOS, type PracticeProblem, type TopicInfo } from '@/types';
 import { sameTopic } from '@/lib/problemsApi';
 
 function countDifficulties(problems: PracticeProblem[]): TopicInfo['difficulties'] {
+  const count = (lvl: PracticeProblem['difficulty']) => problems.filter((p) => p.difficulty === lvl).length;
   return {
-    easy: problems.filter((p) => p.difficulty === 'Easy').length,
-    medium: problems.filter((p) => p.difficulty === 'Medium').length,
-    hard: problems.filter((p) => p.difficulty === 'Hard').length,
+    beginner: count('beginner'),
+    basic: count('basic'),
+    intermediate: count('intermediate'),
+    advanced: count('advanced'),
+    expert: count('expert'),
   };
 }
 

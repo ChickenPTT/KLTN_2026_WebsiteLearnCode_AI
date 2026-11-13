@@ -55,6 +55,7 @@ interface FlashcardsPageProps {
   onGoHistory?: () => void;
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
+  onGoLeague?: () => void;
   onLoggedOut?: () => void;
   onSelectSet: (setId: string) => void;
   initialTab?: Tab;
@@ -112,6 +113,7 @@ export function FlashcardsPage({
   onGoHistory,
   onGoAdmin,
   onGoSettings,
+  onGoLeague,
   onLoggedOut,
   onSelectSet,
   initialTab = 'explore',
@@ -199,6 +201,7 @@ export function FlashcardsPage({
         onGoHistory={onGoHistory}
         onGoAdmin={onGoAdmin}
         onGoSettings={onGoSettings}
+        onGoLeague={onGoLeague}
         onLoggedOut={onLoggedOut}
       />
 

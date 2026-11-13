@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Header } from '@/layout/Header';
 import { useAuth } from '@/hooks/useAuth';
-import { PRACTICE_PROBLEMS, TOPIC_INFOS, type PracticeProblem, type AuthMode, type SkillLevel, type TopicInfo } from '@/types';
+import { invalidatePublishedProblems } from '@/hooks/usePublishedProblems';
+import { TOPIC_INFOS, type PracticeProblem, type AuthMode, type SkillLevel, type TopicInfo } from '@/types';
 
 import {
   type AdminTab,
+  type LeagueSubTab,
   type UserRecord,
   type SampleTemplate,
   type GeneratedQuestion,
   type ActivityLog,
-  MOCK_SAMPLE_TEMPLATES,
 } from './admin.types';
 import { AdminSidebarNav } from './AdminSidebarNav';
 import { AdminDashboardTab } from './AdminDashboardTab';
@@ -18,6 +19,7 @@ import { AdminProblemsTab } from './AdminProblemsTab';
 import { AdminTemplatesTab } from './AdminTemplatesTab';
 import { AdminGeneratorTab } from './AdminGeneratorTab';
 import { AdminFlashcardsTab } from './AdminFlashcardsTab';
+import { AdminLeagueTab } from './AdminLeagueTab';
 import { AdminAuditLogsTab } from './AdminAuditLogsTab';
 import { AdminUserDetailModal } from './AdminUserDetailModal';
 import { AdminAddUserModal } from './AdminAddUserModal';
@@ -36,11 +38,17 @@ import {
   type BackendProblem,
   type BackendRole,
 } from '@/lib/api';
+import { toDifficultyLevel } from '@/lib/problemsApi';
 import { AdminProfileContent } from './AdminProfileContent';
 
 interface AdminPageProps {
   activeTab?: AdminTab;
   onTabChange?: (tab: AdminTab) => void;
+  leagueSubTab?: LeagueSubTab;
+  onLeagueSubTabChange?: (subTab: LeagueSubTab) => void;
+  seasonConfigMode?: 'none' | 'edit' | 'view';
+  seasonId?: string;
+  onSeasonNavigate?: (mode: 'none' | 'edit' | 'view', seasonId?: string) => void;
   onBack: () => void;
   onGoLanding?: () => void;
   onGoAuth?: (mode: AuthMode) => void;
@@ -48,7 +56,6 @@ interface AdminPageProps {
   onGoProfile?: () => void;
   onGoProgress?: () => void;
   onGoHistory?: () => void;
-  onGoSettings?: () => void;
   onGoPractice?: () => void;
   onLoggedOut?: () => void;
 }
@@ -56,23 +63,46 @@ interface AdminPageProps {
 export function AdminPage({
   activeTab: controlledActiveTab,
   onTabChange,
+  leagueSubTab: controlledLeagueSubTab,
+  onLeagueSubTabChange,
+  seasonConfigMode,
+  seasonId,
+  onSeasonNavigate,
   onGoLanding,
   onGoAuth,
   onGoTopics,
   onGoProfile,
   onGoProgress,
   onGoHistory,
-  onGoSettings,
   onLoggedOut,
 }: AdminPageProps) {
   const { user } = useAuth();
-  const [internalActiveTab, setInternalActiveTab] = useState<AdminTab>('dashboard');
+  const [internalActiveTab, setInternalActiveTab] = useState<AdminTab>(controlledActiveTab ?? 'dashboard');
+  const [internalLeagueSubTab, setInternalLeagueSubTab] = useState<LeagueSubTab>(controlledLeagueSubTab ?? 'overview');
 
   const activeTab = controlledActiveTab ?? internalActiveTab;
   const setActiveTab = (tab: AdminTab) => {
     setInternalActiveTab(tab);
     onTabChange?.(tab);
   };
+
+  const activeLeagueSubTab = controlledLeagueSubTab ?? internalLeagueSubTab;
+  const setLeagueSubTab = (sub: LeagueSubTab) => {
+    setInternalLeagueSubTab(sub);
+    onLeagueSubTabChange?.(sub);
+  };
+
+  useEffect(() => {
+    if (controlledActiveTab) {
+      setInternalActiveTab(controlledActiveTab);
+    }
+  }, [controlledActiveTab]);
+
+  useEffect(() => {
+    if (controlledLeagueSubTab) {
+      setInternalLeagueSubTab(controlledLeagueSubTab);
+    }
+  }, [controlledLeagueSubTab]);
 
   // Shared state
   const [users, setUsers] = useState<UserRecord[]>([]);
@@ -116,7 +146,7 @@ export function AdminPage({
   const mapTopic = (t: BackendTopic): TopicInfo => {
     const known = TOPIC_INFOS.find((ti) => ti.name.toLowerCase() === t.name.toLowerCase());
     if (known) {
-      return { ...known, problemCount: 0, difficulties: { easy: 0, medium: 0, hard: 0 } };
+      return { ...known, problemCount: 0, difficulties: { beginner: 0, basic: 0, intermediate: 0, advanced: 0, expert: 0 } };
     }
     const slug = t.name.toLowerCase().replace(/\s+/g, '-');
     return {
@@ -126,7 +156,7 @@ export function AdminPage({
       icon: 'Layers',
       description: `Chủ đề: ${t.name}`,
       problemCount: 0,
-      difficulties: { easy: 0, medium: 0, hard: 0 },
+      difficulties: { beginner: 0, basic: 0, intermediate: 0, advanced: 0, expert: 0 },
     };
   };
 
@@ -142,13 +172,7 @@ export function AdminPage({
   });
 
   // Mapping backend Problem level to frontend difficulty
-  const mapDifficulty = (level: string): 'Easy' | 'Medium' | 'Hard' => {
-    const l = level.toLowerCase();
-    if (l === 'beginner' || l === 'basic') return 'Easy';
-    if (l === 'intermediate' || l === 'advanced') return 'Medium';
-    if (l === 'expert') return 'Hard';
-    return 'Medium';
-  };
+  const mapDifficulty = (level: string): SkillLevel => toDifficultyLevel(level);
 
   // Mapping backend Problem to frontend PracticeProblem
   const mapBackendProblem = (p: BackendProblem): PracticeProblem => ({
@@ -159,6 +183,7 @@ export function AdminPage({
     description: p.statement,
     examples: (p.samples ?? []).map(s => ({ input: s.input, output: s.expectedOutput })),
     starterCode: '',
+    referenceSolution: p.referenceSolution ?? undefined,
     language: 'java',
     constraints: [],
     isPublic: p.status === 'PUBLISHED',
@@ -478,52 +503,43 @@ export function AdminPage({
       } else {
         await problemsApi.unpublish(backendId);
       }
+      invalidatePublishedProblems();
       // Refresh problems list from API
       await refreshProblems();
       // Refresh audit logs from API
       await refreshAuditLogs();
-    } catch {
-      // Fallback: cập nhật local
-      setActivityLogs((prev) => [
-        {
-          id: `log-${Date.now()}`,
-          user: user?.name ?? 'Quản trị viên',
-          action: 'TOGGLE',
-          target: `Đổi trạng thái hiển thị bài "${targetProb?.title}" sang: ${
-            isNowPublic ? 'Công khai' : 'Ẩn'
-          }`,
-          time: 'Vừa xong',
-        },
-        ...prev,
-      ]);
-      setPracticeProblems((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, isPublic: isNowPublic } : p)),
+    } catch (err) {
+      // Không cập nhật giả ở giao diện: backend chưa đổi thì học viên cũng sẽ không thấy bài
+      const reason = err instanceof Error ? err.message : 'Lỗi không xác định';
+      window.alert(
+        `Không thể ${isNowPublic ? 'xuất bản' : 'ẩn'} bài "${targetProb?.title ?? id}".\nLý do: ${reason}`,
       );
     }
   };
 
   // ── GENERATOR & TEMPLATE HANDLERS ──
   // Bài sinh từ generator được lưu ở trạng thái DRAFT -> phải gọi API publish thì mới thực sự public
+  // Ném lỗi nếu có bài xuất bản thất bại để tab Sinh bài báo đúng kết quả
   const publishGeneratedOnBackend = async (questions: GeneratedQuestion[]) => {
-    const backendIds = questions.map((q) => Number(q.id)).filter((id) => Number.isFinite(id));
-    await Promise.allSettled(backendIds.map((id) => problemsApi.publish(id)));
+    const backendIds = questions.map((q) => Number(q.id));
+    if (backendIds.some((id) => !Number.isFinite(id))) {
+      throw new Error('Có bài chưa được lưu trên hệ thống nên không thể xuất bản.');
+    }
+    const results = await Promise.allSettled(backendIds.map((id) => problemsApi.publish(id)));
+    invalidatePublishedProblems();
+    await refreshProblems();
+    await refreshAuditLogs();
+
+    const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (failed.length > 0) {
+      const reason = failed[0].reason instanceof Error ? failed[0].reason.message : 'Lỗi không xác định';
+      throw new Error(`${failed.length}/${backendIds.length} bài xuất bản thất bại. Lý do: ${reason}`);
+    }
   };
 
-  const handlePublishQuestion = async (question: GeneratedQuestion) => {
-    await publishGeneratedOnBackend([question]);
-    // Refresh problems list from API
-    await refreshProblems();
-    // Refresh audit logs from API
-    await refreshAuditLogs();
-  };
+  const handlePublishQuestion = (question: GeneratedQuestion) => publishGeneratedOnBackend([question]);
 
-  const handlePublishAllQuestions = async (questions: GeneratedQuestion[]) => {
-    await publishGeneratedOnBackend(questions);
-    // Refresh problems list from API
-    await refreshProblems();
-    // Refresh audit logs from API
-    await refreshAuditLogs();
-  };
+  const handlePublishAllQuestions = (questions: GeneratedQuestion[]) => publishGeneratedOnBackend(questions);
 
   const handleSaveTemplate = async (tplData: Omit<SampleTemplate, 'id' | 'updatedAt'>) => {
     if (templateToEdit) {
@@ -644,6 +660,7 @@ export function AdminPage({
     <div className="page-shell">
       <Header
         hideNav={true}
+        showThemeToggle={true}
         onGoLanding={() => setActiveTab('dashboard')}
         onGoAdmin={() => setActiveTab('dashboard')}
         onGoAuth={onGoAuth}
@@ -651,7 +668,6 @@ export function AdminPage({
         onGoProfile={() => setActiveTab('profile')}
         onGoProgress={onGoProgress}
         onGoHistory={onGoHistory}
-        onGoSettings={onGoSettings}
         onLoggedOut={onLoggedOut}
       />
 
@@ -661,7 +677,11 @@ export function AdminPage({
           userRole={user?.role}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          onGoSettings={onGoSettings}
+          activeLeagueSubTab={activeLeagueSubTab}
+          setActiveLeagueSubTab={(sub) => {
+            setInternalActiveTab('league');
+            setLeagueSubTab(sub);
+          }}
         />
 
         <main className="admin-main-panel">
@@ -692,12 +712,15 @@ export function AdminPage({
             <AdminProblemsTab
               problems={practiceProblems}
               onAddProblem={(newProb) => {
+                // AdminProblemsTab da goi API tao bai; o day chi cap nhat danh sach + cache phia hoc vien
                 if (newProb) setPracticeProblems((prev) => [newProb, ...prev]);
+                invalidatePublishedProblems();
               }}
               onEditProblem={(updatedProb) => {
                 setPracticeProblems((prev) =>
                   prev.map((p) => (p.id === updatedProb.id ? updatedProb : p))
                 );
+                invalidatePublishedProblems();
               }}
               onDeleteProblem={handleDeleteProblem}
               onTogglePublicStatus={handleTogglePublicProblem}
@@ -765,7 +788,31 @@ export function AdminPage({
             />
           )}
 
-          {activeTab === 'profile' && <AdminProfileContent />}
+          {activeTab === 'league' && (
+            <AdminLeagueTab
+              activeSubTab={activeLeagueSubTab}
+              onSubTabChange={setLeagueSubTab}
+              seasonConfigMode={seasonConfigMode}
+              seasonId={seasonId}
+              onSeasonNavigate={onSeasonNavigate}
+              onLogActivity={(action, target) => {
+                setActivityLogs((prev) => [
+                  {
+                    id: `log-${Date.now()}`,
+                    user: user?.name ?? 'Quản trị viên Demo',
+                    action,
+                    target,
+                    time: 'Vừa xong',
+                  },
+                  ...prev,
+                ]);
+              }}
+            />
+          )}
+
+          {activeTab === 'profile' && (
+            <AdminProfileContent onBack={() => setActiveTab('dashboard')} />
+          )}
         </main>
       </div>
 

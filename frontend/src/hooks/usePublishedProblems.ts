@@ -1,6 +1,8 @@
 /**
- * Danh sach bai da xuat ban (public) — tai 1 lan, cache o module scope de cac trang
- * (Topics, TopicDetail, Practice random/next) dung chung, khong goi API lap lai.
+ * Danh sach bai da xuat ban (public) — cache o module scope de cac trang
+ * (Topics, TopicDetail, Practice random/next) dung chung.
+ * Kieu stale-while-revalidate: hien ngay ban cache (neu co), dong thoi tai lai tu backend moi khi
+ * trang mo ra, de bai vua duoc giang vien xuat ban hien len ma khong can F5.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { problemsApi, toPracticeProblem } from '@/lib/problemsApi';
@@ -12,7 +14,8 @@ let inFlight: Promise<PracticeProblem[]> | null = null;
 /** Tai danh sach bai public (dung cache neu da co; force = tai lai tu backend) */
 export function loadPublishedProblems(force = false): Promise<PracticeProblem[]> {
   if (cache && !force) return Promise.resolve(cache);
-  if (inFlight && !force) return inFlight;
+  // Dang co request chay -> dung chung (ket qua cua no da la du lieu moi)
+  if (inFlight) return inFlight;
   const request: Promise<PracticeProblem[]> = problemsApi
     .listPublished()
     .then((list) => {
@@ -27,6 +30,16 @@ export function loadPublishedProblems(force = false): Promise<PracticeProblem[]>
   return request;
 }
 
+/** Doc dong bo danh sach bai backend da cache (chua tai -> []) — dung de tra chu de cua bai theo id */
+export function getCachedPublishedProblems(): PracticeProblem[] {
+  return cache ?? [];
+}
+
+/** Xoa cache sau khi xuat ban / an / xoa bai, lan tai sau se lay du lieu moi */
+export function invalidatePublishedProblems() {
+  cache = null;
+}
+
 export function usePublishedProblems() {
   const [problems, setProblems] = useState<PracticeProblem[]>(() => cache ?? []);
   const [loading, setLoading] = useState<boolean>(() => cache === null);
@@ -35,12 +48,12 @@ export function usePublishedProblems() {
 
   useEffect(() => {
     let cancelled = false;
-    const force = version > 0;
-    if (force || cache === null) {
+    // Chi hien loading khi chua co gi de hien; co cache thi hien cache va tai lai ngam
+    if (version > 0 || cache === null) {
       setLoading(true);
       setError(null);
     }
-    loadPublishedProblems(force)
+    loadPublishedProblems(true)
       .then((list) => {
         if (cancelled) return;
         setProblems(list);
@@ -48,6 +61,11 @@ export function usePublishedProblems() {
       })
       .catch((e: unknown) => {
         if (cancelled) return;
+        // Tai lai ngam that bai nhung van con cache -> giu danh sach cu, khong bao loi
+        if (cache !== null && version === 0) {
+          setLoading(false);
+          return;
+        }
         setError(e instanceof Error ? e.message : 'Không tải được danh sách bài tập.');
         setLoading(false);
       });

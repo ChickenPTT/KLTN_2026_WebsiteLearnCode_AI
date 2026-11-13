@@ -1,6 +1,8 @@
 import type { DifficultyLevel, SkillLevel } from '@/types';
 
-export type AdminTab = 'dashboard' | 'users' | 'problems' | 'templates' | 'generator' | 'flashcards' | 'logs' | 'profile';
+export type AdminTab = 'dashboard' | 'users' | 'problems' | 'templates' | 'generator' | 'flashcards' | 'league' | 'logs' | 'profile';
+
+export type LeagueSubTab = 'overview' | 'seasons' | 'leaderboard' | 'summary';
 
 export interface UserTopicStat {
   topic: string;
@@ -50,7 +52,7 @@ export interface GeneratedQuestion {
   id: string;
   title: string;
   topic: string;
-  difficulty: DifficultyLevel;
+  difficulty: SkillLevel;
   starterCode: string;
   description?: string;
   sampleInput?: string;

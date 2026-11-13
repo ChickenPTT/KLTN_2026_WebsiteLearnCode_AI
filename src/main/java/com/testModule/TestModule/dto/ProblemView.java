@@ -18,7 +18,8 @@ public record ProblemView(
         LocalDateTime createdAt,
         List<Sample> samples,
         int testCaseCount,
-        String templateName
+        String templateName,
+        String referenceSolution
 ) {
     /** So test case dau tien duoc cong khai lam vi du */
     public static final int SAMPLE_COUNT = 1;
@@ -27,6 +28,15 @@ public record ProblemView(
     }
 
     public static ProblemView from(Problem p) {
+        return from(p, false);
+    }
+
+    // Chi endpoint quan tri moi duoc goi: kem loi giai mau, khong lo cho sinh vien
+    public static ProblemView fromStaff(Problem p) {
+        return from(p, true);
+    }
+
+    private static ProblemView from(Problem p, boolean staff) {
         List<TestCaseEntity> testCases = p.getTestCases() == null ? List.of() : p.getTestCases();
         List<Sample> samples = testCases.stream()
                 .limit(SAMPLE_COUNT)
@@ -47,7 +57,8 @@ public record ProblemView(
                 p.getCreatedAt(),
                 samples,
                 testCases.size(),
-                templateName
+                templateName,
+                staff ? p.getReferenceSolution() : null
         );
     }
 }

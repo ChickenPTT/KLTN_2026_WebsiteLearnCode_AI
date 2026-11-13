@@ -15,7 +15,7 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; background: #090b10; font-family: Arial, 'Times New Roman', sans-serif; }
-button, a, input, select, textarea { font-family: inherit; }
+button, a, input, select, textarea, optgroup, option { font-family: inherit; }
 button { cursor: pointer; }
 
 h1, h2, h3, h4, h5, h6 { font-family: inherit; }
@@ -46,6 +46,41 @@ h1, h2, h3, h4, h5, h6 { font-family: inherit; }
 .mobile-nav-backdrop { display: none; }
 .mobile-drawer-header { display: none; }
 .mobile-nav-links { display: flex; align-items: center; gap: 30px; }
+
+/* ── Admin Topbar Theme Toggle Button ── */
+.admin-theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #f1f5f9;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+  flex-shrink: 0;
+}
+.admin-theme-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(99, 130, 210, 0.4);
+  color: #60a5fa;
+  transform: translateY(-1px);
+}
+.light-mode .admin-theme-toggle-btn,
+html[data-theme="light"] .admin-theme-toggle-btn {
+  background: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #334155 !important;
+}
+.light-mode .admin-theme-toggle-btn:hover,
+html[data-theme="light"] .admin-theme-toggle-btn:hover {
+  background: #e2e8f0 !important;
+  border-color: #2563eb !important;
+  color: #2563eb !important;
+}
 
 /* ── NAV FLASHCARD DROPDOWN ── */
 .nav-dropdown-wrapper {
@@ -8691,7 +8726,6 @@ html[data-theme="light"] .admin-example-code-box {
 .admin-example-explanation {
   color: #8b96b0;
   margin-top: 4px;
-  font-family: sans-serif;
   font-size: 12px;
 }
 .light-mode .admin-example-explanation,
@@ -9747,10 +9781,10 @@ html[data-theme="light"] .excel-preview-title {
 }
 .scoring-hero-title {
   font-size: 28px;
-  font-weight: 800;
-  color: #f8fafc;
+  font-weight: 700;
+  color: #e6e9f2;
   margin: 0 0 10px;
-  line-height: 1.3;
+  line-height: 1.25;
 }
 .scoring-hero-subtitle {
   font-size: 14.5px;
@@ -10141,6 +10175,277 @@ html[data-theme="light"] .example-numbers .dot {
   color: #94a3b8 !important;
 }
 
+/* ── Formula Box ── */
+.scoring-formula-box {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 14px;
+  padding: 24px;
+  margin-bottom: 24px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.scoring-formula-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899);
+}
+.formula-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  padding: 3px 10px;
+  border-radius: 99px;
+  margin-bottom: 14px;
+  text-transform: uppercase;
+}
+.formula-main-expr {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 17px;
+  font-weight: 700;
+  color: #f8fafc;
+  line-height: 1.5;
+}
+.formula-part-target {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+}
+.formula-part-core {
+  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.1);
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(167, 139, 250, 0.25);
+}
+.formula-part-penalty {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(248, 113, 113, 0.25);
+}
+.formula-operator {
+  color: #94a3b8;
+  font-size: 20px;
+  font-weight: 400;
+}
+.formula-constraint-note {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-top: 12px;
+  font-weight: 500;
+}
+
+/* ── Modern Scoring Table ── */
+.scoring-table-container {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid #1e2638;
+  background: #121827;
+  margin-bottom: 20px;
+}
+.scoring-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13.5px;
+}
+.scoring-table th {
+  background: #171f30;
+  color: #cbd5e1;
+  font-weight: 700;
+  padding: 12px 16px;
+  border-bottom: 1px solid #252e42;
+  white-space: nowrap;
+}
+.scoring-table td {
+  padding: 12px 16px;
+  color: #94a3b8;
+  border-bottom: 1px solid #1a2233;
+}
+.scoring-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.scoring-table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* ── Band Mechanism Cards ── */
+.scoring-band-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.scoring-band-card {
+  background: #121827;
+  border: 1px solid #1e2638;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.scoring-band-card:hover {
+  transform: translateY(-2px);
+}
+.scoring-band-card.promote { border-color: rgba(34, 197, 94, 0.35); }
+.scoring-band-card.promote .band-card-icon { color: #22c55e; background: rgba(34, 197, 94, 0.12); }
+.scoring-band-card.maintain { border-color: rgba(59, 130, 246, 0.35); }
+.scoring-band-card.maintain .band-card-icon { color: #3b82f6; background: rgba(59, 130, 246, 0.12); }
+.scoring-band-card.demote { border-color: rgba(239, 68, 68, 0.35); }
+.scoring-band-card.demote .band-card-icon { color: #ef4444; background: rgba(239, 68, 68, 0.12); }
+
+.band-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.band-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.band-card-header h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin: 0;
+}
+.scoring-band-card p {
+  font-size: 13px;
+  color: #94a3b8;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Callout / Note Box ── */
+.scoring-note-box {
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-left: 4px solid #6366f1;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-top: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.scoring-note-box.warning {
+  border-left-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.05);
+}
+.scoring-note-box.info {
+  border-left-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.05);
+}
+.scoring-note-box h4 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin: 0 0 4px;
+}
+.scoring-note-box p {
+  font-size: 13px;
+  color: #94a3b8;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Light Mode Styles for New Scoring Guide Elements ── */
+.light-mode .scoring-formula-box,
+html[data-theme="light"] .scoring-formula-box {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+.light-mode .formula-main-expr,
+html[data-theme="light"] .formula-main-expr {
+  color: #0f172a !important;
+}
+.light-mode .formula-constraint-note,
+html[data-theme="light"] .formula-constraint-note {
+  color: #475569 !important;
+}
+.light-mode .scoring-table-container,
+html[data-theme="light"] .scoring-table-container {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+.light-mode .scoring-table th,
+html[data-theme="light"] .scoring-table th {
+  background: #f1f5f9 !important;
+  color: #1e293b !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+.light-mode .scoring-table td,
+html[data-theme="light"] .scoring-table td {
+  color: #334155 !important;
+  border-bottom-color: #f1f5f9 !important;
+}
+.light-mode .scoring-table tbody tr:hover td,
+html[data-theme="light"] .scoring-table tbody tr:hover td {
+  background: #f8fafc !important;
+}
+.light-mode .scoring-band-card,
+html[data-theme="light"] .scoring-band-card {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.light-mode .band-card-header h3,
+html[data-theme="light"] .band-card-header h3 {
+  color: #0f172a !important;
+}
+.light-mode .scoring-band-card p,
+html[data-theme="light"] .scoring-band-card p {
+  color: #475569 !important;
+}
+.light-mode .scoring-note-box,
+html[data-theme="light"] .scoring-note-box {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+.light-mode .scoring-note-box h4,
+html[data-theme="light"] .scoring-note-box h4 {
+  color: #0f172a !important;
+}
+.light-mode .scoring-note-box p,
+html[data-theme="light"] .scoring-note-box p {
+  color: #475569 !important;
+}
+
+@media (max-width: 768px) {
+  .scoring-band-grid {
+    grid-template-columns: 1fr;
+  }
+  .formula-main-expr {
+    font-size: 14px;
+    gap: 6px;
+  }
+}
+
+
 /* =========================================================================
    FLASHCARDS PAGE (New Layout)
    ========================================================================= */
@@ -10155,9 +10460,10 @@ html[data-theme="light"] .example-numbers .dot {
 /* Page Header */
 .fc-page-title {
   font-size: 28px;
-  font-weight: 800;
-  color: var(--text-primary, #f1f5f9);
+  font-weight: 700;
+  color: #e6e9f2;
   margin: 0 0 6px 0;
+  line-height: 1.25;
 }
 .fc-page-subtitle {
   font-size: 15px;
@@ -10471,11 +10777,11 @@ html[data-theme="light"] .fc-new-card-meta {
 }
 
 .fc-detail-title {
-  font-family: Arial, 'Times New Roman', sans-serif;
   font-size: 28px;
-  font-weight: 800;
-  color: var(--text-primary, #f1f5f9);
+  font-weight: 700;
+  color: #e6e9f2;
   margin: 0;
+  line-height: 1.25;
 }
 
 /* Viewer Container */
@@ -10493,7 +10799,6 @@ html[data-theme="light"] .fc-new-card-meta {
 }
 
 .fc-counter {
-  font-family: Arial, 'Times New Roman', sans-serif;
   font-size: 16px;
   font-weight: 600;
   color: var(--text-secondary, #94a3b8);
@@ -10568,7 +10873,6 @@ html[data-theme="light"] .fc-new-card-meta {
 }
 
 .fc-term {
-  font-family: Arial, 'Times New Roman', sans-serif;
   font-size: 42px;
   font-weight: 700;
   color: var(--text-primary, #f1f5f9);
@@ -10576,14 +10880,12 @@ html[data-theme="light"] .fc-new-card-meta {
 }
 
 .fc-definition {
-  font-family: Arial, 'Times New Roman', sans-serif;
   font-size: 24px;
   color: var(--text-primary, #f1f5f9);
   margin: 20px 0;
 }
 
 .fc-example {
-  font-family: Arial, 'Times New Roman', sans-serif;
   font-size: 18px;
   color: #34d399;
   font-style: italic;
@@ -10591,7 +10893,6 @@ html[data-theme="light"] .fc-new-card-meta {
 }
 
 .fc-hint {
-  font-family: Arial, 'Times New Roman', sans-serif;
   position: absolute;
   bottom: 24px;
   font-size: 14px;
@@ -10693,7 +10994,6 @@ html[data-theme="light"] .fc-new-card-meta {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
-  font-family: Arial, 'Times New Roman', sans-serif;
 }
 
 .fc-study-learning-btn:hover:not(:disabled) {
@@ -10725,7 +11025,6 @@ html[data-theme="light"] .fc-new-card-meta {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
-  font-family: Arial, 'Times New Roman', sans-serif;
 }
 
 .fc-filter-pill:hover {
@@ -10854,69 +11153,90 @@ html[data-theme="light"] .fc-rate-btn--wrong:hover {
 }
 
 .light-mode .fc-rate-btn--flip,
-html[data-theme="light"] .fc-rate-btn--flip {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #475569;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+html[data-theme="light"] .fc-rate-btn--flip,
+body.light-mode .fc-rate-btn--flip,
+[data-theme="light"] .fc-rate-btn--flip {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #475569 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
 }
 
 .light-mode .fc-rate-btn--flip:hover,
-html[data-theme="light"] .fc-rate-btn--flip:hover {
-  background: #f8fafc;
-  border-color: #2563eb;
-  color: #2563eb;
+html[data-theme="light"] .fc-rate-btn--flip:hover,
+body.light-mode .fc-rate-btn--flip:hover,
+[data-theme="light"] .fc-rate-btn--flip:hover {
+  background: #f8fafc !important;
+  border-color: #2563eb !important;
+  color: #2563eb !important;
 }
 
 .light-mode .fc-rate-btn--correct,
-html[data-theme="light"] .fc-rate-btn--correct {
-  background: #ecfdf5;
-  border-color: #10b981;
-  color: #059669;
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
+html[data-theme="light"] .fc-rate-btn--correct,
+body.light-mode .fc-rate-btn--correct,
+[data-theme="light"] .fc-rate-btn--correct {
+  background: #ecfdf5 !important;
+  border-color: #10b981 !important;
+  color: #059669 !important;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1) !important;
 }
 
 .light-mode .fc-rate-btn--correct:hover,
-html[data-theme="light"] .fc-rate-btn--correct:hover {
-  background: #d1fae5;
+html[data-theme="light"] .fc-rate-btn--correct:hover,
+body.light-mode .fc-rate-btn--correct:hover,
+[data-theme="light"] .fc-rate-btn--correct:hover {
+  background: #d1fae5 !important;
 }
 
 .light-mode .fc-study-learning-btn,
-html[data-theme="light"] .fc-study-learning-btn {
-  background: #eff6ff;
-  color: #2563eb;
-  border-color: #bfdbfe;
+html[data-theme="light"] .fc-study-learning-btn,
+body.light-mode .fc-study-learning-btn,
+[data-theme="light"] .fc-study-learning-btn {
+  background: #eff6ff !important;
+  color: #2563eb !important;
+  border-color: #bfdbfe !important;
 }
 
-.light-mode .fc-study-learning-btn:hover:not(:disabled) {
-  background: #dbeafe;
+.light-mode .fc-study-learning-btn:hover:not(:disabled),
+html[data-theme="light"] .fc-study-learning-btn:hover:not(:disabled),
+body.light-mode .fc-study-learning-btn:hover:not(:disabled),
+[data-theme="light"] .fc-study-learning-btn:hover:not(:disabled) {
+  background: #dbeafe !important;
 }
 
 .light-mode .fc-study-learning-btn:disabled,
-html[data-theme="light"] .fc-study-learning-btn:disabled {
-  background: #f8fafc;
-  color: #94a3b8;
-  border-color: #e2e8f0;
+html[data-theme="light"] .fc-study-learning-btn:disabled,
+body.light-mode .fc-study-learning-btn:disabled,
+[data-theme="light"] .fc-study-learning-btn:disabled {
+  background: #f8fafc !important;
+  color: #94a3b8 !important;
+  border-color: #e2e8f0 !important;
 }
 
 .light-mode .fc-filter-pill,
-html[data-theme="light"] .fc-filter-pill {
-  background: #f1f5f9;
-  border-color: #e2e8f0;
-  color: #475569;
+html[data-theme="light"] .fc-filter-pill,
+body.light-mode .fc-filter-pill,
+[data-theme="light"] .fc-filter-pill {
+  background: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+  color: #475569 !important;
 }
 
 .light-mode .fc-filter-pill:hover,
-html[data-theme="light"] .fc-filter-pill:hover {
-  background: #e2e8f0;
-  color: #0f172a;
+html[data-theme="light"] .fc-filter-pill:hover,
+body.light-mode .fc-filter-pill:hover,
+[data-theme="light"] .fc-filter-pill:hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
 }
 
 .light-mode .fc-filter-pill.is-active,
-html[data-theme="light"] .fc-filter-pill.is-active {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #ffffff;
+html[data-theme="light"] .fc-filter-pill.is-active,
+body.light-mode .fc-filter-pill.is-active,
+[data-theme="light"] .fc-filter-pill.is-active {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #ffffff !important;
 }
 @media (max-width: 768px) {
   .fc-list-item {
@@ -11500,9 +11820,8 @@ html[data-theme="light"] .fc-modal-cancel-btn:hover {
 .cfc-page-heading {
   font-family: inherit;
   font-size: 28px;
-  font-weight: 800;
-  color: var(--text-primary, #f1f5f9);
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  color: #e6e9f2;
   line-height: 1.25;
   margin: 0;
 }
@@ -11905,7 +12224,6 @@ html[data-theme="light"] .cfc-btn-secondary {
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
   margin-bottom: 36px;
   transition: all 0.2s ease;
-  font-family: Arial, 'Times New Roman', sans-serif;
 }
 
 .light-mode .fc-completion-card,
@@ -11916,10 +12234,9 @@ html[data-theme="light"] .fc-completion-card {
 }
 
 .fc-completion-title {
-  font-family: Arial, 'Times New Roman', sans-serif;
   font-size: 26px;
-  font-weight: 800;
-  color: #f8fafc;
+  font-weight: 700;
+  color: #e6e9f2;
   margin: 0 0 6px 0;
   line-height: 1.25;
 }
@@ -11930,7 +12247,6 @@ html[data-theme="light"] .fc-completion-title {
 }
 
 .fc-completion-sub {
-  font-family: Arial, 'Times New Roman', sans-serif;
   margin: 4px 0 0 0;
   font-size: 14px;
   color: #94a3b8;
@@ -12294,6 +12610,58 @@ html[data-theme="light"] .toggle-switch-label:not(.is-public) {
   color: #64748b !important;
 }
 
+/* Flashcard Admin Role Badges */
+.fc-admin-role-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.fc-admin-role-badge.role-admin {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.28);
+}
+
+.fc-admin-role-badge.role-teacher {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+}
+
+.fc-admin-role-badge.role-student {
+  background: rgba(168, 85, 247, 0.12);
+  color: #a855f7;
+  border: 1px solid rgba(168, 85, 247, 0.28);
+}
+
+.light-mode .fc-admin-role-badge.role-admin,
+html[data-theme="light"] .fc-admin-role-badge.role-admin {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.light-mode .fc-admin-role-badge.role-teacher,
+html[data-theme="light"] .fc-admin-role-badge.role-teacher {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.light-mode .fc-admin-role-badge.role-student,
+html[data-theme="light"] .fc-admin-role-badge.role-student {
+  background: #faf5ff;
+  color: #7e22ce;
+  border-color: #e9d5ff;
+}
+
 /* ==========================================================================
    FLASHCARD MATCH GAME (GHÉP THẺ GHI NHỚ) STYLES
    - Desktop: 4 columns x 3 rows (12 thẻ)
@@ -12324,12 +12692,13 @@ html[data-theme="light"] .toggle-switch-label:not(.is-public) {
 
 .fc-match-page-title {
   font-size: 24px;
-  font-weight: 800;
-  color: #f8fafc;
+  font-weight: 700;
+  color: #e6e9f2;
   margin: 0;
   display: flex;
   align-items: center;
   gap: 10px;
+  line-height: 1.25;
 }
 
 .light-mode .fc-match-page-title,
@@ -12660,4 +13029,1560 @@ html[data-theme="light"] .fc-match-victory-box {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   LEAGUE / ĐẤU HẠNG STYLES & ANIMATIONS (From Bolt source)
+   ══════════════════════════════════════════════════════════════════ */
+.scrollbar-thin::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgb(196 181 253 / 0.5);
+  border-radius: 9999px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgb(167 139 250 / 0.7);
+}
 
+.text-balance {
+  text-wrap: balance;
+}
+
+@keyframes bolt-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bolt-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes bolt-count-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@keyframes bolt-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes bolt-float-slow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-fade-in-up {
+  animation: bolt-fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-fade-in {
+  animation: bolt-fade-in 0.4s ease-out both;
+}
+
+.animate-count-pulse {
+  animation: bolt-count-pulse 1s ease-in-out infinite;
+}
+
+.animate-float-slow {
+  animation: bolt-float-slow 6s ease-in-out infinite;
+}
+
+.shimmer-text {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.7) 0%,
+    #ffffff 50%,
+    rgba(255, 255, 255, 0.7) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: bolt-shimmer 3s linear infinite;
+}
+
+.stagger > * {
+  opacity: 0;
+  animation: bolt-fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.04s; }
+.stagger > *:nth-child(2) { animation-delay: 0.08s; }
+.stagger > *:nth-child(3) { animation-delay: 0.12s; }
+.stagger > *:nth-child(4) { animation-delay: 0.16s; }
+.stagger > *:nth-child(5) { animation-delay: 0.2s; }
+.stagger > *:nth-child(6) { animation-delay: 0.24s; }
+.stagger > *:nth-child(7) { animation-delay: 0.28s; }
+.stagger > *:nth-child(8) { animation-delay: 0.32s; }
+
+/* ===================================================
+   LEAGUE / ĐẤU HẠNG THEME SYSTEM & COLOR HARMONIZATION
+   =================================================== */
+
+/* ── Dark Mode (Default Theme of WebsiteLearnCode_AI) ── */
+.league-page {
+  background-color: #090b10 !important;
+  color: #f8f9fc !important;
+}
+
+/* Season switcher */
+.league-page .league-switcher-container {
+  background-color: #111520 !important;
+  border-color: #1e2638 !important;
+}
+.league-page .league-switcher-btn {
+  color: #94a3b8 !important;
+}
+.league-page .league-switcher-btn:hover {
+  background-color: #1a2234 !important;
+  color: #f8f9fc !important;
+}
+.league-page .league-switcher-btn.is-active {
+  background-color: #7c3aed !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+}
+.league-page .league-status-btn {
+  background-color: #111520 !important;
+  border-color: #1e2638 !important;
+  color: #94a3b8 !important;
+}
+.league-page .league-status-btn:hover {
+  background-color: #1a2234 !important;
+  color: #f8f9fc !important;
+}
+
+/* Section Headings */
+.league-page .league-section-icon {
+  background-color: rgba(124, 58, 237, 0.15) !important;
+  color: #a78bfa !important;
+  box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.3) !important;
+}
+.league-page .league-section-eyebrow {
+  color: #a78bfa !important;
+}
+.league-page .league-section-title {
+  color: #f8f9fc !important;
+}
+.league-page .league-section-desc {
+  color: #94a3b8 !important;
+}
+.league-page .league-section-action button {
+  color: #a78bfa !important;
+}
+.league-page .league-section-action button:hover {
+  color: #c4b5fd !important;
+}
+
+/* Standard Cards */
+.league-page .league-card {
+  background-color: #111520 !important;
+  border-color: #1e2638 !important;
+  color: #f8f9fc !important;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35) !important;
+}
+.league-page .league-card-header {
+  border-bottom-color: #1e2638 !important;
+}
+.league-page .league-card-title {
+  color: #f8f9fc !important;
+}
+.league-page .league-card-subtitle {
+  color: #94a3b8 !important;
+}
+
+/* Stat Cards (MyStats) */
+.league-page .stat-card {
+  background-color: #111520 !important;
+  border-color: #1e2638 !important;
+}
+.league-page .stat-card-label {
+  color: #94a3b8 !important;
+}
+.league-page .stat-card-value {
+  color: #f8f9fc !important;
+}
+.league-page .stat-card-sub {
+  color: #64748b !important;
+}
+.league-page .stat-card .bg-violet-100 {
+  background-color: rgba(124, 58, 237, 0.18) !important;
+  color: #a78bfa !important;
+}
+.league-page .stat-card .bg-amber-100 {
+  background-color: rgba(245, 158, 11, 0.18) !important;
+  color: #fbbf24 !important;
+}
+.league-page .stat-card .bg-emerald-100 {
+  background-color: rgba(16, 185, 129, 0.18) !important;
+  color: #34d399 !important;
+}
+.league-page .stat-card .bg-blue-100 {
+  background-color: rgba(59, 130, 246, 0.18) !important;
+  color: #60a5fa !important;
+}
+.league-page .not-participated-card {
+  background-color: #111520 !important;
+  border-color: #1e2638 !important;
+}
+.league-page .not-participated-icon {
+  background-color: #1a2234 !important;
+  color: #64748b !important;
+  border: 1px solid #2a3449 !important;
+}
+.league-page .not-participated-title {
+  color: #f8f9fc !important;
+}
+.league-page .not-participated-desc {
+  color: #94a3b8 !important;
+}
+
+/* Top 3 Podium */
+.league-page .podium-banner {
+  background: linear-gradient(to bottom, rgba(124, 58, 237, 0.08), #111520) !important;
+}
+.league-page .podium-player-name {
+  color: #f8f9fc !important;
+}
+.league-page .podium-player-points {
+  color: #c4b5fd !important;
+}
+.league-page .podium-rank-badge {
+  box-shadow: 0 0 0 2px #111520 !important;
+}
+.league-page .podium-pillar-1 {
+  background: linear-gradient(to bottom, rgba(245, 158, 11, 0.22), rgba(245, 158, 11, 0.05)) !important;
+  border-color: rgba(245, 158, 11, 0.35) !important;
+}
+.league-page .podium-pillar-2 {
+  background: linear-gradient(to bottom, rgba(148, 163, 184, 0.22), rgba(148, 163, 184, 0.05)) !important;
+  border-color: rgba(148, 163, 184, 0.35) !important;
+}
+.league-page .podium-pillar-3 {
+  background: linear-gradient(to bottom, rgba(249, 115, 22, 0.22), rgba(249, 115, 22, 0.05)) !important;
+  border-color: rgba(249, 115, 22, 0.35) !important;
+}
+.league-page .podium-rank-label {
+  color: #94a3b8 !important;
+}
+
+/* Leaderboard Table & Controls */
+.league-page .leaderboard-search-input {
+  background-color: #0c0f17 !important;
+  border-color: #1e2638 !important;
+  color: #f1f5f9 !important;
+}
+.league-page .leaderboard-search-input::placeholder {
+  color: #64748b !important;
+}
+.league-page .leaderboard-search-input:focus {
+  background-color: #111520 !important;
+  border-color: #7c3aed !important;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.25) !important;
+}
+.league-page .leaderboard-sort-wrap {
+  background-color: #0c0f17 !important;
+  border-color: #1e2638 !important;
+}
+.league-page .leaderboard-sort-btn {
+  color: #94a3b8 !important;
+}
+.league-page .leaderboard-sort-btn:hover {
+  color: #f1f5f9 !important;
+}
+.league-page .leaderboard-sort-btn.is-active {
+  background-color: #1e2638 !important;
+  color: #c4b5fd !important;
+}
+.league-page .leaderboard-count-badge {
+  background-color: rgba(124, 58, 237, 0.2) !important;
+  color: #c4b5fd !important;
+}
+.league-page .leaderboard-table th {
+  background-color: #0c0f17 !important;
+  border-bottom-color: #1e2638 !important;
+  color: #94a3b8 !important;
+}
+.league-page .leaderboard-table td {
+  border-bottom-color: #1e2638 !important;
+  color: #cbd5e1 !important;
+}
+.league-page .leaderboard-table tr:hover td {
+  background-color: #161c2b !important;
+}
+.league-page .leaderboard-table tr.is-current-user td {
+  background-color: rgba(124, 58, 237, 0.14) !important;
+}
+.league-page .leaderboard-table tr.is-current-user:hover td {
+  background-color: rgba(124, 58, 237, 0.22) !important;
+}
+.league-page .player-name {
+  color: #f8f9fc !important;
+}
+.league-page .player-points {
+  color: #f8f9fc !important;
+}
+.league-page .player-completed {
+  color: #cbd5e1 !important;
+}
+.league-page .player-total {
+  color: #64748b !important;
+}
+.league-page .player-submissions {
+  color: #94a3b8 !important;
+}
+.league-page .player-handle {
+  color: #64748b !important;
+}
+.league-page .rank-badge-default {
+  background-color: #1a2234 !important;
+  color: #94a3b8 !important;
+}
+.league-page .pagination-info {
+  color: #94a3b8 !important;
+}
+.league-page .pagination-btn {
+  border-color: #1e2638 !important;
+  color: #cbd5e1 !important;
+  background-color: transparent !important;
+}
+.league-page .pagination-btn:hover:not(:disabled) {
+  background-color: #1a2234 !important;
+  color: #ffffff !important;
+}
+.league-page .pagination-btn.is-active {
+  background-color: #7c3aed !important;
+  border-color: #7c3aed !important;
+  color: #ffffff !important;
+}
+
+/* Rank Movement Badges */
+.league-page .rank-move-up {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: #34d399 !important;
+}
+.league-page .rank-move-down {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+  color: #f87171 !important;
+}
+.league-page .rank-move-neutral {
+  background-color: #1a2234 !important;
+  color: #64748b !important;
+}
+
+/* Challenges */
+.league-page .challenge-filter-icon {
+  color: #64748b !important;
+}
+.league-page .challenge-filter-pill-wrap {
+  background-color: #0c0f17 !important;
+  border-color: #1e2638 !important;
+  color: #cbd5e1 !important;
+}
+.league-page .challenge-filter-pill {
+  color: #94a3b8 !important;
+}
+.league-page .challenge-filter-pill:hover {
+  color: #f1f5f9 !important;
+}
+.league-page .challenge-filter-pill.is-active {
+  background-color: #1e2638 !important;
+  color: #c4b5fd !important;
+}
+.league-page .challenge-row {
+  background-color: #111520 !important;
+  border-color: #1e2638 !important;
+}
+.league-page .challenge-row:hover {
+  background-color: #161c2b !important;
+  border-color: rgba(124, 58, 237, 0.4) !important;
+}
+.league-page .challenge-title {
+  color: #f8f9fc !important;
+}
+.league-page .challenge-desc {
+  color: #94a3b8 !important;
+}
+.league-page .challenge-meta-time {
+  color: #64748b !important;
+}
+.league-page .challenge-status-chip.challenge-status-not-started {
+  background-color: #1a2234 !important;
+  color: #94a3b8 !important;
+  border: 1px solid #2a3449 !important;
+}
+.league-page .challenge-status-chip.challenge-status-in-progress {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(245, 158, 11, 0.3) !important;
+}
+.league-page .challenge-status-chip.challenge-status-completed {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: #34d399 !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+.league-page .challenge-card-footer {
+  border-top-color: #1e2638 !important;
+}
+.league-page .challenge-points {
+  color: #fbbf24 !important;
+}
+.league-page .challenge-points-label {
+  color: #64748b !important;
+}
+.league-page .challenge-btn-completed {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: #34d399 !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+.league-page select.challenge-filter-pill-wrap option {
+  background-color: #111520 !important;
+  color: #cbd5e1 !important;
+}
+
+/* Rewards & Achievements Section */
+.league-page .reward-header-icon {
+  color: #a78bfa !important;
+}
+.league-page .achievement-header-icon {
+  color: #fbbf24 !important;
+}
+
+/* Reward Cards - Tier Specific Gradients */
+.league-page .reward-card {
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35) !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+.league-page .reward-card:hover {
+  transform: translateY(-2px) !important;
+}
+.league-page .reward-card-1 {
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.18) 0%, rgba(17, 21, 32, 0.98) 100%) !important;
+  border-color: rgba(245, 158, 11, 0.4) !important;
+  box-shadow: 0 8px 30px -4px rgba(245, 158, 11, 0.2) !important;
+  --tw-ring-color: rgba(245, 158, 11, 0.35) !important;
+}
+.league-page .reward-card-2 {
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.18) 0%, rgba(17, 21, 32, 0.98) 100%) !important;
+  border-color: rgba(148, 163, 184, 0.4) !important;
+  box-shadow: 0 8px 30px -4px rgba(148, 163, 184, 0.15) !important;
+  --tw-ring-color: rgba(148, 163, 184, 0.35) !important;
+}
+.league-page .reward-card-3 {
+  background: linear-gradient(180deg, rgba(249, 115, 22, 0.18) 0%, rgba(17, 21, 32, 0.98) 100%) !important;
+  border-color: rgba(249, 115, 22, 0.4) !important;
+  box-shadow: 0 8px 30px -4px rgba(249, 115, 22, 0.18) !important;
+  --tw-ring-color: rgba(249, 115, 22, 0.35) !important;
+}
+
+.league-page .reward-top-badge {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.5) !important;
+}
+
+.league-page .reward-card-1 .reward-card-rank {
+  color: #fbbf24 !important;
+}
+.league-page .reward-card-2 .reward-card-rank {
+  color: #cbd5e1 !important;
+}
+.league-page .reward-card-3 .reward-card-rank {
+  color: #fb923c !important;
+}
+
+.league-page .reward-card-title {
+  color: #f8f9fc !important;
+}
+.league-page .reward-card-desc {
+  color: #cbd5e1 !important;
+}
+
+/* Achievement Cards */
+.league-page .achievement-card {
+  background-color: #111520 !important;
+  border-color: #1e2638 !important;
+}
+.league-page .achievement-card.is-unearned {
+  opacity: 0.65 !important;
+}
+.league-page .achievement-card.is-earned:hover {
+  background-color: #151b29 !important;
+}
+.league-page .achievement-card.achievement-rarity-common {
+  border-color: #263043 !important;
+  --tw-ring-color: rgba(148, 163, 184, 0.18) !important;
+}
+.league-page .achievement-card.achievement-rarity-rare {
+  border-color: rgba(59, 130, 246, 0.35) !important;
+  --tw-ring-color: rgba(59, 130, 246, 0.25) !important;
+}
+.league-page .achievement-card.achievement-rarity-epic {
+  border-color: rgba(168, 85, 247, 0.4) !important;
+  --tw-ring-color: rgba(168, 85, 247, 0.25) !important;
+}
+.league-page .achievement-card.achievement-rarity-legendary {
+  border-color: rgba(245, 158, 11, 0.45) !important;
+  --tw-ring-color: rgba(245, 158, 11, 0.25) !important;
+}
+
+/* Achievement Icons */
+.league-page .achievement-icon-wrap {
+  border: 1px solid transparent !important;
+}
+.league-page .is-unearned .achievement-icon-wrap {
+  background-color: #1a2234 !important;
+  color: #64748b !important;
+  border-color: #2a3449 !important;
+}
+.league-page .is-earned.achievement-rarity-common .achievement-icon-wrap {
+  background-color: rgba(148, 163, 184, 0.14) !important;
+  color: #cbd5e1 !important;
+  border-color: rgba(148, 163, 184, 0.25) !important;
+}
+.league-page .is-earned.achievement-rarity-rare .achievement-icon-wrap {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  color: #60a5fa !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+.league-page .is-earned.achievement-rarity-epic .achievement-icon-wrap {
+  background-color: rgba(168, 85, 247, 0.15) !important;
+  color: #c084fc !important;
+  border-color: rgba(168, 85, 247, 0.3) !important;
+}
+.league-page .is-earned.achievement-rarity-legendary .achievement-icon-wrap {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+  color: #fbbf24 !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+.league-page .achievement-title {
+  color: #f8f9fc !important;
+}
+.league-page .is-unearned .achievement-title {
+  color: #cbd5e1 !important;
+}
+.league-page .achievement-desc {
+  color: #94a3b8 !important;
+}
+.league-page .is-unearned .achievement-desc {
+  color: #64748b !important;
+}
+
+/* Achievement Rarity Pills */
+.league-page .achievement-rarity-pill {
+  border: 1px solid transparent !important;
+}
+.league-page .achievement-rarity-common .achievement-rarity-pill {
+  background-color: rgba(148, 163, 184, 0.14) !important;
+  color: #cbd5e1 !important;
+  border-color: rgba(148, 163, 184, 0.25) !important;
+}
+.league-page .achievement-rarity-rare .achievement-rarity-pill {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  color: #93c5fd !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+.league-page .achievement-rarity-epic .achievement-rarity-pill {
+  background-color: rgba(168, 85, 247, 0.15) !important;
+  color: #d8b4fe !important;
+  border-color: rgba(168, 85, 247, 0.3) !important;
+}
+.league-page .achievement-rarity-legendary .achievement-rarity-pill {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+  color: #fde047 !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+.league-page .achievement-status-date {
+  color: #94a3b8 !important;
+}
+.league-page .is-unearned .achievement-status-date {
+  color: #64748b !important;
+}
+
+/* Season History - Tab Switcher & Icon */
+.league-page .season-history-icon {
+  background-color: rgba(124, 58, 237, 0.15) !important;
+  color: #a78bfa !important;
+  box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.3) !important;
+}
+.league-page .season-history-tab-wrap {
+  background-color: #0c0f17 !important;
+  border-color: #1e2638 !important;
+}
+.league-page .season-history-tab-btn {
+  color: #94a3b8 !important;
+}
+.league-page .season-history-tab-btn:hover {
+  color: #f1f5f9 !important;
+}
+.league-page .season-history-tab-btn.is-active {
+  background-color: #1e2638 !important;
+  color: #c4b5fd !important;
+}
+
+/* Light mode overrides */
+.light-mode .league-page .season-history-icon,
+html[data-theme="light"] .league-page .season-history-icon {
+  background-color: #ede9fe !important;
+  color: #7c3aed !important;
+  box-shadow: 0 0 0 1px #ddd6fe !important;
+}
+.light-mode .league-page .season-history-tab-wrap,
+html[data-theme="light"] .league-page .season-history-tab-wrap {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+.light-mode .league-page .season-history-tab-btn,
+html[data-theme="light"] .league-page .season-history-tab-btn {
+  color: #64748b !important;
+}
+.light-mode .league-page .season-history-tab-btn:hover,
+html[data-theme="light"] .league-page .season-history-tab-btn:hover {
+  color: #0f172a !important;
+}
+.light-mode .league-page .season-history-tab-btn.is-active,
+html[data-theme="light"] .league-page .season-history-tab-btn.is-active {
+  background-color: #ffffff !important;
+  color: #6d28d9 !important;
+}
+
+.league-page .season-card {
+  background-color: #111520 !important;
+  border-color: #1e2638 !important;
+}
+.league-page .season-card:hover {
+  border-color: #384560 !important;
+}
+.league-page .season-card-date {
+  color: #94a3b8 !important;
+}
+.league-page .season-card-statbox {
+  background-color: #0c0f17 !important;
+}
+.league-page .season-card-statlabel {
+  color: #64748b !important;
+}
+.league-page .season-card-statval {
+  color: #f8f9fc !important;
+}
+.league-page .season-card-achievement {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+  border: 1px solid rgba(245, 158, 11, 0.25) !important;
+  color: #fbbf24 !important;
+}
+.league-page .season-card-achievement svg {
+  color: #fbbf24 !important;
+}
+.league-page .season-card-points {
+  color: #c4b5fd !important;
+}
+.league-page .season-card-footer {
+  border-top-color: #1e2638 !important;
+}
+.league-page .season-card-link,
+.league-page .more-link {
+  color: #a78bfa !important;
+}
+.league-page .season-card-link:hover,
+.league-page .more-link:hover {
+  color: #c4b5fd !important;
+}
+
+/* ── Light Mode (Restores Original Bolt Palette 100%) ── */
+.light-mode .league-page,
+html[data-theme="light"] .league-page {
+  background-color: #f8fafc !important;
+  color: #1e293b !important;
+}
+
+.light-mode .league-page .league-card,
+html[data-theme="light"] .league-page .league-card {
+  background-color: #ffffff !important;
+  border-color: rgba(226, 232, 240, 0.8) !important;
+  color: #1e293b !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08) !important;
+}
+
+.light-mode .league-page .league-switcher-container,
+html[data-theme="light"] .league-page .league-switcher-container {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+.light-mode .league-page .league-switcher-btn,
+html[data-theme="light"] .league-page .league-switcher-btn {
+  color: #475569 !important;
+}
+.light-mode .league-page .league-switcher-btn:hover,
+html[data-theme="light"] .league-page .league-switcher-btn:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+.light-mode .league-page .league-switcher-btn.is-active,
+html[data-theme="light"] .league-page .league-switcher-btn.is-active {
+  background-color: #7c3aed !important;
+  color: #ffffff !important;
+}
+.light-mode .league-page .league-status-btn,
+html[data-theme="light"] .league-page .league-status-btn {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #64748b !important;
+}
+.light-mode .league-page .league-status-btn:hover,
+html[data-theme="light"] .league-page .league-status-btn:hover {
+  background-color: #f8fafc !important;
+}
+
+.light-mode .league-page .league-section-icon,
+html[data-theme="light"] .league-page .league-section-icon {
+  background-color: #ede9fe !important;
+  color: #7c3aed !important;
+  box-shadow: 0 0 0 1px #ddd6fe !important;
+}
+.light-mode .league-page .league-section-eyebrow,
+html[data-theme="light"] .league-page .league-section-eyebrow {
+  color: #8b5cf6 !important;
+}
+.light-mode .league-page .league-section-title,
+html[data-theme="light"] .league-page .league-section-title {
+  color: #0f172a !important;
+}
+.light-mode .league-page .league-section-desc,
+html[data-theme="light"] .league-page .league-section-desc {
+  color: #64748b !important;
+}
+
+.light-mode .league-page .podium-banner,
+html[data-theme="light"] .league-page .podium-banner {
+  background: linear-gradient(to bottom, rgba(245, 243, 255, 0.5), #ffffff) !important;
+}
+.light-mode .league-page .podium-player-name,
+html[data-theme="light"] .league-page .podium-player-name {
+  color: #1e293b !important;
+}
+.light-mode .league-page .podium-player-points,
+html[data-theme="light"] .league-page .podium-player-points {
+  color: #7c3aed !important;
+}
+.light-mode .league-page .podium-pillar-1,
+html[data-theme="light"] .league-page .podium-pillar-1 {
+  background: linear-gradient(to bottom, #fef3c7, #fffbeb) !important;
+  border-color: #e2e8f0 !important;
+}
+.light-mode .league-page .podium-pillar-2,
+html[data-theme="light"] .league-page .podium-pillar-2 {
+  background: linear-gradient(to bottom, #f1f5f9, #f8fafc) !important;
+  border-color: #e2e8f0 !important;
+}
+.light-mode .league-page .podium-pillar-3,
+html[data-theme="light"] .league-page .podium-pillar-3 {
+  background: linear-gradient(to bottom, #ffedd5, #fff7ed) !important;
+  border-color: #e2e8f0 !important;
+}
+.light-mode .league-page .podium-rank-label,
+html[data-theme="light"] .league-page .podium-rank-label {
+  color: #64748b !important;
+}
+
+.light-mode .league-page .stat-card,
+html[data-theme="light"] .league-page .stat-card {
+  background-color: #ffffff !important;
+  border-color: rgba(226, 232, 240, 0.8) !important;
+}
+.light-mode .league-page .stat-card-label,
+html[data-theme="light"] .league-page .stat-card-label {
+  color: #475569 !important;
+}
+.light-mode .league-page .stat-card-value,
+html[data-theme="light"] .league-page .stat-card-value {
+  color: #0f172a !important;
+}
+.light-mode .league-page .stat-card-sub,
+html[data-theme="light"] .league-page .stat-card-sub {
+  color: #64748b !important;
+}
+.light-mode .league-page .not-participated-card,
+html[data-theme="light"] .league-page .not-participated-card {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+.light-mode .league-page .not-participated-icon,
+html[data-theme="light"] .league-page .not-participated-icon {
+  background-color: #f1f5f9 !important;
+  color: #94a3b8 !important;
+  border: none !important;
+}
+.light-mode .league-page .not-participated-title,
+html[data-theme="light"] .league-page .not-participated-title {
+  color: #0f172a !important;
+}
+.light-mode .league-page .not-participated-desc,
+html[data-theme="light"] .league-page .not-participated-desc {
+  color: #64748b !important;
+}
+
+.light-mode .league-page .leaderboard-search-input,
+html[data-theme="light"] .league-page .leaderboard-search-input {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #334155 !important;
+}
+.light-mode .league-page .leaderboard-sort-wrap,
+html[data-theme="light"] .league-page .leaderboard-sort-wrap {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+.light-mode .league-page .leaderboard-sort-btn,
+html[data-theme="light"] .league-page .leaderboard-sort-btn {
+  color: #64748b !important;
+}
+.light-mode .league-page .leaderboard-sort-btn.is-active,
+html[data-theme="light"] .league-page .leaderboard-sort-btn.is-active {
+  background-color: #ffffff !important;
+  color: #6d28d9 !important;
+}
+.light-mode .league-page .leaderboard-table th,
+html[data-theme="light"] .league-page .leaderboard-table th {
+  background-color: rgba(248, 250, 252, 0.6) !important;
+  border-bottom-color: #f1f5f9 !important;
+  color: #64748b !important;
+}
+.light-mode .league-page .leaderboard-table td,
+html[data-theme="light"] .league-page .leaderboard-table td {
+  border-bottom-color: #f8fafc !important;
+  color: #334155 !important;
+}
+.light-mode .league-page .leaderboard-table tr:hover td,
+html[data-theme="light"] .league-page .leaderboard-table tr:hover td {
+  background-color: rgba(248, 250, 252, 0.7) !important;
+}
+.light-mode .league-page .leaderboard-table tr.is-current-user td,
+html[data-theme="light"] .league-page .leaderboard-table tr.is-current-user td {
+  background-color: rgba(237, 233, 254, 0.7) !important;
+}
+.light-mode .league-page .player-name,
+html[data-theme="light"] .league-page .player-name {
+  color: #1e293b !important;
+}
+.light-mode .league-page .player-points,
+html[data-theme="light"] .league-page .player-points {
+  color: #0f172a !important;
+}
+.light-mode .league-page .player-completed,
+html[data-theme="light"] .league-page .player-completed {
+  color: #334155 !important;
+}
+.light-mode .league-page .player-total,
+html[data-theme="light"] .league-page .player-total {
+  color: #94a3b8 !important;
+}
+.light-mode .league-page .player-submissions,
+html[data-theme="light"] .league-page .player-submissions {
+  color: #475569 !important;
+}
+.light-mode .league-page .player-handle,
+html[data-theme="light"] .league-page .player-handle {
+  color: #94a3b8 !important;
+}
+.light-mode .league-page .rank-badge-default,
+html[data-theme="light"] .league-page .rank-badge-default {
+  background-color: #f1f5f9 !important;
+  color: #64748b !important;
+}
+.light-mode .league-page .pagination-info,
+html[data-theme="light"] .league-page .pagination-info {
+  color: #64748b !important;
+}
+.light-mode .league-page .pagination-btn,
+html[data-theme="light"] .league-page .pagination-btn {
+  border-color: #e2e8f0 !important;
+  color: #475569 !important;
+  background-color: transparent !important;
+}
+.light-mode .league-page .pagination-btn:hover:not(:disabled),
+html[data-theme="light"] .league-page .pagination-btn:hover:not(:disabled) {
+  background-color: #f8fafc !important;
+}
+.light-mode .league-page .pagination-btn.is-active,
+html[data-theme="light"] .league-page .pagination-btn.is-active {
+  background-color: #7c3aed !important;
+  border-color: #7c3aed !important;
+  color: #ffffff !important;
+}
+
+.light-mode .league-page .challenge-filter-icon,
+html[data-theme="light"] .league-page .challenge-filter-icon {
+  color: #94a3b8 !important;
+}
+.light-mode .league-page .challenge-filter-pill-wrap,
+html[data-theme="light"] .league-page .challenge-filter-pill-wrap {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #334155 !important;
+}
+.light-mode .league-page .challenge-filter-pill,
+html[data-theme="light"] .league-page .challenge-filter-pill {
+  color: #64748b !important;
+}
+.light-mode .league-page .challenge-filter-pill.is-active,
+html[data-theme="light"] .league-page .challenge-filter-pill.is-active {
+  background-color: #ffffff !important;
+  color: #6d28d9 !important;
+}
+.light-mode .league-page .challenge-row,
+html[data-theme="light"] .league-page .challenge-row {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+.light-mode .league-page .challenge-row:hover,
+html[data-theme="light"] .league-page .challenge-row:hover {
+  background-color: rgba(248, 250, 252, 0.7) !important;
+  border-color: #ddd6fe !important;
+}
+.light-mode .league-page .challenge-title,
+html[data-theme="light"] .league-page .challenge-title {
+  color: #0f172a !important;
+}
+.light-mode .league-page .challenge-desc,
+html[data-theme="light"] .league-page .challenge-desc {
+  color: #64748b !important;
+}
+.light-mode .league-page .challenge-card-footer,
+html[data-theme="light"] .league-page .challenge-card-footer {
+  border-top-color: #f1f5f9 !important;
+}
+.light-mode .league-page .challenge-points,
+html[data-theme="light"] .league-page .challenge-points {
+  color: #d97706 !important;
+}
+.light-mode .league-page .challenge-btn-completed,
+html[data-theme="light"] .league-page .challenge-btn-completed {
+  background-color: #ecfdf5 !important;
+  color: #059669 !important;
+  border: none !important;
+}
+
+.light-mode .league-page .reward-card-1,
+html[data-theme="light"] .league-page .reward-card-1 {
+  background: linear-gradient(to bottom, #fffbeb, rgba(254, 243, 199, 0.45)) !important;
+  border-color: #fcd34d !important;
+  --tw-ring-color: #fde68a !important;
+}
+.light-mode .league-page .reward-card-2,
+html[data-theme="light"] .league-page .reward-card-2 {
+  background: linear-gradient(to bottom, #f8fafc, rgba(241, 245, 249, 0.45)) !important;
+  border-color: #cbd5e1 !important;
+  --tw-ring-color: #e2e8f0 !important;
+}
+.light-mode .league-page .reward-card-3,
+html[data-theme="light"] .league-page .reward-card-3 {
+  background: linear-gradient(to bottom, #fff7ed, rgba(254, 243, 199, 0.45)) !important;
+  border-color: #fdba74 !important;
+  --tw-ring-color: #fed7aa !important;
+}
+.light-mode .league-page .reward-card-title,
+html[data-theme="light"] .league-page .reward-card-title {
+  color: #0f172a !important;
+}
+.light-mode .league-page .reward-card-desc,
+html[data-theme="light"] .league-page .reward-card-desc {
+  color: #475569 !important;
+}
+.light-mode .league-page .reward-card-rank,
+html[data-theme="light"] .league-page .reward-card-rank {
+  color: #64748b !important;
+}
+
+.light-mode .league-page .achievement-card,
+html[data-theme="light"] .league-page .achievement-card {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+.light-mode .league-page .achievement-card:hover,
+html[data-theme="light"] .league-page .achievement-card:hover {
+  background-color: rgba(248, 250, 252, 0.6) !important;
+}
+.light-mode .league-page .is-unearned .achievement-icon-wrap,
+html[data-theme="light"] .league-page .is-unearned .achievement-icon-wrap {
+  background-color: #f1f5f9 !important;
+  color: #94a3b8 !important;
+  border-color: #e2e8f0 !important;
+}
+.light-mode .league-page .achievement-title,
+html[data-theme="light"] .league-page .achievement-title {
+  color: #0f172a !important;
+}
+.light-mode .league-page .achievement-desc,
+html[data-theme="light"] .league-page .achievement-desc {
+  color: #64748b !important;
+}
+.light-mode .league-page .achievement-status-date,
+html[data-theme="light"] .league-page .achievement-status-date {
+  color: #94a3b8 !important;
+}
+
+.light-mode .league-page .season-card,
+html[data-theme="light"] .league-page .season-card {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+.light-mode .league-page .season-card:hover,
+html[data-theme="light"] .league-page .season-card:hover {
+  border-color: #ddd6fe !important;
+}
+.light-mode .league-page .season-card-date,
+html[data-theme="light"] .league-page .season-card-date {
+  color: #64748b !important;
+}
+.light-mode .league-page .season-card-statbox,
+html[data-theme="light"] .league-page .season-card-statbox {
+  background-color: #f8fafc !important;
+}
+.light-mode .league-page .season-card-statlabel,
+html[data-theme="light"] .league-page .season-card-statlabel {
+  color: #94a3b8 !important;
+}
+.light-mode .league-page .season-card-statval,
+html[data-theme="light"] .league-page .season-card-statval {
+  color: #0f172a !important;
+}
+.light-mode .league-page .season-card-achievement,
+html[data-theme="light"] .league-page .season-card-achievement {
+  background-color: #fef3c7 !important;
+  border-color: #fde68a !important;
+  color: #b45309 !important;
+}
+.light-mode .league-page .season-card-points,
+html[data-theme="light"] .league-page .season-card-points {
+  color: #7c3aed !important;
+}
+.light-mode .league-page .season-card-footer,
+html[data-theme="light"] .league-page .season-card-footer {
+  border-top-color: #f1f5f9 !important;
+}
+.light-mode .league-page .season-card-link,
+.light-mode .league-page .more-link,
+html[data-theme="light"] .league-page .season-card-link,
+html[data-theme="light"] .league-page .more-link {
+  color: #7c3aed !important;
+}
+.light-mode .league-page .season-card-link:hover,
+.light-mode .league-page .more-link:hover,
+html[data-theme="light"] .league-page .season-card-link:hover,
+html[data-theme="light"] .league-page .more-link:hover {
+  color: #6d28d9 !important;
+}
+
+
+
+
+
+/* ===================================================
+   ADMIN LEAGUE TAB – LIGHT MODE OVERRIDES
+   Fixes hardcoded dark colors when switching to Light Mode
+   =================================================== */
+
+/* Admin League - Cards, tables, containers */
+.light-mode .admin-league-tab,
+html[data-theme="light"] .admin-league-tab {
+  color: #1e293b !important;
+}
+
+/* Stat Cards */
+.light-mode .admin-league-tab [class*="bg-[#121622]"],
+html[data-theme="light"] .admin-league-tab [class*="bg-[#121622]"] {
+  background-color: #ffffff !important;
+}
+
+/* General card/container overrides using background-color */
+.light-mode .admin-league-tab .rounded-2xl,
+html[data-theme="light"] .admin-league-tab .rounded-2xl {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Table containers */
+.light-mode .admin-league-tab table,
+html[data-theme="light"] .admin-league-tab table {
+  background: transparent !important;
+}
+
+.light-mode .admin-league-tab thead tr,
+html[data-theme="light"] .admin-league-tab thead tr {
+  background-color: #f8fafc !important;
+}
+
+.light-mode .admin-league-tab thead th,
+html[data-theme="light"] .admin-league-tab thead th {
+  color: #64748b !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+
+.light-mode .admin-league-tab tbody tr,
+html[data-theme="light"] .admin-league-tab tbody tr {
+  border-bottom-color: #f1f5f9 !important;
+}
+
+.light-mode .admin-league-tab tbody tr:hover,
+html[data-theme="light"] .admin-league-tab tbody tr:hover {
+  background-color: #f8fafc !important;
+}
+
+.light-mode .admin-league-tab tbody td,
+html[data-theme="light"] .admin-league-tab tbody td {
+  color: #334155 !important;
+}
+
+/* Text color overrides: white text -> dark text */
+.light-mode .admin-league-tab .text-white,
+html[data-theme="light"] .admin-league-tab .text-white {
+  color: #0f172a !important;
+}
+
+.light-mode .admin-league-tab .text-slate-100,
+html[data-theme="light"] .admin-league-tab .text-slate-100 {
+  color: #1e293b !important;
+}
+
+.light-mode .admin-league-tab .text-slate-200,
+html[data-theme="light"] .admin-league-tab .text-slate-200 {
+  color: #334155 !important;
+}
+
+.light-mode .admin-league-tab .text-slate-300,
+html[data-theme="light"] .admin-league-tab .text-slate-300 {
+  color: #475569 !important;
+}
+
+.light-mode .admin-league-tab .text-slate-400,
+html[data-theme="light"] .admin-league-tab .text-slate-400 {
+  color: #64748b !important;
+}
+
+/* Border color overrides */
+.light-mode .admin-league-tab [class*="border-[#232b3e]"],
+.light-mode .admin-league-tab [class*="border-[#1f283b]"],
+.light-mode .admin-league-tab [class*="border-[#29354d]"],
+.light-mode .admin-league-tab [class*="border-[#2a344a]"],
+html[data-theme="light"] .admin-league-tab [class*="border-[#232b3e]"],
+html[data-theme="light"] .admin-league-tab [class*="border-[#1f283b]"],
+html[data-theme="light"] .admin-league-tab [class*="border-[#29354d]"],
+html[data-theme="light"] .admin-league-tab [class*="border-[#2a344a]"] {
+  border-color: #e2e8f0 !important;
+}
+
+/* Inner stat card rows/backgrounds */
+.light-mode .admin-league-tab [class*="bg-[#171d2c]"],
+.light-mode .admin-league-tab [class*="bg-[#181f2f]"],
+.light-mode .admin-league-tab [class*="bg-[#141a27]"],
+.light-mode .admin-league-tab [class*="bg-[#1a2030]"],
+html[data-theme="light"] .admin-league-tab [class*="bg-[#171d2c]"],
+html[data-theme="light"] .admin-league-tab [class*="bg-[#181f2f]"],
+html[data-theme="light"] .admin-league-tab [class*="bg-[#141a27]"],
+html[data-theme="light"] .admin-league-tab [class*="bg-[#1a2030]"] {
+  background-color: #f8fafc !important;
+}
+
+/* Select elements */
+.light-mode .admin-league-tab select,
+html[data-theme="light"] .admin-league-tab select {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #334155 !important;
+}
+
+.light-mode .admin-league-tab select option,
+html[data-theme="light"] .admin-league-tab select option {
+  background-color: #ffffff !important;
+  color: #334155 !important;
+}
+
+/* Input elements */
+.light-mode .admin-league-tab input,
+.light-mode .admin-league-tab textarea,
+html[data-theme="light"] .admin-league-tab input,
+html[data-theme="light"] .admin-league-tab textarea {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.light-mode .admin-league-tab input::placeholder,
+html[data-theme="light"] .admin-league-tab input::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Modal / popup overlay */
+.light-mode .admin-league-tab + div[class*="fixed"],
+html[data-theme="light"] .admin-league-tab + div[class*="fixed"] {
+  background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Modal card */
+.light-mode .fixed .admin-league-modal-content,
+html[data-theme="light"] .fixed .admin-league-modal-content {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+/* Button overrides: dark backgrounds -> light */
+.light-mode .admin-league-tab [class*="bg-[#20283d]"],
+html[data-theme="light"] .admin-league-tab [class*="bg-[#20283d]"] {
+  background-color: #f1f5f9 !important;
+}
+
+/* Active Season Purple Card: handled via .admin-league-hero-card */
+
+/* Pagination buttons */
+.light-mode .admin-league-tab [class*="bg-violet-600"],
+html[data-theme="light"] .admin-league-tab [class*="bg-violet-600"] {
+  /* Keep violet as active state */
+}
+
+/* Green/status badges: preserve theme colors */
+.light-mode .admin-league-tab .text-emerald-300,
+html[data-theme="light"] .admin-league-tab .text-emerald-300 {
+  color: #059669 !important;
+}
+
+.light-mode .admin-league-tab .bg-emerald-500\/15,
+html[data-theme="light"] .admin-league-tab .bg-emerald-500\/15 {
+  background-color: #d1fae5 !important;
+}
+
+.light-mode .admin-league-tab .text-amber-300,
+html[data-theme="light"] .admin-league-tab .text-amber-300 {
+  color: #d97706 !important;
+}
+
+/* Leaderboard filter tabs active state in light mode */
+.light-mode .admin-league-tab .bg-violet-600,
+html[data-theme="light"] .admin-league-tab .bg-violet-600 {
+  background-color: #7c3aed !important;
+  color: #ffffff !important;
+}
+
+/* Pagination footer */
+.light-mode .admin-league-tab [class*="bg-[#141a27]"],
+html[data-theme="light"] .admin-league-tab [class*="bg-[#141a27]"] {
+  background-color: #f8fafc !important;
+}
+
+/* Summary tab nav links */
+.light-mode .admin-league-tab .text-violet-400,
+html[data-theme="light"] .admin-league-tab .text-violet-400 {
+  color: #7c3aed !important;
+}
+
+/* Summary donut/bar SVG text */
+.light-mode .admin-league-tab svg text[fill="#94a3b8"],
+html[data-theme="light"] .admin-league-tab svg text[fill="#94a3b8"] {
+  fill: #64748b !important;
+}
+
+.light-mode .admin-league-tab svg text[fill="#64748b"],
+html[data-theme="light"] .admin-league-tab svg text[fill="#64748b"] {
+  fill: #94a3b8 !important;
+}
+
+/* Divider lines */
+.light-mode .admin-league-tab [class*="border-[#1f283b]"],
+html[data-theme="light"] .admin-league-tab [class*="border-[#1f283b]"] {
+  border-color: #e2e8f0 !important;
+}
+
+/* Modal overlay fix: apply class to modals inside admin league */
+.light-mode .admin-league-tab-modal-bg,
+html[data-theme="light"] .admin-league-tab-modal-bg {
+  background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+.light-mode .admin-league-tab-modal,
+html[data-theme="light"] .admin-league-tab-modal {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+.light-mode .admin-league-tab-modal h3,
+.light-mode .admin-league-tab-modal label,
+html[data-theme="light"] .admin-league-tab-modal h3,
+html[data-theme="light"] .admin-league-tab-modal label {
+  color: #0f172a !important;
+}
+
+.light-mode .admin-league-tab-modal [class*="border-[#232b3e]"],
+html[data-theme="light"] .admin-league-tab-modal [class*="border-[#232b3e]"] {
+  border-color: #e2e8f0 !important;
+}
+
+.light-mode .admin-league-tab-modal input,
+.light-mode .admin-league-tab-modal select,
+.light-mode .admin-league-tab-modal textarea,
+html[data-theme="light"] .admin-league-tab-modal input,
+html[data-theme="light"] .admin-league-tab-modal select,
+html[data-theme="light"] .admin-league-tab-modal textarea {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+
+/* ── Admin Sidebar Sub-menu Styles (Dark & Light Mode) ── */
+.admin-nav-sublist {
+  margin-left: 16px;
+  padding-left: 12px;
+  border-left: 2px solid rgba(139, 92, 246, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 4px;
+  margin-bottom: 6px;
+}
+
+.admin-nav-subitem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.admin-nav-subitem:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #f1f5f9;
+}
+
+.admin-nav-subitem.is-sub-active {
+  background: rgba(139, 92, 246, 0.16);
+  color: #c4b5fd;
+  font-weight: 600;
+  outline: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+.light-mode .admin-nav-sublist,
+html[data-theme="light"] .admin-nav-sublist {
+  border-left-color: rgba(124, 58, 237, 0.3) !important;
+}
+
+.light-mode .admin-nav-subitem,
+html[data-theme="light"] .admin-nav-subitem {
+  color: #64748b !important;
+}
+
+.light-mode .admin-nav-subitem:hover,
+html[data-theme="light"] .admin-nav-subitem:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.light-mode .admin-nav-subitem.is-sub-active,
+html[data-theme="light"] .admin-nav-subitem.is-sub-active {
+  background: #ede9fe !important;
+  color: #6d28d9 !important;
+  outline: 1px solid #c4b5fd !important;
+  font-weight: 600 !important;
+}
+
+/* ── Hero Card Contrast Protection (Active Season Purple Card) ── */
+.admin-league-tab .admin-league-hero-card,
+.light-mode .admin-league-tab .admin-league-hero-card,
+html[data-theme="light"] .admin-league-tab .admin-league-hero-card {
+  background: linear-gradient(135deg, #4c1d95 0%, #3b1d7d 50%, #1e144a 100%) !important;
+  border-color: rgba(139, 92, 246, 0.4) !important;
+  color: #ffffff !important;
+}
+
+.light-mode .admin-league-tab .admin-league-hero-card h3,
+.light-mode .admin-league-tab .admin-league-hero-card .text-white,
+html[data-theme="light"] .admin-league-tab .admin-league-hero-card h3,
+html[data-theme="light"] .admin-league-tab .admin-league-hero-card .text-white {
+  color: #ffffff !important;
+}
+
+.light-mode .admin-league-tab .admin-league-hero-card .text-purple-200,
+.light-mode .admin-league-tab .admin-league-hero-card .text-purple-300,
+html[data-theme="light"] .admin-league-tab .admin-league-hero-card .text-purple-200,
+html[data-theme="light"] .admin-league-tab .admin-league-hero-card .text-purple-300 {
+  color: #e9d5ff !important;
+}
+
+/* ── Admin League Tip Banner (Light Mode) ── */
+.light-mode .admin-league-tab .admin-league-tip-banner,
+html[data-theme="light"] .admin-league-tab .admin-league-tip-banner {
+  background: linear-gradient(to right, #ede9fe, #f5f3ff, #ffffff) !important;
+  border-color: #ddd6fe !important;
+}
+
+.light-mode .admin-league-tab .admin-league-tip-banner h4,
+html[data-theme="light"] .admin-league-tab .admin-league-tip-banner h4 {
+  color: #4c1d95 !important;
+}
+
+.light-mode .admin-league-tab .admin-league-tip-banner p,
+html[data-theme="light"] .admin-league-tab .admin-league-tip-banner p {
+  color: #475569 !important;
+}
+
+.light-mode .admin-league-tab .admin-league-tip-banner .text-violet-300,
+html[data-theme="light"] .admin-league-tab .admin-league-tip-banner .text-violet-300 {
+  color: #7c3aed !important;
+}
+
+/* ── Keep White Text on Primary Violet Action Buttons in Light Mode ── */
+.light-mode .admin-league-tab button.bg-violet-600,
+.light-mode .admin-league-tab .bg-violet-600,
+html[data-theme="light"] .admin-league-tab button.bg-violet-600,
+html[data-theme="light"] .admin-league-tab .bg-violet-600 {
+  color: #ffffff !important;
+}
+
+.light-mode .admin-league-tab button.bg-violet-600 span,
+html[data-theme="light"] .admin-league-tab button.bg-violet-600 span {
+  color: #ffffff !important;
+}
+
+/* ── Table Action Buttons in Light Mode ── */
+.light-mode .admin-league-tab .text-violet-300.hover\:bg-violet-600\/20,
+html[data-theme="light"] .admin-league-tab .text-violet-300.hover\:bg-violet-600\/20 {
+  color: #6d28d9 !important;
+  border-color: #c4b5fd !important;
+  background-color: #f5f3ff !important;
+}
+
+.light-mode .admin-league-tab .text-slate-300.hover\:bg-slate-700\/50,
+html[data-theme="light"] .admin-league-tab .text-slate-300.hover\:bg-slate-700\/50 {
+  color: #475569 !important;
+  border-color: #cbd5e1 !important;
+  background-color: #f8fafc !important;
+}
+
+.light-mode .admin-league-tab .text-rose-300.hover\:bg-rose-600\/20,
+html[data-theme="light"] .admin-league-tab .text-rose-300.hover\:bg-rose-600\/20 {
+  color: #e11d48 !important;
+  border-color: #fca5a5 !important;
+  background-color: #fff1f2 !important;
+}
+
+/* ── Status badges in Light Mode ── */
+.light-mode .admin-league-tab .bg-slate-700\/60,
+html[data-theme="light"] .admin-league-tab .bg-slate-700\/60 {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+  border-color: #cbd5e1 !important;
+}
+
+.light-mode .admin-league-tab .bg-amber-500\/15,
+html[data-theme="light"] .admin-league-tab .bg-amber-500\/15 {
+  background-color: #fef3c7 !important;
+  color: #b45309 !important;
+  border-color: #fde68a !important;
+}
+
+/* ── 5 Skill Level Difficulty Badges (User League Challenges) ── */
+.league-diff-badge.league-diff-beginner {
+  background-color: rgba(100, 116, 139, 0.15) !important;
+  color: #94a3b8 !important;
+  border: 1px solid rgba(100, 116, 139, 0.3) !important;
+}
+.league-diff-badge.league-diff-basic {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: #34d399 !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+.league-diff-badge.league-diff-intermediate {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  color: #60a5fa !important;
+  border: 1px solid rgba(59, 130, 246, 0.3) !important;
+}
+.league-diff-badge.league-diff-advanced {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(245, 158, 11, 0.3) !important;
+}
+.league-diff-badge.league-diff-expert {
+  background-color: rgba(168, 85, 247, 0.15) !important;
+  color: #c084fc !important;
+  border: 1px solid rgba(168, 85, 247, 0.3) !important;
+}
+
+.light-mode .league-diff-badge.league-diff-beginner,
+html[data-theme="light"] .league-diff-badge.league-diff-beginner {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+  border-color: #cbd5e1 !important;
+}
+.light-mode .league-diff-badge.league-diff-basic,
+html[data-theme="light"] .league-diff-badge.league-diff-basic {
+  background-color: #ecfdf5 !important;
+  color: #047857 !important;
+  border-color: #a7f3d0 !important;
+}
+.light-mode .league-diff-badge.league-diff-intermediate,
+html[data-theme="light"] .league-diff-badge.league-diff-intermediate {
+  background-color: #eff6ff !important;
+  color: #1d4ed8 !important;
+  border-color: #bfdbfe !important;
+}
+.light-mode .league-diff-badge.league-diff-advanced,
+html[data-theme="light"] .league-diff-badge.league-diff-advanced {
+  background-color: #fffbeb !important;
+  color: #b45309 !important;
+  border-color: #fde68a !important;
+}
+.light-mode .league-diff-badge.league-diff-expert,
+html[data-theme="light"] .league-diff-badge.league-diff-expert {
+  background-color: #faf5ff !important;
+  color: #6d28d9 !important;
+  border-color: #e9d5ff !important;
+}
+/* Fix heading trong trang quản lý đấu hạng */
+.admin-league-tab h1 {
+  max-width: none;
+  width: auto;
+  margin: 0;
+  text-align: left;
+  font-size: 24px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}

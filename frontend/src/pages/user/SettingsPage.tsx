@@ -21,6 +21,9 @@ import {
 import { Header } from '@/layout/Header';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import type { AuthMode } from '@/types';
+import { getSavedTheme, applyTheme, type ThemeOption } from '@/lib/theme';
+
+export type { ThemeOption };
 
 interface SettingsPageProps {
   onBack: () => void;
@@ -32,12 +35,12 @@ interface SettingsPageProps {
   onGoHistory?: () => void;
   onGoAdmin?: () => void;
   onGoSettings?: () => void;
+  onGoLeague?: () => void;
   onLoggedOut?: () => void;
   onGoFlashcards?: () => void;
   onGoFlashcardLibrary?: () => void;
 }
 
-export type ThemeOption = 'dark' | 'light' | 'system';
 export type LanguageOption = 'vi' | 'en';
 
 export function SettingsPage({
@@ -50,14 +53,13 @@ export function SettingsPage({
   onGoHistory,
   onGoAdmin,
   onGoSettings,
+  onGoLeague,
   onLoggedOut,
   onGoFlashcards,
   onGoFlashcardLibrary,
 }: SettingsPageProps) {
   // ── State cài đặt ──
-  const [theme, setTheme] = useState<ThemeOption>(() => {
-    return (localStorage.getItem('app_theme') as ThemeOption) || 'dark';
-  });
+  const [theme, setTheme] = useState<ThemeOption>(getSavedTheme);
 
   const [language, setLanguage] = useState<LanguageOption>(() => {
     return (localStorage.getItem('app_language') as LanguageOption) || 'vi';
@@ -103,27 +105,9 @@ export function SettingsPage({
   // Feedback banner
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  // Áp dụng Theme trực tiếp vào thẻ HTML / Body
+  // Áp dụng Theme trực tiếp và đồng bộ toàn ứng dụng
   useEffect(() => {
-    const root = document.documentElement;
-    localStorage.setItem('app_theme', theme);
-    if (theme === 'light') {
-      root.classList.add('light-mode');
-      root.setAttribute('data-theme', 'light');
-    } else if (theme === 'dark') {
-      root.classList.remove('light-mode');
-      root.setAttribute('data-theme', 'dark');
-    } else {
-      // System mode
-      const isSystemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (isSystemDark) {
-        root.classList.remove('light-mode');
-        root.setAttribute('data-theme', 'dark');
-      } else {
-        root.classList.add('light-mode');
-        root.setAttribute('data-theme', 'light');
-      }
-    }
+    applyTheme(theme);
   }, [theme]);
 
   // Lưu tất cả cài đặt
@@ -206,6 +190,7 @@ export function SettingsPage({
         onGoHistory={onGoHistory}
         onGoAdmin={onGoAdmin}
         onGoSettings={onGoSettings}
+        onGoLeague={onGoLeague}
         onLoggedOut={onLoggedOut}
         activeView="settings"
       />

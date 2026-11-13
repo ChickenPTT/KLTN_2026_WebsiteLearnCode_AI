@@ -5,7 +5,9 @@ import com.testModule.TestModule.Model.TestCase;
 import com.testModule.TestModule.Model.TestCaseResult;
 import com.testModule.TestModule.Model.VerifyResult;
 import com.testModule.TestModule.Repository.HistorySubmitRepository;
+import com.testModule.TestModule.Repository.ContestAttemptProblemRepository;
 import com.testModule.TestModule.Repository.ProblemRepository;
+import com.testModule.TestModule.Repository.SeasonProblemRepository;
 import com.testModule.TestModule.Service.IF.IProblemService;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -22,28 +24,35 @@ public class ProblemService implements IProblemService {
     private final ProblemRepository problemRepository;
     private final HistorySubmitRepository historySubmitRepository;
     private final JudgeService judgeService;
+    private final SeasonProblemRepository seasonProblemRepository;
+    private final ContestAttemptProblemRepository attemptProblemRepository;
 
     public ProblemService(ProblemRepository problemRepository,
                           HistorySubmitRepository historySubmitRepository,
-                          JudgeService judgeService) {
+                          JudgeService judgeService,
+                          SeasonProblemRepository seasonProblemRepository,
+                          ContestAttemptProblemRepository attemptProblemRepository) {
         this.problemRepository = problemRepository;
         this.historySubmitRepository = historySubmitRepository;
         this.judgeService = judgeService;
+        this.seasonProblemRepository = seasonProblemRepository;
+        this.attemptProblemRepository = attemptProblemRepository;
     }
 
     @Override
     public List<Problem> getDraftProblem() {
-        return problemRepository.findByStatus(Problem.Status.DRAFT);
+        return problemRepository.findPracticeByStatus(Problem.Status.DRAFT, Problem.Purpose.CONTEST);
     }
 
     @Override
     public List<Problem> getPublishedProblems() {
-        return problemRepository.findByStatus(Problem.Status.PUBLISHED);
+        return problemRepository.findPracticeByStatus(Problem.Status.PUBLISHED, Problem.Purpose.CONTEST);
     }
 
     @Override
     public List<Problem> getAllProblems() {
-        return problemRepository.findAll(Sort.by(Sort.Direction.DESC, "id"));
+        // Bai thi dau duoc quan ly o tab Dau hang, khong hien o trang quan ly de luyen tap
+        return problemRepository.findAllPractice(Problem.Purpose.CONTEST);
     }
 
     @Override
@@ -86,6 +95,9 @@ public class ProblemService implements IProblemService {
     @Transactional
     public void deleteProblem(Long id) {
         Problem problem = getProblemById(id);
+        if (seasonProblemRepository.existsByProblem_Id(id) || attemptProblemRepository.existsByProblem_Id(id)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Bài này đang thuộc một mùa giải thi đấu, không thể xóa.");
+        }
         // Xoa lich su nop bai truoc, neu khong khoa ngoai attempts.problem_id chan viec xoa
         historySubmitRepository.deleteByProblemId(problem.getId());
         problemRepository.delete(problem);

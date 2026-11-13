@@ -97,7 +97,8 @@ public class JudgeController {
         Problem problem = problemService.getProblemById(body.problemId());
         // Sinh vien chi duoc lam bai da xuat ban; giang vien/admin duoc chay thu ca de nhap
         boolean staff = user.getUser().getRole() != Role.STUDENT;
-        if (problem.getStatus() != Problem.Status.PUBLISHED && !staff) {
+        // Bai thi dau chi cham qua /api/contest (co tinh gio, gioi han luot)
+        if ((problem.getStatus() != Problem.Status.PUBLISHED || problem.isContest()) && !staff) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bài tập id: " + body.problemId());
         }
         if (problem.getTestCases() == null || problem.getTestCases().isEmpty()) {
