@@ -5,12 +5,12 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
-  Github,
   Lock,
   Mail,
   User,
 } from 'lucide-react';
 import { Brand } from '@/components/Brand';
+import { GoogleSignInButton } from '@/components/GoogleSignInButton';
 import { useAuth } from '@/hooks/useAuth';
 import type { AuthMode } from '@/types';
 import type { UserRole } from '@/data/mockAuth';
@@ -51,7 +51,17 @@ export function AuthPage({ onBack, initialMode, onLoginSuccess }: AuthPageProps)
   const [confirmPassword, setConfirmPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const { login, signup, loading, error, clearError } = useAuth();
+  const { login, signup, loginWithGoogle, loading, error, clearError } = useAuth();
+
+  // Google tra credential -> backend kiem tra, tao/dang nhap tai khoan
+  const handleGoogle = async (credential: string) => {
+    clearError();
+    setLocalError(null);
+    const res = await loginWithGoogle(credential);
+    if (res.success) {
+      onLoginSuccess?.(res.isNewUser, res.role);
+    }
+  };
   const isSignup = mode === 'signup';
 
   const switchMode = (next: AuthMode) => {
@@ -135,14 +145,7 @@ export function AuthPage({ onBack, initialMode, onLoginSuccess }: AuthPageProps)
               : 'Chào mừng bạn quay lại Mnemonic'}
           </p>
 
-          <div className="auth-social-row">
-            <button className="auth-social" type="button">
-              <Github size={18} /> GitHub
-            </button>
-            <button className="auth-social" type="button">
-              <Mail size={18} /> Google
-            </button>
-          </div>
+          <GoogleSignInButton onCredential={handleGoogle} text={isSignup ? 'signup_with' : 'signin_with'} />
           <div className="auth-divider"><span>hoặc</span></div>
 
           {/* Error banner */}

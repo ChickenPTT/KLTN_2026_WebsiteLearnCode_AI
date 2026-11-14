@@ -144,6 +144,12 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify({ fullName, email, password }),
     }),
+  /** Dang nhap bang Google: gui ID token Google cap cho backend kiem tra */
+  google: (credential: string) =>
+    apiFetch<AuthResponse>('/api/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ credential }),
+    }),
   logout: () => apiFetch<void>('/api/auth/logout', { method: 'POST' }),
   completeOnboarding: () => apiFetch<BackendUser>('/api/auth/me/onboarding', { method: 'POST' }),
   updateProfile: (fullName: string, email: string) =>

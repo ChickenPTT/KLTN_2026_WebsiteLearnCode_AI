@@ -26,6 +26,9 @@ services:
         value: "true"
       - key: JWT_SECRET
         generateValue: true
+      # Client ID Google (cong khai, khong phai bi mat)
+      - key: GOOGLE_CLIENT_ID
+        value: 389256365561-igek1t5kc4jl1g8n5pdhb0qgc1634th4.apps.googleusercontent.com
       # sync: false -> Render hoi ban nhap gia tri khi tao Blueprint (khong luu trong Git)
       - key: SPRING_DATASOURCE_URL
         sync: false
@@ -48,6 +51,10 @@ services:
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
+    envVars:
+      # Vite gan bien nay vao code luc build -> hien nut "Dang nhap bang Google"
+      - key: VITE_GOOGLE_CLIENT_ID
+        value: 389256365561-igek1t5kc4jl1g8n5pdhb0qgc1634th4.apps.googleusercontent.com
     routes:
       # Goi /api cung domain voi frontend -> cookie dang nhap hoat dong.
       # Neu URL backend thuc te khac (Render them hau to khi trung ten), sua dong nay trong Dashboard.

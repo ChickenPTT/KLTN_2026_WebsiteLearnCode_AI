@@ -1,5 +1,9 @@
 package com.testModule.TestModule.Service;
 
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
 import com.testModule.TestModule.Model.Role;
 import com.testModule.TestModule.Model.User;
 import com.testModule.TestModule.Repository.UserRepository;
@@ -8,6 +12,7 @@ import com.testModule.TestModule.dto.AuthResponse;
 import com.testModule.TestModule.dto.LoginRequest;
 import com.testModule.TestModule.dto.RegisterRequest;
 import com.testModule.TestModule.dto.UserResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -16,7 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 @Service
@@ -32,16 +39,83 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
+    private final String googleClientId;
+    // Kiem tra chu ky + han + audience cua ID token Google (tu tai va cache khoa cong khai cua Google)
+    private final GoogleIdTokenVerifier googleVerifier;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
-            RefreshTokenService refreshTokenService) {
+            RefreshTokenService refreshTokenService,
+            @Value("${google.client-id:}") String googleClientId) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.refreshTokenService = refreshTokenService;
+        this.googleClientId = googleClientId == null ? "" : googleClientId.trim();
+        this.googleVerifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), GsonFactory.getDefaultInstance())
+                .setAudience(List.of(this.googleClientId))
+                .build();
+    }
+
+    /*
+     * Dang nhap bang Google:
+     * FE nhan "credential" (ID token do Google ky) -> gui len day -> kiem tra token that cua Google
+     * va dung app minh -> email da co thi dang nhap, chua co thi tao tai khoan STUDENT moi.
+     */
+    @Transactional
+    public AuthSession loginWithGoogle(String credential) {
+        if (googleClientId.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Chưa cấu hình đăng nhập Google.");
+        }
+        if (credential == null || credential.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Thiếu thông tin đăng nhập Google.");
+        }
+
+        GoogleIdToken idToken;
+        try {
+            idToken = googleVerifier.verify(credential);
+        } catch (Exception e) {
+            idToken = null; // token sai dinh dang / khong tai duoc khoa cua Google
+        }
+        if (idToken == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Đăng nhập Google không hợp lệ, vui lòng thử lại.");
+        }
+        GoogleIdToken.Payload payload = idToken.getPayload();
+        if (!Boolean.TRUE.equals(payload.getEmailVerified()) || payload.getEmail() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Email Google chưa được xác minh.");
+        }
+
+        String email = normalizeEmail(payload.getEmail());
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null) {
+            user = createGoogleUser(email, (String) payload.get("name"));
+        }
+        if (!user.isActive()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.");
+        }
+        return issue(user);
+    }
+
+    private User createGoogleUser(String email, String googleName) {
+        String fullName = googleName == null || googleName.isBlank() ? email.substring(0, email.indexOf('@')) : googleName.trim();
+        if (fullName.length() > 100) {
+            fullName = fullName.substring(0, 100);
+        }
+        User user = new User();
+        user.setEmail(email);
+        // Cot passwordHash bat buoc -> dat mat khau ngau nhien; nguoi dung dang nhap bang Google
+        user.setPasswordHash(passwordEncoder.encode(UUID.randomUUID().toString()));
+        user.setFullName(fullName);
+        user.setRole(Role.STUDENT);
+        user.setOnboardingCompleted(false);
+        try {
+            return userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException e) {
+            // Bam 2 lan cung luc -> tai khoan da duoc tao o request kia; bam lai la dang nhap duoc
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Vui lòng bấm đăng nhập Google lại.");
+        }
     }
 
     @Transactional

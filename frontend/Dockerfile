@@ -4,6 +4,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# Client ID Google duoc gan vao code luc build (docker-compose truyen tu file .env)
+ARG VITE_GOOGLE_CLIENT_ID=""
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 # VITE_API_BASE_URL de trong -> goi /api cung domain, Caddy chuyen tiep sang backend
 RUN npm run build
 

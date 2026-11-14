@@ -70,6 +70,7 @@ interface AuthContextValue {
   backend: Backend;
   login: (email: string, password: string) => Promise<AuthResult>;
   signup: (name: string, email: string, password: string) => Promise<AuthResult>;
+  loginWithGoogle: (credential: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
   /** Doc trinh do tu danh gia cua user hien tai ([] neu chua co) */
@@ -292,6 +293,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       () => mockSignup(name, email, password),
     );
 
+  // Google chi dung duoc khi co backend that (backend kiem tra token cua Google)
+  const loginWithGoogle = (credential: string) =>
+    run(
+      () => authApi.google(credential),
+      async () => {
+        setError('Đăng nhập Google cần kết nối máy chủ. Vui lòng thử lại sau.');
+        return { success: false };
+      },
+    );
+
   const logout = async () => {
     // Xoa state client truoc (dong bo) de man hinh dieu huong ngay khong bi "nhay" ve trang cua user cu
     setAccessToken(null);
@@ -421,6 +432,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateUser,
         login,
         signup,
+        loginWithGoogle,
         logout,
         completeOnboarding,
         getSelfAssessment,

@@ -32,7 +32,10 @@ services:
         condition: service_healthy
 
   web:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     restart: unless-stopped
     ports:
       - "80:80"

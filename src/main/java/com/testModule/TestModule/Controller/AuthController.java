@@ -68,6 +68,15 @@ public class AuthController {
         return withCookie(HttpStatus.OK, authService.login(request));
     }
 
+    // Body: { "credential": "<ID token Google tra ve cho frontend>" }
+    public record GoogleLoginRequest(String credential) {
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<AuthResponse> loginWithGoogle(@RequestBody GoogleLoginRequest request) {
+        return withCookie(HttpStatus.OK, authService.loginWithGoogle(request == null ? null : request.credential()));
+    }
+
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refresh(
             @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
