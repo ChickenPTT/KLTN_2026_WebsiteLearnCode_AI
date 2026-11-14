@@ -51,10 +51,12 @@ export function AuthPage({ onBack, initialMode, onLoginSuccess }: AuthPageProps)
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
-  // Dang ky 2 buoc: 'form' (nhap thong tin) -> 'code' (nhap ma gui toi email)
-  const [signupStep, setSignupStep] = useState<'form' | 'code'>('form');
+  // Xac nhan email: bam "Gui ma" canh o Email -> lay ma trong email -> nhap vao o "Ma xac nhan"
   const [code, setCode] = useState('');
+  const [codeSentTo, setCodeSentTo] = useState<string | null>(null); // email da gui ma
+  const [codeRequired, setCodeRequired] = useState(true); // backend tat xac nhan -> false
   const [resendIn, setResendIn] = useState(0);
+  const [info, setInfo] = useState<string | null>(null);
 
   // Dem nguoc nut "Gui lai ma"
   useEffect(() => {
@@ -83,26 +85,34 @@ export function AuthPage({ onBack, initialMode, onLoginSuccess }: AuthPageProps)
     setPassword('');
     setConfirmPassword('');
     setLocalError(null);
-    setSignupStep('form');
     setCode('');
+    setCodeSentTo(null);
     setResendIn(0);
+    setInfo(null);
     clearError();
   };
 
-  // Gui (hoac gui lai) ma; backend khong bat xac nhan -> dang ky luon
+  // Nut "Gui ma": gui ma 6 so toi email dang nhap trong o Email
   const sendCode = async () => {
     clearError();
     setLocalError(null);
-    const res = await requestSignupCode(email);
-    if (!res) return;
-    if (!res.required) {
-      const done = await signup(name, email, password);
-      if (done.success) onLoginSuccess?.(done.isNewUser, done.role);
+    setInfo(null);
+    const target = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) {
+      setLocalError('Vui lòng nhập email hợp lệ trước khi gửi mã.');
       return;
     }
-    setSignupStep('code');
-    setCode('');
+    const res = await requestSignupCode(target);
+    if (!res) return;
+    if (!res.required) {
+      setCodeRequired(false);
+      setInfo('Hệ thống hiện không yêu cầu mã xác nhận, bạn có thể bấm Đăng ký.');
+      return;
+    }
+    setCodeRequired(true);
+    setCodeSentTo(target);
     setResendIn(res.resendAfterSeconds);
+    setInfo(`Đã gửi mã tới ${target}. Hãy kiểm tra cả thư mục Spam. Mã có hiệu lực 10 phút.`);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -112,21 +122,26 @@ export function AuthPage({ onBack, initialMode, onLoginSuccess }: AuthPageProps)
 
     let res: { success: boolean; isNewUser?: boolean; role?: UserRole } = { success: false, isNewUser: false, role: undefined };
     if (isSignup) {
-      if (signupStep === 'form') {
-        if (password !== confirmPassword) {
-          setLocalError('Mật khẩu xác nhận không khớp.');
+      if (password !== confirmPassword) {
+        setLocalError('Mật khẩu xác nhận không khớp.');
+        return;
+      }
+      if (codeRequired) {
+        if (!codeSentTo) {
+          setLocalError('Vui lòng bấm "Gửi mã" để nhận mã xác nhận qua email.');
           return;
         }
-        // Buoc 1: gui ma toi email truoc, chua tao tai khoan
-        await sendCode();
-        return;
+        if (codeSentTo !== email.trim()) {
+          setLocalError('Bạn đã đổi email, vui lòng bấm "Gửi mã" lại.');
+          return;
+        }
+        if (!/^\d{6}$/.test(code.trim())) {
+          setLocalError('Mã xác nhận gồm 6 chữ số.');
+          return;
+        }
       }
-      // Buoc 2: ma dung -> tao tai khoan (mac dinh student)
-      if (!/^\d{6}$/.test(code.trim())) {
-        setLocalError('Mã xác nhận gồm 6 chữ số.');
-        return;
-      }
-      res = await signup(name, email, password, code.trim());
+      // Ma dung -> backend moi tao tai khoan (mac dinh student)
+      res = await signup(name, email, password, codeRequired ? code.trim() : undefined);
     } else {
       // Đăng nhập
       res = await login(email, password);
@@ -205,55 +220,23 @@ export function AuthPage({ onBack, initialMode, onLoginSuccess }: AuthPageProps)
             </div>
           )}
 
-          {isSignup && signupStep === 'code' ? (
-            <form className="auth-form" onSubmit={handleSubmit}>
-              <p style={{ fontSize: '0.9rem', lineHeight: 1.6, margin: 0 }}>
-                Mã xác nhận 6 số đã được gửi tới <strong>{email}</strong>.
-                <br />
-                <span style={{ opacity: 0.7, fontSize: '0.82rem' }}>
-                  Không thấy email? Hãy kiểm tra thư mục <b>Spam / Quảng cáo</b>. Mã có hiệu lực 10 phút.
-                </span>
-              </p>
-              <label className="auth-field">
-                <span className="auth-label">Mã xác nhận</span>
-                <div className="auth-input-wrap">
-                  <KeyRound size={17} className="auth-input-icon" />
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    placeholder="123456"
-                    maxLength={6}
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                    style={{ letterSpacing: '0.4em', fontWeight: 700 }}
-                    autoFocus
-                    required
-                  />
-                </div>
-              </label>
-              <button type="submit" className="auth-submit" disabled={loading}>
-                {loading ? 'Đang xử lý...' : 'Xác nhận & tạo tài khoản'} <ChevronRight size={17} />
-              </button>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                <button
-                  type="button"
-                  onClick={sendCode}
-                  disabled={loading || resendIn > 0}
-                  style={{ background: 'none', border: 'none', color: '#a78bfa', cursor: resendIn > 0 ? 'default' : 'pointer', opacity: resendIn > 0 ? 0.6 : 1, padding: 0 }}
-                >
-                  {resendIn > 0 ? `Gửi lại mã (${resendIn}s)` : 'Gửi lại mã'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setSignupStep('form'); setCode(''); clearError(); setLocalError(null); }}
-                  style={{ background: 'none', border: 'none', color: 'inherit', opacity: 0.75, cursor: 'pointer', padding: 0 }}
-                >
-                  Đổi email
-                </button>
-              </div>
-            </form>
-          ) : (
+          {/* Thong bao da gui ma */}
+          {isSignup && info && !displayError && (
+            <div
+              style={{
+                background: 'rgba(34,197,94,0.12)',
+                border: '1px solid rgba(34,197,94,0.3)',
+                borderRadius: '8px',
+                padding: '0.6rem 0.9rem',
+                marginBottom: '0.75rem',
+                fontSize: '0.85rem',
+                color: '#4ade80',
+              }}
+            >
+              {info}
+            </div>
+          )}
+
           <form className="auth-form" onSubmit={handleSubmit}>
             {isSignup && (
               <label className="auth-field">
@@ -274,18 +257,59 @@ export function AuthPage({ onBack, initialMode, onLoginSuccess }: AuthPageProps)
 
             <label className="auth-field">
               <span className="auth-label">Email</span>
-              <div className="auth-input-wrap">
-                <Mail size={17} className="auth-input-icon" />
-                <input
-                  type="email"
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div className="auth-input-wrap" style={{ flex: 1 }}>
+                  <Mail size={17} className="auth-input-icon" />
+                  <input
+                    type="email"
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                {/* Nut gui ma xac nhan (chi o trang Tao tai khoan) */}
+                {isSignup && codeRequired && (
+                  <button
+                    type="button"
+                    className="auth-submit"
+                    onClick={sendCode}
+                    disabled={loading || (resendIn > 0 && email.trim() === codeSentTo)}
+                    style={{
+                      marginTop: 0,
+                      padding: '0 14px',
+                      whiteSpace: 'nowrap',
+                      fontSize: 13,
+                      opacity: loading || (resendIn > 0 && email.trim() === codeSentTo) ? 0.6 : 1,
+                    }}
+                  >
+                    {resendIn > 0 && email.trim() === codeSentTo
+                      ? `Gửi lại (${resendIn}s)`
+                      : codeSentTo ? 'Gửi lại mã' : 'Gửi mã'}
+                  </button>
+                )}
               </div>
             </label>
+
+            {isSignup && codeRequired && (
+              <label className="auth-field">
+                <span className="auth-label">Mã xác nhận</span>
+                <div className="auth-input-wrap">
+                  <KeyRound size={17} className="auth-input-icon" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="Nhập mã 6 số gửi tới email"
+                    maxLength={6}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                    style={code ? { letterSpacing: '0.4em', fontWeight: 700 } : undefined}
+                  />
+                </div>
+              </label>
+            )}
 
             <label className="auth-field">
               <span className="auth-label">Mật khẩu</span>
@@ -346,7 +370,6 @@ export function AuthPage({ onBack, initialMode, onLoginSuccess }: AuthPageProps)
               <ChevronRight size={17} />
             </button>
           </form>
-          )}
 
           <p className="auth-switch">
             {isSignup ? 'Đã có tài khoản?' : 'Chưa có tài khoản?'}
