@@ -1,138 +1,46 @@
-function BowArrowCodeIcon({ size = 24 }: { size?: number }) {
+import { useId } from 'react';
+
+/** Logo Mnemonic: chữ M nối từ 3 "nút ghi nhớ", nền vuông bo góc gradient xanh–tím. */
+export function MnemonicMark({ size = 24 }: { size?: number }) {
+  // id riêng cho mỗi lần render để nhiều logo trên cùng trang không đè gradient của nhau
+  const gradientId = `mnemonic-grad-${useId().replace(/:/g, '')}`;
+
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 32 32"
-      fill="none"
+      viewBox="0 0 48 48"
       xmlns="http://www.w3.org/2000/svg"
+      role="img"
+      aria-label="Mnemonic"
       style={{ display: 'inline-block', verticalAlign: 'middle' }}
     >
-      {/* Bow String (Dây cung) */}
-      <line
-        x1="7"
-        y1="7"
-        x2="7"
-        y2="25"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        opacity="0.85"
-      />
-      <line
-        x1="7"
-        y1="25"
-        x2="27"
-        y2="27"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        opacity="0.6"
-      />
-
-      {/* Main Bow Curve (Thân Cung) */}
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#6f9df9" />
+          <stop offset="1" stopColor="#a98cf8" />
+        </linearGradient>
+      </defs>
+      <rect width="48" height="48" rx="12" fill={`url(#${gradientId})`} />
       <path
-        d="M7 7 C 6 4, 3 4, 3 6.5 C 3 8, 6 8.5, 7.5 9 C 14 11, 23 14, 27 25 C 28 27.5, 29 29, 27.5 30 C 26 31, 24.5 29, 25 27.5"
-        stroke="currentColor"
-        strokeWidth="2.2"
+        d="M14 34V14l10 12 10-12v20"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="4"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-
-      {/* Swirl Spiral Top Left */}
-      <path
-        d="M7.5 7.5 C 6.5 5.5, 4.5 5, 4 6.5 C 3.6 7.8, 5 9, 6.5 8"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-
-      {/* Swirl Spiral Bottom Right */}
-      <path
-        d="M26.5 26.5 C 28.5 27.5, 29 29.5, 27.5 30 C 26.2 30.4, 25 29, 26 27.5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-
-      {/* Diagonal Arrow Shaft (Thân Mũi Tên) */}
-      <line
-        x1="3"
-        y1="29"
-        x2="26"
-        y2="6"
-        stroke="currentColor"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-      />
-
-      {/* Arrowhead Point (Đầu Mũi Tên) */}
-      <path
-        d="M23 4 L28 9"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-      />
-
-      {/* Code Chevrons around Tip (< ^ > v Arrowhead Target) */}
-      <path
-        d="M25 2 L29 6"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <path
-        d="M22 6 L24 2 M28 6 L30 4"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-
-      {/* Arrow Fletching Tail (Đuôi Mũi Tên) */}
-      <path
-        d="M5 28 L2 24 M7 30 L4 26 M9 31 L7 28"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-
-      {/* Code Symbols < { } > */}
-      <path
-        d="M10 12 L8.5 13.5 L10 15"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        opacity="0.8"
-      />
-      <path
-        d="M13 11.5 C 12.5 12.2, 12.5 12.8, 12 13.5 C 12.5 14.2, 12.5 14.8, 13 15.5"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-        opacity="0.8"
-      />
-      <path
-        d="M15 11.5 C 15.5 12.2, 15.5 12.8, 16 13.5 C 15.5 14.2, 15.5 14.8, 15 15.5"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-        opacity="0.8"
-      />
-      <path
-        d="M18 12 L19.5 13.5 L18 15"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        opacity="0.8"
-      />
+      <circle cx="14" cy="14" r="3.6" fill="#fff" />
+      <circle cx="34" cy="14" r="3.6" fill="#fff" />
+      <circle cx="24" cy="26" r="4.2" fill="#12172a" stroke="#fff" strokeWidth="2.6" />
     </svg>
   );
 }
 
-export function Brand({ size = 24 }: { size?: number }) {
+export function Brand({ size = 28 }: { size?: number }) {
   return (
     <span className="brand">
-      <span className="brand-mark"><BowArrowCodeIcon size={size} /></span>
+      <span className="brand-mark"><MnemonicMark size={size} /></span>
       <span className="brand-text">Mnemonic</span>
     </span>
   );

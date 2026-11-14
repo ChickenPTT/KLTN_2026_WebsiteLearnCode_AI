@@ -59,7 +59,10 @@ export function Footer() {
 
       <div className="footer-bottom">
         <div className="footer-copyright">
-          <span>© {currentYear} <strong>CodeArena Platform</strong>. All rights reserved.</span>
+          <span>© {currentYear} <strong>Mnemonic</strong>. All rights reserved.</span>
+          <span className="footer-legal">
+            <a href="/privacy.html">Chính sách quyền riêng tư</a> · <a href="/terms.html">Điều khoản dịch vụ</a>
+          </span>
         </div>
         <div className="footer-signature">
           <span>

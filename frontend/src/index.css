@@ -1113,6 +1113,10 @@ h2 { font-size: clamp(23px, 2.5vw, 29px); line-height: 1.15; letter-spacing: -.0
   gap: 12px;
 }
 
+.footer-copyright { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.footer-legal a { color: inherit; text-decoration: none; }
+.footer-legal a:hover { color: #81a6ff; text-decoration: underline; }
+
 .footer-copyright strong,
 .footer-signature strong {
   color: #cbd5e1;
