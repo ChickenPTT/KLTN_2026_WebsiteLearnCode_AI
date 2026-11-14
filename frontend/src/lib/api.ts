@@ -139,10 +139,16 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
-  register: (fullName: string, email: string, password: string) =>
+  /** Buoc 1 dang ky: gui ma 6 so toi email. required=false -> backend khong bat xac nhan */
+  sendRegisterCode: (email: string) =>
+    apiFetch<{ required: boolean; resendAfterSeconds: number }>('/api/auth/register/send-code', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  register: (fullName: string, email: string, password: string, code?: string) =>
     apiFetch<AuthResponse>('/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ fullName, email, password }),
+      body: JSON.stringify({ fullName, email, password, code }),
     }),
   /** Dang nhap bang Google: gui ID token Google cap cho backend kiem tra */
   google: (credential: string) =>

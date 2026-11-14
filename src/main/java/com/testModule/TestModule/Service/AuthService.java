@@ -39,6 +39,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
+    private final EmailVerificationService emailVerificationService;
     private final String googleClientId;
     // Kiem tra chu ky + han + audience cua ID token Google (tu tai va cache khoa cong khai cua Google)
     private final GoogleIdTokenVerifier googleVerifier;
@@ -48,11 +49,13 @@ public class AuthService {
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
             RefreshTokenService refreshTokenService,
+            EmailVerificationService emailVerificationService,
             @Value("${google.client-id:}") String googleClientId) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.refreshTokenService = refreshTokenService;
+        this.emailVerificationService = emailVerificationService;
         this.googleClientId = googleClientId == null ? "" : googleClientId.trim();
         this.googleVerifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), GsonFactory.getDefaultInstance())
                 .setAudience(List.of(this.googleClientId))
@@ -118,6 +121,24 @@ public class AuthService {
         }
     }
 
+    /** Ket qua buoc 1 dang ky: required=false -> khong can ma, FE goi register luon */
+    public record SendCodeResult(boolean required, int resendAfterSeconds) {
+    }
+
+    // Buoc 1 dang ky: gui ma xac nhan toi email (chi khi email chua co tai khoan)
+    public SendCodeResult sendRegisterCode(String rawEmail) {
+        if (!emailVerificationService.isRequired()) {
+            return new SendCodeResult(false, 0);
+        }
+        String email = normalizeEmail(rawEmail);
+        validateEmail(email);
+        if (userRepository.existsByEmail(email)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email đã được đăng ký.");
+        }
+        emailVerificationService.sendCode(email);
+        return new SendCodeResult(true, EmailVerificationService.RESEND_SECONDS);
+    }
+
     @Transactional
     public AuthSession register(RegisterRequest request) {
         if (request == null) {
@@ -130,6 +151,10 @@ public class AuthService {
         validateFullName(fullName);
         if (userRepository.existsByEmail(email)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email đã được đăng ký.");
+        }
+        // Buoc 2: ma dung moi tao tai khoan -> khong con email gia
+        if (emailVerificationService.isRequired()) {
+            emailVerificationService.verifyAndConsume(email, request.code());
         }
 
         User user = new User();

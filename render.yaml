@@ -42,6 +42,11 @@ services:
         sync: false
       - key: GROD_API_KEY
         sync: false
+      # Gui ma xac nhan email khi dang ky (Brevo HTTP API)
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
 
   # ---------- Frontend React (file tinh, khong ngu) ----------
   - type: web

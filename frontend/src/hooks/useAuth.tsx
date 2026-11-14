@@ -69,7 +69,9 @@ interface AuthContextValue {
   /** Dang dung backend that hay mock (de hien canh bao tren UI neu can) */
   backend: Backend;
   login: (email: string, password: string) => Promise<AuthResult>;
-  signup: (name: string, email: string, password: string) => Promise<AuthResult>;
+  signup: (name: string, email: string, password: string, code?: string) => Promise<AuthResult>;
+  /** Gui ma xac nhan dang ky. Tra ve null neu loi (loi nam trong `error`) */
+  requestSignupCode: (email: string) => Promise<{ required: boolean; resendAfterSeconds: number } | null>;
   loginWithGoogle: (credential: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
@@ -287,11 +289,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       () => mockLogin(email, password),
     );
 
-  const signup = (name: string, email: string, password: string) =>
+  const signup = (name: string, email: string, password: string, code?: string) =>
     run(
-      () => authApi.register(name, email, password),
+      () => authApi.register(name, email, password, code),
       () => mockSignup(name, email, password),
     );
+
+  const requestSignupCode = async (email: string) => {
+    if (backend === 'mock') return { required: false, resendAfterSeconds: 0 };
+    setLoading(true);
+    setError(null);
+    try {
+      return await authApi.sendRegisterCode(email);
+    } catch (e) {
+      // Backend tat -> chuyen mock, dang ky khong can ma
+      if (e instanceof BackendUnavailableError && switchToMock()) return { required: false, resendAfterSeconds: 0 };
+      setError(e instanceof ApiError || e instanceof BackendUnavailableError ? e.message : 'Không gửi được mã xác nhận.');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Google chi dung duoc khi co backend that (backend kiem tra token cua Google)
   const loginWithGoogle = (credential: string) =>
@@ -432,6 +450,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateUser,
         login,
         signup,
+        requestSignupCode,
         loginWithGoogle,
         logout,
         completeOnboarding,

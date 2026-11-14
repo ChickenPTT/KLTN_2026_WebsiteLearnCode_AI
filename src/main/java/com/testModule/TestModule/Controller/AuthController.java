@@ -63,6 +63,15 @@ public class AuthController {
         return withCookie(HttpStatus.CREATED, authService.register(request));
     }
 
+    public record SendCodeRequest(String email) {
+    }
+
+    // Buoc 1 dang ky: gui ma xac nhan 6 so toi email
+    @PostMapping("/register/send-code")
+    public AuthService.SendCodeResult sendRegisterCode(@RequestBody SendCodeRequest request) {
+        return authService.sendRegisterCode(request == null ? null : request.email());
+    }
+
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
         return withCookie(HttpStatus.OK, authService.login(request));
