@@ -34,13 +34,8 @@ function toTopicBands(items: { topic: string; bandIndex: number }[]): TopicBands
   return result;
 }
 
-/**
- * VITE_AUTH_MODE:
- *   'api'  — chi dung backend /api/auth/*
- *   'mock' — chi dung tai khoan mock (khong can backend)
- *   'auto' (mac dinh) — dung backend, neu backend chua chay thi tu chuyen sang mock
- */
-const AUTH_MODE_ENV = import.meta.env.VITE_AUTH_MODE ?? 'auto';
+
+const AUTH_MODE_ENV = import.meta.env.VITE_AUTH_MODE ?? (import.meta.env.PROD ? 'api' : 'auto');
 const MOCK_AUTH_KEY = 'mock_auth_user';
 const MOCK_USERS_KEY = 'mock_users';
 
