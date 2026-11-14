@@ -22,6 +22,7 @@ import {
   type SlotStatus,
 } from '@/lib/contestApi';
 import { STARTER_CODE, type CodeLanguage, type TestCaseResult } from '@/lib/problemsApi';
+import { contestCodeKey as codeKey, loadCode, saveCode } from '@/lib/codeDraft';
 import { Card } from './components/Primitives';
 
 interface ContestPageProps {
@@ -41,25 +42,7 @@ function errorText(e: unknown, fallback: string): string {
   return e instanceof Error && e.message ? e.message : fallback;
 }
 
-function codeKey(attemptId: number, problemId: number, lang: CodeLanguage) {
-  return `contest_code_${attemptId}_${problemId}_${lang}`;
-}
-
-function loadCode(key: string): string | null {
-  try {
-    return sessionStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function saveCode(key: string, value: string) {
-  try {
-    sessionStorage.setItem(key, value);
-  } catch {
-    // ignore
-  }
-}
+// Tu luu code: loadCode/saveCode/codeKey dung chung trong '@/lib/codeDraft' (localStorage)
 
 export function ContestPage({ attemptId, onBack }: ContestPageProps) {
   const [attempt, setAttempt] = useState<AttemptView | null>(null);

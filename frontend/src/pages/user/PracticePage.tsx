@@ -19,6 +19,7 @@ import {
   ChevronUp,
   Shuffle,
 } from 'lucide-react';
+import { isAutoSaveEnabled, loadCode, practiceCodeKey, saveCode } from '@/lib/codeDraft';
 import { LEVEL_COLORS, LEVEL_LABELS, type PracticeProblem, type AuthMode } from '@/types';
 import { normalizeDifficulty } from '@/lib/difficulty';
 import { Header } from '@/layout/Header';
@@ -222,6 +223,26 @@ function PracticePage({
     };
   }, [initialProblemId]);
 
+  // ── Tu luu code (giong trang Thi dau) ──────────────────────────────────
+  // localStorage, luu ngay moi lan go, moi de + moi ngon ngu mot ban rieng -> dong tab van con code
+  const codeStorageKey = (lang: CodeLanguage) =>
+    problem ? practiceCodeKey(user?.id, problem.id, lang) : null;
+
+  // Mo de -> lay code da luu cua ngon ngu dang chon (khong co thi dung code mau)
+  useEffect(() => {
+    if (!problem) return;
+    const key = codeStorageKey(language);
+    setCode((key && loadCode(key)) ?? STARTER_CODE[language]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [problem?.id]);
+
+  const handleCodeChange = (val: string | undefined) => {
+    const v = val ?? '';
+    setCode(v);
+    const key = codeStorageKey(language);
+    if (key) saveCode(key, v);
+  };
+
   const resetResults = () => {
     setRunState('idle');
     setResults([]);
@@ -234,11 +255,15 @@ function PracticePage({
   const goToProblem = (id: string) => onGoPractice(id);
 
   const handleLanguageChange = (newLang: CodeLanguage): void => {
-    // Chi thay code khi sinh vien chua sua gi — khong xoa bai dang lam do
+    if (newLang === language) return;
+    // Tat tu luu thi code ngon ngu cu se mat -> hoi truoc (bat tu luu thi da luu rieng, khong mat)
     const untouched = code.trim() === STARTER_CODE[language].trim() || code.trim() === '';
-    if (!untouched && !window.confirm('Đổi ngôn ngữ sẽ thay code hiện tại bằng code mẫu. Tiếp tục?')) return;
+    if (!isAutoSaveEnabled() && !untouched
+      && !window.confirm('Đổi ngôn ngữ sẽ thay code hiện tại bằng code mẫu. Tiếp tục?')) return;
     setLanguage(newLang);
-    setCode(STARTER_CODE[newLang]);
+    // Mo lai code da viet cho ngon ngu moi (giong trang Thi dau)
+    const key = codeStorageKey(newLang);
+    setCode((key && loadCode(key)) ?? STARTER_CODE[newLang]);
     resetResults();
   };
 
@@ -551,6 +576,7 @@ function PracticePage({
                 {isExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                 <span>{isExpanded ? 'Thu nhỏ' : 'Mở rộng code'}</span>
               </button>
+
             </div>
 
             <div className="editor-actions">
@@ -581,7 +607,7 @@ function PracticePage({
               height="100%"
               language={language}
               value={code}
-              onChange={(val) => setCode(val ?? '')}
+              onChange={handleCodeChange}
               onMount={handleEditorMount}
               theme={editorTheme}
               options={{
