@@ -63,7 +63,7 @@ function AdminTemplateFormModal({
       return;
     }
     if (!starterCode.trim()) {
-      setError('Vui lòng nhập mã khởi tạo (starter code).');
+      setError('Vui lòng nhập Mã thực thi bài tập');
       return;
     }
 
@@ -260,7 +260,7 @@ function AdminTemplateFormModal({
           </div>
 
           <label className="auth-field">
-            <span className="auth-label">Mã khởi tạo mẫu (Starter Code)</span>
+            <span className="auth-label">Mã thực thi bài tập</span>
             <textarea
               rows={4}
               placeholder="function solution(input) { ... }"
