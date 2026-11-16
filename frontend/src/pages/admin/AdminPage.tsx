@@ -230,7 +230,7 @@ export function AdminPage({
         }
 
         // Templates
-        if (results[2].status === 'fulfilled' && results[2].value.length > 0) {
+        if (results[2].status === 'fulfilled') {
           setSampleTemplates(results[2].value.map(mapTemplate));
         }
 
@@ -297,6 +297,10 @@ export function AdminPage({
       refreshDashboardStats();
       refreshProblems();
     }
+    if (activeTab === 'templates') {
+      refreshTemplates();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   const refreshUsers = async () => {
@@ -313,9 +317,7 @@ export function AdminPage({
   const refreshTemplates = async () => {
     try {
       const allTemplates = await templatesApi.list();
-      if (allTemplates.length > 0) {
-        setSampleTemplates(allTemplates.map(mapTemplate));
-      }
+      setSampleTemplates(allTemplates.map(mapTemplate));
     } catch {
       // Keep existing data if refresh fails
     }
@@ -541,67 +543,31 @@ export function AdminPage({
 
   const handlePublishAllQuestions = (questions: GeneratedQuestion[]) => publishGeneratedOnBackend(questions);
 
+  // Lưu template lên backend. KHÔNG còn fallback "tạo/sửa local" khi API lỗi: template local chỉ nằm
+  // trong state (mất khi chuyển trang/F5) và tab Sinh đề không thấy vì tab đó đọc thẳng từ API.
+  // Lỗi được ném ra để AdminTemplateFormModal hiện đúng thông báo của backend và giữ form mở.
   const handleSaveTemplate = async (tplData: Omit<SampleTemplate, 'id' | 'updatedAt'>) => {
+    const payload = {
+      name: tplData.title,
+      topic: tplData.topic,
+      level: tplData.level,
+      generatorType: tplData.generatorType ?? 'TWO_INTEGERS',
+      minN: tplData.minLength ?? undefined,
+      maxN: tplData.maxLength ?? undefined,
+      minValue: tplData.minValue ?? undefined,
+      maxValue: tplData.maxValue ?? undefined,
+      statementPattern: tplData.description,
+      referenceSolutionCode: tplData.starterCode,
+      languageId: tplData.languageId ?? 62,
+    };
     if (templateToEdit) {
-      const backendId = Number(templateToEdit.id);
-      try {
-        await templatesApi.update(backendId, {
-          name: tplData.title,
-          topic: tplData.topic,
-          level: tplData.level,
-          generatorType: tplData.generatorType ?? 'TWO_INTEGERS',
-          minN: tplData.minLength ?? undefined,
-          maxN: tplData.maxLength ?? undefined,
-          minValue: tplData.minValue ?? undefined,
-          maxValue: tplData.maxValue ?? undefined,
-          statementPattern: tplData.description,
-          referenceSolutionCode: tplData.starterCode,
-          languageId: tplData.languageId ?? 62,
-        });
-        // Reload templates from API
-        const refreshed = await templatesApi.list();
-        setSampleTemplates(refreshed.map(mapTemplate));
-      } catch {
-        // Fallback: cập nhật local
-        setSampleTemplates((prev) =>
-          prev.map((t) =>
-            t.id === templateToEdit.id
-              ? { ...tplData, id: t.id, updatedAt: new Date().toLocaleDateString('vi-VN') }
-              : t,
-          ),
-        );
-      }
-      // Refresh audit logs from API
-      await refreshAuditLogs();
+      await templatesApi.update(Number(templateToEdit.id), payload);
     } else {
-      try {
-        const created = await templatesApi.create({
-          name: tplData.title,
-          topic: tplData.topic,
-          level: tplData.level,
-          generatorType: tplData.generatorType ?? 'TWO_INTEGERS',
-          minN: tplData.minLength ?? undefined,
-          maxN: tplData.maxLength ?? undefined,
-          minValue: tplData.minValue ?? undefined,
-          maxValue: tplData.maxValue ?? undefined,
-          statementPattern: tplData.description,
-          referenceSolutionCode: tplData.starterCode,
-          languageId: tplData.languageId ?? 62,
-        });
-        const mapped = mapTemplate(created);
-        setSampleTemplates((prev) => [mapped, ...prev]);
-      } catch {
-        // Fallback: tạo local
-        const newTpl: SampleTemplate = {
-          id: `tpl-${Date.now()}`,
-          ...tplData,
-          updatedAt: new Date().toLocaleDateString('vi-VN'),
-        };
-        setSampleTemplates((prev) => [newTpl, ...prev]);
-      }
-      // Refresh audit logs from API
-      await refreshAuditLogs();
+      await templatesApi.create(payload);
     }
+    // Đồng bộ lại danh sách từ DB (nguồn dữ liệu duy nhất)
+    setSampleTemplates((await templatesApi.list()).map(mapTemplate));
+    await refreshAuditLogs();
     setShowTemplateFormModal(false);
     setTemplateToEdit(null);
   };

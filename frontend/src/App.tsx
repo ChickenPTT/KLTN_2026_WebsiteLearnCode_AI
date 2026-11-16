@@ -62,6 +62,11 @@ const FlashcardMatchPage = lazyPage(() => import('@/pages/user/FlashcardMatchPag
 
 /** Các trang học viên mới (chưa tự đánh giá) vẫn được vào */
 const ONBOARDING_ALLOWED_VIEWS: View[] = ['landing', 'auth', 'onboarding', 'self-rate', 'quiz', 'result'];
+// Các trang phụ thuộc trạng thái đăng nhập -> hiện loader trong lúc khôi phục phiên (F5)
+const SESSION_DEPENDENT_VIEWS: View[] = [
+  'auth', 'admin', 'profile', 'settings', 'progress', 'history', 'create-flashcard', 'contest',
+  'onboarding', 'self-rate', 'quiz', 'result',
+];
 
 // ── CENTRAL ROUTE GUARD & ROLE-BASED ACCESS CONTROL (RBAC) ──
 function checkRouteAccess(
@@ -235,21 +240,15 @@ function getInitialNavigationState(): {
   let selectedFlashcardSetId = 'fc-1';
 
   try {
-    let authUser: { role?: UserRole } | null = null;
-    const authSaved = sessionStorage.getItem('auth_user');
-    if (authSaved) {
-      authUser = JSON.parse(authSaved);
-    }
+    // Lúc mở trang CHƯA biết người dùng là ai: phiên được khôi phục bất đồng bộ qua /api/auth/refresh
+    // (access token chỉ nằm trong bộ nhớ). Vì vậy KHÔNG chạy route guard ở đây — giữ nguyên trang được
+    // yêu cầu; guard chạy lại một lần sau khi khôi phục phiên xong (xem effect "POST-RESTORE ROUTE GUARD").
+    // Trước đây đọc sessionStorage 'auth_user' (không còn nơi nào ghi) -> F5 luôn bị coi là chưa đăng nhập.
 
-    // 1. Check URL hash first with route guard validation
+    // 1. Check URL hash first
     const hashData = parseHash(window.location.hash);
     if (hashData.view && hashData.view !== 'landing') {
-      const guardResult = checkRouteAccess(hashData.view, authUser);
-      view = guardResult.view;
-      if (guardResult.authMode) authMode = guardResult.authMode;
-      if (guardResult.redirectAfterLogin) {
-        sessionStorage.setItem('redirect_after_login', guardResult.redirectAfterLogin);
-      }
+      view = hashData.view;
 
       if (hashData.problemId) {
         selectedProblemId = hashData.problemId;
@@ -259,7 +258,7 @@ function getInitialNavigationState(): {
       if (hashData.topicSlug) {
         selectedTopic = resolveTopic(hashData.topicSlug);
       }
-      if (hashData.authMode && !guardResult.authMode) authMode = hashData.authMode;
+      if (hashData.authMode) authMode = hashData.authMode;
       if (hashData.adminTab) adminTab = hashData.adminTab;
       if (hashData.leagueSub) leagueSubTab = hashData.leagueSub;
       if (hashData.seasonMode) {
@@ -268,19 +267,9 @@ function getInitialNavigationState(): {
       }
       if (hashData.flashcardSetId) selectedFlashcardSetId = hashData.flashcardSetId;
     } else {
-      // 2. Fallback to Session Storage
-      if (authUser && (authUser.role === 'admin' || authUser.role === 'teacher')) {
-        const saved = sessionStorage.getItem(VIEW_KEY) as View | null;
-        view = saved && (saved === 'admin' || saved === 'profile') ? saved : 'admin';
-      } else {
-        const saved = sessionStorage.getItem(VIEW_KEY) as View | null;
-        if (saved && saved !== 'auth') {
-          const guard = checkRouteAccess(saved, authUser);
-          view = guard.allowed ? saved : (authUser ? 'topics' : 'landing');
-        } else if (authUser) {
-          view = 'topics';
-        }
-      }
+      // 2. Fallback to Session Storage (guard cũng để sau khi khôi phục phiên)
+      const saved = sessionStorage.getItem(VIEW_KEY) as View | null;
+      if (saved && saved !== 'auth') view = saved;
     }
   } catch {
     // ignore
@@ -531,6 +520,28 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [user, view, selectedProblemId, selectedTopic, authMode, adminTab, leagueSubTab, seasonConfigMode, currentSeasonId, selectedFlashcardSetId]);
 
+  // ── POST-RESTORE ROUTE GUARD ──
+  // Chạy sau khi /api/auth/refresh khôi phục phiên xong (và mỗi khi user/view đổi):
+  // - Đã đăng nhập mà đang ở trang login -> về đúng trang định vào trước đó (redirect_after_login)
+  // - Chưa đăng nhập mà vào trang cần đăng nhập -> sang login, nhớ trang để quay lại
+  useEffect(() => {
+    if (initializing) return;
+    if (view === 'auth' && user) {
+      const target = sessionStorage.getItem('redirect_after_login') as View | null;
+      sessionStorage.removeItem('redirect_after_login');
+      if (target && target !== 'auth' && checkRouteAccess(target, user).allowed) {
+        nav(target, {}, { replace: true });
+        return;
+      }
+    }
+    const guard = checkRouteAccess(view, user);
+    if (!guard.allowed && guard.view !== view) {
+      if (guard.redirectAfterLogin) sessionStorage.setItem('redirect_after_login', guard.redirectAfterLogin);
+      nav(guard.view, guard.authMode ? { authMode: guard.authMode } : {}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initializing, user, view]);
+
   // ── ADMIN / TEACHER AUTOMATIC REDIRECT GUARD ──
   useEffect(() => {
     if (user && (user.role === 'admin' || user.role === 'teacher')) {
@@ -642,6 +653,11 @@ function App() {
     setAssessmentScores(scores);
     nav('result');
   };
+
+  // Đang khôi phục phiên sau F5: trang cần đăng nhập (và trang login) chờ thay vì nháy form đăng nhập
+  if (initializing && SESSION_DEPENDENT_VIEWS.includes(view)) {
+    return <FullPageLoader />;
+  }
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   if (view === 'auth') {

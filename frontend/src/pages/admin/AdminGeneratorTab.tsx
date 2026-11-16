@@ -48,7 +48,8 @@ export function AdminGeneratorTab({
   const templateOptions = templatesLoading || !genTopic
       ? []
       : backendTemplates
-          .filter((t) => (t.topic?.name ?? 'Khác') === genTopic)
+          // Backend gộp chủ đề theo tên không phân biệt hoa thường (findByNameIgnoreCase)
+          .filter((t) => (t.topic?.name ?? 'Khác').trim().toLowerCase() === genTopic.trim().toLowerCase())
           .map((t) => {
             const levelLabel = LEVEL_LABELS[t.level as SkillLevel] ?? t.level;
             return {

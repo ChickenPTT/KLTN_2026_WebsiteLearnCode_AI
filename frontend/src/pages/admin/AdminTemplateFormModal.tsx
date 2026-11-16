@@ -7,8 +7,12 @@ import type { SampleTemplate } from './admin.types';
 interface AdminTemplateFormModalProps {
   templateToEdit?: SampleTemplate | null;
   onClose: () => void;
-  onSubmit: (tplData: Omit<SampleTemplate, 'id' | 'updatedAt'>) => void;
+  /** Lưu lên backend; ném lỗi (kèm thông báo) nếu thất bại -> modal giữ nguyên và hiện lỗi */
+  onSubmit: (tplData: Omit<SampleTemplate, 'id' | 'updatedAt'>) => Promise<void>;
 }
+
+// Khớp TemplateCommandService.MAX_COLLECTION_SIZE ở backend
+const MAX_COLLECTION_SIZE = 1000;
 
 const GENERATOR_TYPES = [
   { label: 'Hai số nguyên (Two Integers)', value: 'TWO_INTEGERS' },
@@ -49,9 +53,11 @@ function AdminTemplateFormModal({
   );
 
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     setError(null);
 
     if (title.trim().length < 3) {
@@ -80,8 +86,24 @@ function AdminTemplateFormModal({
       setError('Giá trị nhỏ nhất của phần tử không được lớn hơn giá trị lớn nhất.');
       return;
     }
+    if (generatorType !== 'TWO_INTEGERS') {
+      if (minLenNum === undefined || maxLenNum === undefined) {
+        setError('Vui lòng nhập số lượng tối thiểu và tối đa của mảng/chuỗi.');
+        return;
+      }
+      if (minLenNum < 1 || maxLenNum > MAX_COLLECTION_SIZE) {
+        setError(`Số lượng phần tử/độ dài chuỗi phải trong khoảng 1 – ${MAX_COLLECTION_SIZE}.`);
+        return;
+      }
+    }
+    if (generatorType !== 'STRING_BASIC' && (minValNum === undefined || maxValNum === undefined)) {
+      setError('Vui lòng nhập giá trị nhỏ nhất và lớn nhất của phần tử.');
+      return;
+    }
 
-    onSubmit({
+    setSaving(true);
+    try {
+      await onSubmit({
       title: title.trim(),
       topic,
       level,
@@ -93,7 +115,12 @@ function AdminTemplateFormModal({
       maxValue: maxValNum,
       generatorType,
       languageId,
-    });
+      });
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Không lưu được template. Vui lòng thử lại.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -276,8 +303,8 @@ function AdminTemplateFormModal({
             <button type="button" className="dialog-cancel" onClick={onClose}>
               Huỷ
             </button>
-            <button type="submit" className="dialog-confirm primary">
-              {templateToEdit ? 'Lưu cập nhật' : 'Tạo Template mẫu'}
+            <button type="submit" className="dialog-confirm primary" disabled={saving}>
+              {saving ? 'Đang lưu...' : templateToEdit ? 'Lưu cập nhật' : 'Tạo Template mẫu'}
             </button>
           </div>
         </form>
