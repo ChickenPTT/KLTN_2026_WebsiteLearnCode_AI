@@ -22,6 +22,8 @@ import {
   RotateCcw,
   Check,
   X,
+  Shuffle,
+  Play,
 } from 'lucide-react';
 import { quizApi, flashcardApi, type QuizSession, type FlashcardStudyProgress } from '@/lib/api';
 
@@ -43,7 +45,13 @@ interface FlashcardLibraryPageProps {
   onLoggedOut?: () => void;
   onSelectSet: (setId: string) => void;
   onGoMatch?: (setId: string) => void;
+  /** Ôn luyện tổng hợp: ghép thẻ từ 2–3 bộ cùng lúc */
+  onGoMatchMulti?: (setIds: string[]) => void;
 }
+
+// Giới hạn số bộ trong một lần ôn luyện tổng hợp (khớp với QuizService ở backend)
+const MIN_MULTI_SETS = 2;
+const MAX_MULTI_SETS = 3;
 
 type CardIcon = 'Binary' | 'Database' | 'Cpu' | 'Code2' | 'BrainCircuit' | 'Globe';
 
@@ -384,12 +392,35 @@ export function FlashcardLibraryPage({
   onLoggedOut,
   onSelectSet,
   onGoMatch,
+  onGoMatchMulti,
 }: FlashcardLibraryPageProps) {
   const [completedSets, setCompletedSets] = useState<CompletedFlashcardSet[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [selectedSet, setSelectedSet] = useState<CompletedFlashcardSet | null>(null);
+
+  // ── Ôn luyện tổng hợp (chọn nhiều bộ) ──
+  const [multiMode, setMultiMode] = useState(false);
+  const [multiIds, setMultiIds] = useState<string[]>([]);
+  const canMulti = !!onGoMatchMulti && completedSets.length >= MIN_MULTI_SETS;
+  const multiWordCount = useMemo(
+    () => completedSets.filter((s) => multiIds.includes(s.id)).reduce((sum, s) => sum + s.wordCount, 0),
+    [completedSets, multiIds],
+  );
+
+  const toggleMultiId = (id: string) => {
+    setMultiIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= MAX_MULTI_SETS) return prev;
+      return [...prev, id];
+    });
+  };
+
+  const exitMultiMode = () => {
+    setMultiMode(false);
+    setMultiIds([]);
+  };
 
   // Load completed quiz history from backend, then enrich with deck details
   useEffect(() => {
@@ -579,26 +610,85 @@ export function FlashcardLibraryPage({
                   Bấm vào một bộ thẻ để xem kết quả học tập và danh sách từ vựng bạn đã nắm vững
                 </p>
               </div>
-              <button
-                className="fc-create-btn"
-                style={{ background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)' }}
-                onClick={() => onGoFlashcards?.()}
-              >
-                <Compass size={16} /> Khám phá thêm bộ thẻ
-              </button>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                {canMulti && (
+                  <button
+                    type="button"
+                    className="fc-create-btn"
+                    style={multiMode ? { background: '#64748b' } : undefined}
+                    onClick={() => (multiMode ? exitMultiMode() : setMultiMode(true))}
+                  >
+                    {multiMode ? <X size={16} /> : <Shuffle size={16} />}
+                    {multiMode ? 'Hủy chọn' : 'Ôn luyện tổng hợp'}
+                  </button>
+                )}
+                <button
+                  className="fc-create-btn"
+                  style={{ background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)' }}
+                  onClick={() => onGoFlashcards?.()}
+                >
+                  <Compass size={16} /> Khám phá thêm bộ thẻ
+                </button>
+              </div>
             </div>
+
+            {/* Thanh chọn bộ cho ôn luyện tổng hợp */}
+            {multiMode && (
+              <div
+                role="region"
+                aria-label="Ôn luyện tổng hợp"
+                style={{
+                  position: 'sticky', top: '72px', zIndex: 5,
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  gap: '12px', flexWrap: 'wrap',
+                  padding: '14px 18px', marginBottom: '16px', borderRadius: '14px',
+                  background: 'rgba(79, 70, 229, 0.08)', border: '1px solid rgba(79, 70, 229, 0.3)',
+                }}
+              >
+                <div>
+                  <strong style={{ color: '#4f46e5' }}>
+                    Đã chọn {multiIds.length}/{MAX_MULTI_SETS} bộ
+                  </strong>
+                  <span className="fc-section-sub" style={{ marginLeft: '8px' }}>
+                    {multiIds.length < MIN_MULTI_SETS
+                      ? `Chọn từ ${MIN_MULTI_SETS} đến ${MAX_MULTI_SETS} bộ để ghép thẻ trộn lẫn.`
+                      : `${multiWordCount} thuật ngữ — trộn ngẫu nhiên tối đa 30 từ, 3 vòng.`}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="fc-create-btn"
+                  disabled={multiIds.length < MIN_MULTI_SETS}
+                  style={multiIds.length < MIN_MULTI_SETS ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                  onClick={() => {
+                    if (multiIds.length >= MIN_MULTI_SETS) onGoMatchMulti?.(multiIds);
+                  }}
+                >
+                  <Play size={16} /> Bắt đầu ôn luyện
+                </button>
+              </div>
+            )}
 
             {/* Cards list */}
             {filteredSets.length > 0 ? (
               <div className="fc-hcard-list">
                 {filteredSets.map((set) => {
                   const IconComp = ICON_MAP[set.iconName] || Code2;
+                  const isPicked = multiIds.includes(set.id);
+                  const pickDisabled = multiMode && !isPicked && multiIds.length >= MAX_MULTI_SETS;
                   return (
                     <div
                       key={set.id}
                       className="fc-hcard"
-                      onClick={() => setSelectedSet(set)}
-                      style={{ cursor: 'pointer' }}
+                      role={multiMode ? 'checkbox' : undefined}
+                      aria-checked={multiMode ? isPicked : undefined}
+                      onClick={() => (multiMode ? !pickDisabled && toggleMultiId(set.id) : setSelectedSet(set))}
+                      style={{
+                        cursor: pickDisabled ? 'not-allowed' : 'pointer',
+                        opacity: pickDisabled ? 0.55 : 1,
+                        outline: isPicked ? '2px solid #4f46e5' : undefined,
+                        outlineOffset: isPicked ? '-2px' : undefined,
+                      }}
                     >
                       {/* Left */}
                       <div className="fc-hcard-left">
@@ -629,13 +719,28 @@ export function FlashcardLibraryPage({
 
                       {/* Right: Chỉ hiển thị arrow indicator */}
                       <div className="fc-hcard-actions" style={{ paddingRight: '4px' }}>
-                        <span style={{
-                          fontSize: '13px', fontWeight: 600,
-                          color: '#4f46e5',
-                          display: 'inline-flex', alignItems: 'center', gap: '4px',
-                        }}>
-                          Xem kết quả →
-                        </span>
+                        {multiMode ? (
+                          <span
+                            aria-hidden="true"
+                            style={{
+                              width: '26px', height: '26px', borderRadius: '8px',
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              border: `2px solid ${isPicked ? '#4f46e5' : '#cbd5e1'}`,
+                              background: isPicked ? '#4f46e5' : 'transparent',
+                              color: '#ffffff',
+                            }}
+                          >
+                            {isPicked && <Check size={16} strokeWidth={3} />}
+                          </span>
+                        ) : (
+                          <span style={{
+                            fontSize: '13px', fontWeight: 600,
+                            color: '#4f46e5',
+                            display: 'inline-flex', alignItems: 'center', gap: '4px',
+                          }}>
+                            Xem kết quả →
+                          </span>
+                        )}
                       </div>
                     </div>
                   );

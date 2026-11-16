@@ -1,11 +1,14 @@
 package com.testModule.TestModule.Service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -20,6 +23,7 @@ import java.util.Map;
 public class EmailService {
 
     private static final String BREVO_URL = "https://api.brevo.com/v3/smtp/email";
+    private static final Logger log = LoggerFactory.getLogger(EmailService.class);
 
     private final RestClient restClient = RestClient.create();
     private final String apiKey;
@@ -40,8 +44,9 @@ public class EmailService {
     }
 
     public void send(String to, String subject, String html) {
+        // Luu y: dung 500 (khong dung 502/503) vi FE coi ma >= 502 la "khong ket noi duoc may chu"
         if (!isConfigured()) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Chưa cấu hình dịch vụ gửi email.");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Chưa cấu hình dịch vụ gửi email.");
         }
         Map<String, Object> body = Map.of(
                 "sender", Map.of("name", fromName, "email", fromEmail),
@@ -57,8 +62,14 @@ public class EmailService {
                     .body(body)
                     .retrieve()
                     .toBodilessEntity();
+        } catch (RestClientResponseException e) {
+            // Brevo tra loi loi (key sai, IP bi chan, nguoi gui chua xac minh...) -> ghi ro vao log de tra cuu
+            log.warn("Brevo tu choi gui email toi {}: HTTP {} - {}", to, e.getStatusCode().value(), e.getResponseBodyAsString());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Không gửi được email xác nhận, vui lòng thử lại sau.");
         } catch (RestClientException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Không gửi được email, vui lòng thử lại sau.");
+            // Khong ket noi duoc toi Brevo (mang, timeout...)
+            log.warn("Khong ket noi duoc Brevo khi gui email toi {}: {}", to, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Không gửi được email xác nhận, vui lòng thử lại sau.");
         }
     }
 }

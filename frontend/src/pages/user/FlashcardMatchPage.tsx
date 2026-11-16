@@ -12,10 +12,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { LoginModal } from '@/components/LoginModal';
 import {
   quizApi,
+  flashcardApi,
+  ApiError,
   type GridCell as BackendGridCell,
   type RoundResponse as BackendRoundResponse,
   type QuizResultResponse as BackendQuizResultResponse,
 } from '@/lib/api';
+import { parseDeckIds } from '@/lib/flashcardDeckIds';
 
 interface FlashcardMatchPageProps {
   setId: string;
@@ -39,6 +42,10 @@ interface MatchTile {
   termId: number;
   type: 'term' | 'definition';
   text: string;
+}
+
+function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof ApiError && err.message ? err.message : fallback;
 }
 
 // Convert backend GridCell to MatchTile
@@ -70,8 +77,32 @@ export function FlashcardMatchPage({
   const { user } = useAuth();
   const isLoggedIn = !!user;
 
-  const backendDeckId = Number(setId);
-  const deckTitle = setId ? `Deck #${setId}` : 'Bộ từ vựng';
+  // setId có thể là 1 id ("12") hoặc nhiều id ngăn bởi dấu phẩy ("12,15,20") cho ôn luyện tổng hợp
+  const deckIds = parseDeckIds(setId);
+  const deckKey = deckIds.join(',');
+  const isMulti = deckIds.length > 1;
+  const backendDeckId = deckIds[0] ?? 0;
+  const [deckTitle, setDeckTitle] = useState(
+    isMulti ? `Tổng hợp ${deckIds.length} bộ` : setId ? `Deck #${setId}` : 'Bộ từ vựng',
+  );
+
+  // Lấy tên thật của bộ thẻ để hiển thị tiêu đề
+  useEffect(() => {
+    if (deckIds.length === 0) return;
+    let cancelled = false;
+    Promise.all(deckIds.map((id) => flashcardApi.getDeck(id).then((d) => d.name).catch(() => null)))
+      .then((names) => {
+        if (cancelled) return;
+        const valid = names.filter((n): n is string => !!n);
+        if (valid.length === 0) return;
+        setDeckTitle(isMulti ? `Tổng hợp ${deckIds.length} bộ (${valid.join(', ')})` : valid[0]);
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deckKey]);
+
+  const startSession = () =>
+    isMulti ? quizApi.startQuiz('RANDOM', undefined, deckIds) : quizApi.startQuiz('BY_DECK', backendDeckId);
 
   // Quiz state from backend
   const [round, setRound] = useState<BackendRoundResponse | null>(null);
@@ -108,7 +139,7 @@ export function FlashcardMatchPage({
     }
     let cancelled = false;
     setLoading(true);
-    quizApi.startQuiz('BY_DECK', backendDeckId)
+    startSession()
       .then(response => {
         if (!cancelled) {
           setRound(response);
@@ -119,14 +150,15 @@ export function FlashcardMatchPage({
           setLoading(false);
         }
       })
-      .catch(() => {
+      .catch((err) => {
         if (!cancelled) {
-          setError('Không thể bắt đầu quiz. Vui lòng thử lại.');
+          setError(errorMessage(err, 'Không thể bắt đầu quiz. Vui lòng thử lại.'));
           setLoading(false);
         }
       });
     return () => { cancelled = true; };
-  }, [backendDeckId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deckKey]);
 
   // Timer countdown
   useEffect(() => {
@@ -241,7 +273,7 @@ export function FlashcardMatchPage({
     setTiles([]);
     if (backendDeckId) {
       setLoading(true);
-      quizApi.startQuiz('BY_DECK', backendDeckId)
+      startSession()
         .then(response => {
           setRound(response);
           setSessionId(response.sessionId);
@@ -250,8 +282,8 @@ export function FlashcardMatchPage({
           setIsGameActive(true);
           setLoading(false);
         })
-        .catch(() => {
-          setError('Không thể bắt đầu quiz.');
+        .catch((err) => {
+          setError(errorMessage(err, 'Không thể bắt đầu quiz.'));
           setLoading(false);
         });
     }
@@ -392,7 +424,7 @@ export function FlashcardMatchPage({
                 }}
                 onClick={onBack}
               >
-                Quay lại bộ thẻ
+                {isMulti ? 'Quay lại thư viện' : 'Quay lại bộ thẻ'}
               </button>
             </div>
           </div>

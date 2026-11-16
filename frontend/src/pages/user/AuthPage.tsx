@@ -172,18 +172,6 @@ export function AuthPage({ onBack, initialMode, onLoginSuccess }: AuthPageProps)
             <div><strong>12</strong><span>Chủ đề</span></div>
             {/*<div><strong>30+</strong><span>Trường ĐH</span></div>*/}
           </div>
-
-          {/* Gợi ý tài khoản mock */}
-          <div className="auth-visual-hint">
-            {/*<p style={{ marginTop: '1.5rem', fontSize: '0.78rem', opacity: 0.6 }}>*/}
-            {/*  🧪 Mock test accounts:*/}
-            {/*</p>*/}
-            {/*<p style={{ fontSize: '0.75rem', opacity: 0.55, lineHeight: 1.8 }}>*/}
-            {/*  student@demo.com / demo1234 (Sinh viên)<br />*/}
-            {/*  teacher@demo.com / demo1234 (Giảng viên/Admin)<br />*/}
-            {/*  admin@demo.com &nbsp;/ demo1234 (Quản trị viên)*/}
-            {/*</p>*/}
-          </div>
         </div>
       </div>
 

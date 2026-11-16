@@ -24,6 +24,9 @@ public class QuizService {
     // Terms per round
     private static final int TERMS_PER_ROUND_RANDOM = 10;
     private static final int TOTAL_TERMS_RANDOM = 30;     // 3 rounds * 10
+    // Ôn luyện tổng hợp (RANDOM): gộp từ 2–3 bộ
+    private static final int MIN_DECKS_RANDOM = 2;
+    private static final int MAX_DECKS_RANDOM = 3;
 
     private final FlashcardDeckRepository deckRepository;
     private final FlashcardTermRepository termRepository;
@@ -103,17 +106,19 @@ public class QuizService {
             }
             allTerms = deck.getTerms();
         } else if (quizType == QuizSession.QuizType.RANDOM) {
-            if (request.deckIds() == null || request.deckIds().size() < 2) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Kiểm tra random cần chọn ít nhất 2 bộ.");
+            List<Long> deckIds = request.deckIds() == null ? List.of()
+                    : request.deckIds().stream().filter(Objects::nonNull).distinct().toList();
+            if (deckIds.size() < MIN_DECKS_RANDOM) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ôn luyện tổng hợp cần chọn ít nhất " + MIN_DECKS_RANDOM + " bộ.");
             }
-            List<FlashcardDeck> decks = deckRepository.findAllByIdWithTerms(request.deckIds());
+            if (deckIds.size() > MAX_DECKS_RANDOM) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ôn luyện tổng hợp chỉ chọn tối đa " + MAX_DECKS_RANDOM + " bộ.");
+            }
+            List<FlashcardDeck> decks = deckRepository.findAllByIdWithTerms(deckIds);
             if (decks.isEmpty()) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy bộ flashcard nào.");
             }
-            allTerms = new ArrayList<>();
-            for (FlashcardDeck d : decks) {
-                allTerms.addAll(d.getTerms());
-            }
+            allTerms = dedupeTerms(decks);
         } else {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Loại quiz không hợp lệ.");
         }
@@ -430,6 +435,23 @@ public class QuizService {
         String email = auth.getName();
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Không tìm thấy người dùng."));
+    }
+
+    /**
+     * Gộp thuật ngữ từ nhiều bộ, bỏ trùng khi cùng từ VÀ cùng nghĩa (không phân biệt hoa thường).
+     * Cùng từ nhưng khác nghĩa vẫn giữ cả hai.
+     */
+    private List<FlashcardTerm> dedupeTerms(List<FlashcardDeck> decks) {
+        Map<String, FlashcardTerm> unique = new LinkedHashMap<>();
+        for (FlashcardDeck d : decks) {
+            for (FlashcardTerm t : d.getTerms()) {
+                String term = t.getTerm() == null ? "" : t.getTerm().trim();
+                String def = t.getDefinition() == null ? "" : t.getDefinition().trim();
+                if (term.isEmpty() || def.isEmpty()) continue;
+                unique.putIfAbsent(term.toLowerCase() + ":::" + def.toLowerCase(), t);
+            }
+        }
+        return new ArrayList<>(unique.values());
     }
 
     private <T> void fisherYatesShuffle(List<T> list) {

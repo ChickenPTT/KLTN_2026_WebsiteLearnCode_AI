@@ -10,6 +10,7 @@ import { AuthPage } from '@/pages/user/AuthPage';
 import { OnboardingPage, SHOW_QUIZ_OPTION } from '@/pages/user/OnboardingPage';
 import { TOPIC_INFOS, getTopicBySlugOrName, type TopicInfo, type PracticeProblem } from '@/types';
 import { initTheme } from '@/lib/theme';
+import { isMultiDeck } from '@/lib/flashcardDeckIds';
 import { getCachedPublishedProblems } from '@/hooks/usePublishedProblems';
 import { AccessDeniedPage } from '@/pages/user/AccessDeniedPage';
 
@@ -608,6 +609,8 @@ function App() {
   };
   const handleSelectFlashcardSet = (setId: string) => nav('flashcard-detail', { flashcardSetId: setId });
   const goFlashcardMatch = (setId?: string) => nav('flashcard-match', setId ? { flashcardSetId: setId } : undefined);
+  // Ôn luyện tổng hợp: nhiều bộ được truyền qua cùng tham số, ngăn bởi dấu phẩy ("12,15,20")
+  const goFlashcardMatchMulti = (setIds: string[]) => nav('flashcard-match', { flashcardSetId: setIds.join(',') });
 
   // "Bắt đầu luyện tập"
   const goStartPractice = () => {
@@ -1131,6 +1134,7 @@ function App() {
         onLoggedOut={handleLoggedOut}
         onSelectSet={handleSelectFlashcardSet}
         onGoMatch={goFlashcardMatch}
+        onGoMatchMulti={goFlashcardMatchMulti}
       />
     );
   }
@@ -1190,7 +1194,11 @@ function App() {
     return (
       <FlashcardMatchPage
         setId={selectedFlashcardSetId}
-        onBack={() => nav('flashcard-detail', { flashcardSetId: selectedFlashcardSetId })}
+        onBack={() =>
+          isMultiDeck(selectedFlashcardSetId)
+            ? goFlashcardLibrary()
+            : nav('flashcard-detail', { flashcardSetId: selectedFlashcardSetId })
+        }
         onAuth={goAuth}
         onGoLanding={goLanding}
         onGoTopics={goTopics}
