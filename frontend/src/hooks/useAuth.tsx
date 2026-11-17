@@ -72,6 +72,8 @@ interface AuthContextValue {
   completeOnboarding: () => Promise<void>;
   /** Doc trinh do tu danh gia cua user hien tai ([] neu chua co) */
   getSelfAssessment: () => Promise<TopicScore[]>;
+  /** Chu de da lam du 5 bai khac nhau -> nang luc tinh tu bai that, khong cho tu danh gia lai */
+  getLockedSelfAssessmentTopics: () => Promise<string[]>;
   /** Luu tu danh gia + danh dau da xong onboarding. Nem loi neu luu that bai. */
   saveSelfAssessment: (scores: TopicScore[]) => Promise<void>;
   /** Band nang luc hien tai theo chu de (deadband). Tu chuyen du lieu localStorage cu len backend. */
@@ -359,6 +361,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [userId, backend]);
 
+  const getLockedSelfAssessmentTopics = useCallback(async (): Promise<string[]> => {
+    if (!userId || backend !== 'api') return [];
+    return selfAssessmentApi.lockedTopics();
+  }, [userId, backend]);
+
   const saveSelfAssessment = async (scores: TopicScore[]) => {
     if (!user) throw new Error('Bạn cần đăng nhập để lưu đánh giá.');
     const items = scores.map((s) => ({ topic: s.topic, level: s.level }));
@@ -450,6 +457,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         completeOnboarding,
         getSelfAssessment,
+        getLockedSelfAssessmentTopics,
         saveSelfAssessment,
         getTopicBands,
         saveTopicBands,

@@ -15,6 +15,12 @@ public interface HistorySubmitRepository extends JpaRepository<HistorySubmit, Lo
 
     List<HistorySubmit> findByStudentIdOrderBySubmittedAtDesc(Long studentId);
 
+    /** [topic, số bài KHÁC NHAU đã nộp] của một học viên — dùng để khóa tự đánh giá theo chủ đề. */
+    @Query("SELECT h.problem.topic, COUNT(DISTINCT h.problem.id) FROM HistorySubmit h " +
+           "WHERE h.studentId = :studentId AND h.problem.topic IS NOT NULL " +
+           "GROUP BY h.problem.topic")
+    List<Object[]> countDistinctProblemsByTopic(@Param("studentId") Long studentId);
+
     @Modifying
     @Query("delete from HistorySubmit h where h.problem.id = :problemId")
     int deleteByProblemId(@Param("problemId") Long problemId);

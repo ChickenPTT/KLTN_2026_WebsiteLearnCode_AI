@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Circle,
   ClipboardCheck,
+  Lock,
 } from 'lucide-react';
 import {
   LEVEL_COLORS,
@@ -37,8 +38,25 @@ export function AssessmentPage({
   onGoProfile,
   onGoProgress,
 }: AssessmentPageProps) {
-  const { getSelfAssessment, saveSelfAssessment } = useAuth();
+  const { getSelfAssessment, getLockedSelfAssessmentTopics, saveSelfAssessment } = useAuth();
   const [ratings, setRatings] = useState<Record<string, SkillLevel>>({});
+  // Chu de da lam du 5 bai khac nhau: nang luc tinh tu bai that -> khong cho tu danh gia lai
+  const [lockedTopics, setLockedTopics] = useState<Set<string>>(new Set());
+  const isLocked = (topic: string) => lockedTopics.has(topic.trim().toLowerCase());
+
+  useEffect(() => {
+    let cancelled = false;
+    getLockedSelfAssessmentTopics()
+      .then((topics) => {
+        if (!cancelled) setLockedTopics(new Set(topics.map((t) => t.trim().toLowerCase())));
+      })
+      .catch(() => {
+        // Khong tai duoc -> khong khoa o UI; backend van giu nguyen chu de da khoa khi luu
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [getLockedSelfAssessmentTopics]);
   const [step, setStep] = useState(0); // paginate topics 4 at a time
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -70,24 +88,28 @@ export function AssessmentPage({
   const totalPages = Math.ceil(TOPICS.length / TOPICS_PER_PAGE);
   const pageTopics = TOPICS.slice(step * TOPICS_PER_PAGE, (step + 1) * TOPICS_PER_PAGE);
   const isLastPage = step === totalPages - 1;
-  const allCurrentRated = pageTopics.every((t) => ratings[t]);
-  const allRated = TOPICS.every((t) => ratings[t]);
+  // Chu de da khoa khong bat buoc phai chon
+  const allCurrentRated = pageTopics.every((t) => ratings[t] || isLocked(t));
+  const allRated = TOPICS.every((t) => ratings[t] || isLocked(t));
 
   const handleSelect = (topic: string, level: SkillLevel) => {
+    if (isLocked(topic)) return;
     setRatings((prev) => ({ ...prev, [topic]: level }));
     setSaveError(null);
   };
 
   const handleConfirm = async () => {
     if (!allRated || saving) return;
-    const scores: TopicScore[] = TOPICS.map((t) => ({
+    // Chu de da khoa: giu muc cu (neu co) de trang ket qua van hien du; backend cung khong cho sua
+    const scores: TopicScore[] = TOPICS.filter((t) => ratings[t]).map((t) => ({
       topic: t,
       level: ratings[t],
     }));
     setSaving(true);
     setSaveError(null);
     try {
-      await saveSelfAssessment(scores);
+      // Moi chu de deu da khoa va chua tung tu danh gia -> khong co gi de luu
+      if (scores.length > 0) await saveSelfAssessment(scores);
       onComplete(scores);
     } catch (e) {
       setSaveError(e instanceof Error && e.message ? e.message : 'Không lưu được đánh giá. Vui lòng thử lại.');
@@ -128,23 +150,40 @@ export function AssessmentPage({
           <div className="assessment-body">
             {/* Topic grid */}
             <div className="self-rate-grid">
-              {pageTopics.map((topic) => (
-                <div className="self-rate-row" key={topic}>
-                  <span className="self-rate-topic">{topic}</span>
+              {pageTopics.map((topic) => {
+                const locked = isLocked(topic);
+                return (
+                <div className="self-rate-row" key={topic} style={locked ? { opacity: 0.7 } : undefined}>
+                  <span className="self-rate-topic">
+                    {topic}
+                    {locked && (
+                      <span
+                        title="Bạn đã làm đủ 5 bài trong chủ đề này — năng lực được tính từ kết quả bài làm thực tế."
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '4px', marginLeft: '8px',
+                          fontSize: '11.5px', fontWeight: 600, color: '#f59e0b',
+                        }}
+                      >
+                        <Lock size={12} /> Đã tính từ bài làm
+                      </span>
+                    )}
+                  </span>
                   <div className="self-rate-levels">
                     {LEVELS.map((level) => (
                       <button
                         key={level}
+                        disabled={locked}
                         className={`rate-pill ${ratings[topic] === level ? 'is-active' : ''}`}
-                        style={
-                          ratings[topic] === level
+                        style={{
+                          ...(ratings[topic] === level
                             ? {
                                 borderColor: LEVEL_COLORS[level],
                                 color: LEVEL_COLORS[level],
                                 background: `${LEVEL_COLORS[level]}14`,
                               }
-                            : undefined
-                        }
+                            : {}),
+                          ...(locked ? { cursor: 'not-allowed' } : {}),
+                        }}
                         onClick={() => handleSelect(topic, level)}
                       >
                         {ratings[topic] === level ? (
@@ -157,8 +196,15 @@ export function AssessmentPage({
                     ))}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
+
+            {lockedTopics.size > 0 && (
+              <p style={{ fontSize: '12.5px', color: '#8b92a6', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Lock size={12} /> Chủ đề đã làm đủ 5 bài được tính năng lực từ kết quả bài làm thực tế nên không thể tự đánh giá lại.
+              </p>
+            )}
 
             {/* Pagination dots (MOVED BELOW TOPIC GRID) */}
             <div className="assessment-page-indicator" style={{ marginTop: '8px', marginBottom: '4px' }}>

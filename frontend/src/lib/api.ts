@@ -178,6 +178,8 @@ export interface BackendSelfAssessmentItem {
 
 export const selfAssessmentApi = {
   get: () => apiFetch<BackendSelfAssessmentItem[]>('/api/auth/me/self-assessment'),
+  /** Chủ đề đã làm đủ 5 bài khác nhau -> không được tự đánh giá lại (backend vẫn giữ nguyên nếu có gửi) */
+  lockedTopics: () => apiFetch<string[]>('/api/auth/me/self-assessment/locked-topics'),
   /** Luu tu danh gia + backend danh dau onboardingCompleted = true */
   save: (items: BackendSelfAssessmentItem[]) =>
     apiFetch<BackendUser>('/api/auth/me/self-assessment', {

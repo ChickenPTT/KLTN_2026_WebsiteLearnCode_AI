@@ -5,6 +5,7 @@ import { TOPICS, type SkillLevel, LEVEL_COLORS, LEVEL_LABELS } from '@/types';
 import { normalizeDifficulty } from '@/lib/difficulty';
 import type { GeneratedQuestion } from './admin.types';
 import { templatesApi, type Template as BackendTemplate } from '@/lib/api';
+import { titleFromStatement } from '@/lib/problemsApi';
 
 interface AdminGeneratorTabProps {
   onPublishQuestion?: (q: GeneratedQuestion) => void | Promise<void>;
@@ -78,7 +79,8 @@ export function AdminGeneratorTab({
         const diff: SkillLevel = normalizeDifficulty(problem.level, 'intermediate');
         generatedProblems.push({
           id: String(problem.id),
-          title: problem.statement.length > 80 ? problem.statement.substring(0, 80) + '...' : problem.statement,
+          // Cùng quy tắc với danh sách bài tập: tên template, nếu không có thì dòng đầu của đề
+          title: problem.templateName?.trim() || titleFromStatement(problem.statement, problem.id),
           topic: problem.topic,
           difficulty: diff,
           starterCode: '',

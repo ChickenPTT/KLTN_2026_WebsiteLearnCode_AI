@@ -123,7 +123,13 @@ public class AuthController {
         return selfAssessmentService.getForUser(currentUser(authentication).getUser().getId());
     }
 
-    /** Luu tu danh gia + danh dau da hoan tat onboarding. */
+    /** Chủ đề đã làm đủ 5 bài khác nhau -> năng lực tính từ bài thật, không cho tự đánh giá lại. */
+    @GetMapping("/me/self-assessment/locked-topics")
+    public List<String> getLockedSelfAssessmentTopics(Authentication authentication) {
+        return selfAssessmentService.lockedTopics(currentUser(authentication).getUser().getId());
+    }
+
+    /** Luu tu danh gia + danh dau da hoan tat onboarding. Chủ đề đã khóa được giữ nguyên. */
     @PutMapping("/me/self-assessment")
     public UserResponse saveSelfAssessment(Authentication authentication, @RequestBody List<SelfAssessmentItem> items) {
         return selfAssessmentService.save(currentUser(authentication).getUser().getId(), items);

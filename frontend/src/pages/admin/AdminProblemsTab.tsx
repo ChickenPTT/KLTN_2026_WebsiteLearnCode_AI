@@ -565,7 +565,7 @@ export function AdminProblemsTab({
 
               {/* Ví dụ Input / Output */}
               {viewingProblem.examples?.[0] && (
-                <div className="admin-example-card">
+                <div className="admin-example-card" style={{ flexShrink: 0 }}>
                   <h4 className="admin-example-title">
                     <Code2 size={14} /> Ví dụ mẫu Input / Output
                   </h4>
@@ -586,7 +586,7 @@ export function AdminProblemsTab({
                 <h4 className="tpl-detail-heading" style={{ margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Code2 size={16} style={{ color: '#5e8dfa' }} /> Mã thực thi bài tập
                 </h4>
-                <pre className="gen-code-preview" style={{ padding: '14px', borderRadius: '8px', overflowX: 'auto' }}>
+                <pre className="gen-code-preview" style={{ padding: '14px', borderRadius: '8px', overflow: 'auto', maxHeight: '50vh' }}>
                   <code>{viewingProblem.referenceSolution || '// Bài này chưa có mã thực thi'}</code>
                 </pre>
               </div>

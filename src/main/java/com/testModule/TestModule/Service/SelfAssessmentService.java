@@ -3,6 +3,7 @@ package com.testModule.TestModule.Service;
 import com.testModule.TestModule.Model.SelfAssessedLevel;
 import com.testModule.TestModule.Model.User;
 import com.testModule.TestModule.Model.UserSelfAssessment;
+import com.testModule.TestModule.Repository.HistorySubmitRepository;
 import com.testModule.TestModule.Repository.UserRepository;
 import com.testModule.TestModule.Repository.UserSelfAssessmentRepository;
 import com.testModule.TestModule.dto.SelfAssessmentItem;
@@ -13,10 +14,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Luu/doc trinh do hoc vien tu danh gia theo chu de.
@@ -27,13 +30,36 @@ public class SelfAssessmentService {
 
     private static final int MAX_ITEMS = 50;
     private static final int MAX_TOPIC_LENGTH = 100;
+    /**
+     * Đủ số bài khác nhau này trong một chủ đề thì năng lực tính hoàn toàn từ bài thật
+     * (khớp PRIOR_FADE_COUNT ở frontend/src/lib/progress.ts) -> khóa tự đánh giá chủ đề đó.
+     */
+    public static final int LOCK_AFTER_PROBLEMS = 5;
 
     private final UserSelfAssessmentRepository assessmentRepository;
     private final UserRepository userRepository;
+    private final HistorySubmitRepository historyRepository;
 
-    public SelfAssessmentService(UserSelfAssessmentRepository assessmentRepository, UserRepository userRepository) {
+    public SelfAssessmentService(UserSelfAssessmentRepository assessmentRepository,
+                                 UserRepository userRepository,
+                                 HistorySubmitRepository historyRepository) {
         this.assessmentRepository = assessmentRepository;
         this.userRepository = userRepository;
+        this.historyRepository = historyRepository;
+    }
+
+    /** Các chủ đề đã làm đủ {@link #LOCK_AFTER_PROBLEMS} bài khác nhau -> không được tự đánh giá lại. */
+    @Transactional(readOnly = true)
+    public List<String> lockedTopics(Long userId) {
+        List<String> result = new ArrayList<>();
+        for (Object[] row : historyRepository.countDistinctProblemsByTopic(userId)) {
+            String topic = row[0] == null ? "" : row[0].toString().trim();
+            long count = ((Number) row[1]).longValue();
+            if (!topic.isEmpty() && count >= LOCK_AFTER_PROBLEMS) {
+                result.add(topic);
+            }
+        }
+        return result;
     }
 
     @Transactional(readOnly = true)
@@ -55,6 +81,14 @@ public class SelfAssessmentService {
         for (UserSelfAssessment a : assessmentRepository.findByUserId(userId)) {
             existing.put(key(a.getTopic()), a);
         }
+
+        // Chủ đề đã khóa: giữ nguyên bản ghi cũ (không sửa, không xóa, không tạo mới) dù client gửi gì
+        Set<String> locked = new HashSet<>();
+        for (String t : lockedTopics(userId)) {
+            locked.add(key(t));
+        }
+        locked.forEach(existing::remove);
+        incoming.keySet().removeIf(locked::contains);
 
         List<UserSelfAssessment> toSave = new ArrayList<>();
         incoming.forEach((k, item) -> {

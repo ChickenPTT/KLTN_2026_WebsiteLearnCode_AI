@@ -38,7 +38,7 @@ import {
   type BackendProblem,
   type BackendRole,
 } from '@/lib/api';
-import { toDifficultyLevel } from '@/lib/problemsApi';
+import { toDifficultyLevel, titleFromStatement } from '@/lib/problemsApi';
 import { AdminProfileContent } from './AdminProfileContent';
 
 interface AdminPageProps {
@@ -177,7 +177,8 @@ export function AdminPage({
   // Mapping backend Problem to frontend PracticeProblem
   const mapBackendProblem = (p: BackendProblem): PracticeProblem => ({
     id: String(p.id),
-    title: p.statement.length > 80 ? p.statement.substring(0, 80) + '...' : p.statement,
+    // Cùng quy tắc với trang học viên (toPracticeProblem): tên template, nếu không có thì dòng đầu của đề
+    title: p.templateName?.trim() || titleFromStatement(p.statement, p.id),
     topic: p.topic,
     difficulty: mapDifficulty(p.level),
     description: p.statement,
